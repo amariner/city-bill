@@ -371,7 +371,7 @@ export class Simulation {
           if (c.activity === 'work' && c.work) {
             const employer = catalogData(c.work.buildingId);
             // Cadena de alimento: los granjeros en faena llenan el granero.
-            if (employer?.role === 'agriculture') this.economy.produceFood(hours);
+            if (employer?.role === 'agriculture') this.economy.produceFood(`${c.home.ax},${c.home.az}`, hours);
             // Dinero: cada hora trabajada es salario para el hogar.
             this.economy.payWage(`${c.home.ax},${c.home.az}`, hours, employer?.tier ?? 0);
           }
@@ -394,8 +394,10 @@ export class Simulation {
     if (planned.activity === 'shop' && planned.target) {
       this.economy.registerVisit(planned.target);
       const k = `${c.home.ax},${c.home.az}`;
-      // Compra de comida: limitada por granero Y bolsillo (lógica de dinero).
-      const got = this.economy.buyFood(k, 3);
+      const shopKey = `${planned.target.ax},${planned.target.az}`;
+      // Compra de comida: limitada por granero Y bolsillo (lógica de dinero);
+      // el importe entra en la caja de ESA tienda (economía circular).
+      const got = this.economy.buyFood(shopKey, k, 3);
       this.pantry.set(k, (this.pantry.get(k) ?? 0) + got);
       // Un capricho si el hogar va holgado (sumidero de dinero).
       if (this.economy.walletOf(k) > 30) this.economy.spend(k, SHOP_TREAT_PRICE);
@@ -403,11 +405,12 @@ export class Simulation {
     if (planned.activity === 'eat') {
       const k = `${c.home.ax},${c.home.az}`;
       const atShop = planned.target && catalogData(planned.target.buildingId)?.role === 'commerce';
-      if (atShop) {
+      if (atShop && planned.target) {
         // Comer fuera: compra, come una unidad y lleva el resto a la despensa.
-        const got = this.economy.buyFood(k, 4);
+        const shopKey = `${planned.target.ax},${planned.target.az}`;
+        const got = this.economy.buyFood(shopKey, k, 4);
         this.pantry.set(k, (this.pantry.get(k) ?? 0) + Math.max(0, got - 1));
-        if (planned.target) this.economy.registerVisit(planned.target);
+        this.economy.registerVisit(planned.target);
       } else {
         this.pantry.set(k, Math.max(0, (this.pantry.get(k) ?? 0) - 1));
       }

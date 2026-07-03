@@ -10,6 +10,7 @@
 import { seedWorld } from '../world/seed';
 import { Simulation } from './simulation';
 import { TICK_GAME_S, DAY_GAME_SECONDS } from './clock';
+import { FOOD_PRICE } from './economy';
 
 let passed = 0;
 let failed = 0;
@@ -181,6 +182,20 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
   check('gobierno: hay hogares sin ingreso propio (mayores)', anyElder || cs.length > 0);
   const avgFood = cs.reduce((s, c) => s + c.needs.food, 0) / cs.length;
   check('gobierno: la red evita el colapso alimentario', avgFood > 0.15, `→ ${avgFood.toFixed(2)}`);
+}
+
+// Ciclo 4 RESEARCH.md — economía circular: la tienda paga al mayorista (que
+// reparte entre los granjeros de hoy) y tributa su margen; el dinero de la
+// compra de comida ya no se esfuma, CIRCULA de vuelta a quien produjo.
+{
+  const sim = new Simulation(seedWorld(), 42);
+  for (let t = 0; t < TICKS_PER_DAY * 8; t++) sim.step();
+  const e = sim.economy;
+  check('circular: se paga al mayorista', e.wholesalePaid > 0, `→ ${e.wholesalePaid.toFixed(0)}`);
+  check('circular: se recauda impuesto de sociedades', e.corpTaxCollected > 0, `→ ${e.corpTaxCollected.toFixed(0)}`);
+  const anyTill = [...e.tills.values()].some((v) => v > 0);
+  check('circular: las tiendas acumulan caja propia', anyTill);
+  check('circular: el pago al mayorista no supera lo vendido', e.wholesalePaid <= e.foodSold * FOOD_PRICE + 1e-6);
 }
 
 // Determinismo: mismo snapshot final con la misma semilla.

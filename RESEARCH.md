@@ -168,3 +168,21 @@ una simulación, y los tratamos como tales:
   por mayor a la granja); (b) no hay desempleo por falta de vacantes vs.
   pereza — todo parado es "necesitado", simplificación aceptable por ahora;
   (c) CitizenInfo (inspector) sigue sin bolsillo/despensa — deuda visual.
+- 2026-07-03 · **Ciclo 4: Economía circular** · Modelo: el dinero de comprar
+  comida ya NO se esfuma en `spend()` — entra en la CAJA de esa tienda
+  concreta (`tills`). Al cierre del día, cada tienda liquida con el
+  mayorista (WHOLESALE_FOOD_PRICE = 40% del precio de venta) y ese pago se
+  reparte entre los HOGARES GRANJEROS del día a prorrata de horas trabajadas
+  (vía `farmerHoursToday`) — el dinero vuelve a quien produjo, no al aire.
+  Del margen restante, la tienda tributa un 15% (impuesto de sociedades) al
+  mismo tesoro del ciclo 3. Círculo cerrado: ciudadano → tienda → granjero
+  (bonus) → tesoro → pensiones → ciudadano. Verificado: el pago al mayorista
+  nunca supera lo vendido (invariante contable). 37/37 tests.
+  Carencias observadas: (a) las cajas de tienda (`tills`) hoy no financian
+  nada — candidato natural: que la propia tienda page NUEVAS contrataciones
+  o mejoras visuales cuando prospera (acopla con growth/estima N4); (b) el
+  granjero cobra DOS veces por su faena (salario fijo + bonus del mayorista)
+  — realista (jornal + venta de cosecha) pero anotar por si desequilibra la
+  economía a largo plazo, vigilar en Crónica; (c) con 200+ ciudadanos, el
+  bucle `for (const [homeKey, hours] of farmerHoursToday)` dentro del loop de
+  tiendas es O(tiendas×granjeros) — barato hoy, revisar si escala mal.

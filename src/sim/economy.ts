@@ -38,6 +38,14 @@ export const TAX_RATE = 0.2;
 /** Pensión diaria por hogar sin ingresos (si el tesoro alcanza). */
 export const PENSION_PER_DAY = 18;
 
+// --- Lógica de economía circular (ciclo 4) -------------------------------------
+/** Lo que la tienda paga por unidad al comprar al por mayor (el resto de
+ * FOOD_PRICE es su margen). Cierra el círculo: el cliente paga a la tienda,
+ * la tienda paga a quien produjo. */
+export const WHOLESALE_FOOD_PRICE = FOOD_PRICE * 0.4;
+/** Del margen de la tienda, la parte que tributa como impuesto de sociedades. */
+export const CORP_TAX_RATE = 0.15;
+
 export class Economy {
   workplaces: Workplace[] = [];
   /** Granero comunal: lo llenan los granjeros, lo venden las tiendas.
@@ -54,6 +62,16 @@ export class Economy {
   treasury = 0;
   taxesCollected = 0;
   pensionsPaid = 0;
+  /** Caja de cada tienda ('ax,az') — economía circular (ciclo 4). */
+  tills = new Map<string, number>();
+  /** Comida vendida HOY por tienda, para liquidar el mayorista al cierre. */
+  private foodSoldTodayByShop = new Map<string, number>();
+  /** Horas de faena HOY por granjero (clave = hogar 'ax,az'), para repartir
+   * lo que pagan las tiendas al mayorista proporcionalmente a quien produjo. */
+  private farmerHoursToday = new Map<string, number>();
+  /** Métricas de la economía circular (tests/crónica). */
+  wholesalePaid = 0;
+  corpTaxCollected = 0;
 
   /** Nómina: el trabajo mete dinero en el hogar del trabajador, menos la
    * parte que va al tesoro municipal (impuesto sobre la renta, lógica de
@@ -155,21 +173,68 @@ export class Economy {
     this.visitsToday.set(k, (this.visitsToday.get(k) ?? 0) + 1);
   }
 
-  /** Los granjeros en faena llenan el granero. */
-  produceFood(farmerHours: number): void {
-    this.granary += FOOD_PER_FARMER_HOUR * farmerHours;
+  /** Los granjeros en faena llenan el granero; se recuerda quién produjo
+   * (por hogar) para que la liquidación de fin de día le pague su parte. */
+  produceFood(farmerHomeKey: string, hours: number): void {
+    this.granary += FOOD_PER_FARMER_HOUR * hours;
+    this.farmerHoursToday.set(farmerHomeKey, (this.farmerHoursToday.get(farmerHomeKey) ?? 0) + hours);
   }
 
-  /** Compra hasta `want` unidades pagándolas del hogar. Limitan DOS cosas
-   * reales: el stock del granero y el dinero del hogar. */
-  buyFood(homeKey: string, want: number): number {
+  /** Compra hasta `want` unidades EN UNA TIENDA, pagándolas del hogar. Limitan
+   * DOS cosas reales: el stock del granero y el dinero del hogar. El importe
+   * entra en la caja de la tienda (no se esfuma): de ahí sale el pago al
+   * mayorista y el impuesto de sociedades en `settleShops()`. */
+  buyFood(shopKey: string, homeKey: string, want: number): number {
     const affordable = Math.floor(this.walletOf(homeKey) / FOOD_PRICE);
     const got = Math.min(this.granary, want, affordable);
     if (got <= 0) return 0;
     this.granary -= got;
     this.foodSold += got;
     this.spend(homeKey, got * FOOD_PRICE);
+    this.tills.set(shopKey, (this.tills.get(shopKey) ?? 0) + got * FOOD_PRICE);
+    this.foodSoldTodayByShop.set(shopKey, (this.foodSoldTodayByShop.get(shopKey) ?? 0) + got);
     return got;
+  }
+
+  tillOf(shopKey: string): number {
+    return this.tills.get(shopKey) ?? 0;
+  }
+
+  /**
+   * Liquidación diaria de la economía circular: cada tienda paga al mayorista
+   * (repartido entre los hogares granjeros según horas trabajadas HOY — así
+   * el dinero vuelve a quien produjo, no al aire) y tributa parte de su
+   * margen. Sin esto el dinero de la compra de comida se esfumaba en
+   * `spend()`; con esto circula: ciudadano → tienda → granjero → tesoro.
+   */
+  settleShops(): void {
+    const farmPool = new Map<string, number>(); // homeKey -> bonus a repartir
+    for (const [shopKey, unitsSold] of this.foodSoldTodayByShop) {
+      const wholesaleCost = unitsSold * WHOLESALE_FOOD_PRICE;
+      const till = this.tillOf(shopKey);
+      const paid = Math.min(till, wholesaleCost);
+      this.tills.set(shopKey, till - paid);
+      this.wholesalePaid += paid;
+      // El mayorista paga a los hogares granjeros de HOY, a prorrata de horas.
+      const totalHours = [...this.farmerHoursToday.values()].reduce((a, b) => a + b, 0);
+      if (totalHours > 0 && paid > 0) {
+        for (const [homeKey, hours] of this.farmerHoursToday) {
+          farmPool.set(homeKey, (farmPool.get(homeKey) ?? 0) + (paid * hours) / totalHours);
+        }
+      }
+      // Impuesto de sociedades sobre el margen del día (ventas - mayorista).
+      const revenue = unitsSold * FOOD_PRICE;
+      const margin = Math.max(0, revenue - wholesaleCost);
+      const corpTax = Math.min(this.tillOf(shopKey), margin * CORP_TAX_RATE);
+      this.tills.set(shopKey, this.tillOf(shopKey) - corpTax);
+      this.treasury += corpTax;
+      this.corpTaxCollected += corpTax;
+    }
+    for (const [homeKey, bonus] of farmPool) {
+      this.wallets.set(homeKey, (this.wallets.get(homeKey) ?? 0) + bonus);
+    }
+    this.foodSoldTodayByShop.clear();
+    this.farmerHoursToday.clear();
   }
 
   /** Cierre del día: convierte visitas en prosperidad (media móvil 3 días).
@@ -186,6 +251,7 @@ export class Economy {
       this.prosperity.set(k, prev + (today - prev) / 3);
     }
     this.visitsToday.clear();
+    this.settleShops();
   }
 
   /** Datos agregados para growth (Fase 4) y HUD. */
