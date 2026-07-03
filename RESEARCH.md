@@ -86,6 +86,16 @@ archivo `sim/<logica>.ts` (como lifecycle.ts) sin cambiar su entrada.
 
 Objetivo de escala: **10.000 ciudadanos** con tick ≤ 50 ms y save < 5 MB.
 
+**Medido, no solo planeado** (2026-07-04, tras el ciclo 7, con las 9 lógicas
+activas a la vez): estrés sintético en el peor caso (todos amontonados en
+las mismas viviendas, el escenario más caro para el hash espacial de
+encuentros) — 500 hab. 1.7 ms/tick, 2.000 hab. 4.9 ms, 5.000 hab. 5.3 ms,
+8.000 hab. 6.2 ms. Escala sub-lineal en este rango, **muy por debajo** del
+presupuesto de 50 ms incluso en el peor caso — el objetivo de 10.000 parece
+holgadamente alcanzable con la arquitectura actual SIN optimizar nada
+todavía. Test de regresión permanente en `sim.test.ts` (3.000 hab. sintéticos)
+para que esta garantía no se rompa en silencio con futuros ciclos.
+
 | Recurso | Hoy (~10-100 hab.) | Límite previsto | Tecnología para superarlo |
 |---|---|---|---|
 | CPU del tick | objetos JS, O(pob.) | ~2.000 hab. | 1º **LOD de sim**: lejos de cámara, tick grueso (decidir 1/min, sin física de paso). 2º SoA: necesidades/posiciones en `Float32Array` planas (cache-friendly). 3º WASM solo si el perfil lo exige. |

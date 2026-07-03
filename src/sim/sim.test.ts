@@ -290,5 +290,32 @@ check('determinismo: misma semilla → mismo estado', a.length === b.length && a
   check('§1.5: tick medio ≤ 50 ms', perTick <= 50, `→ ${perTick.toFixed(2)} ms`);
 }
 
+// Escala (RESEARCH.md §5 — objetivo 10.000 habitantes): estrés sintético con
+// las 9 lógicas activas a la vez, en el peor caso realista (todos
+// amontonados en las mismas pocas viviendas, el escenario más caro para el
+// hash espacial de encuentros). Guarda como test lo que antes era solo una
+// promesa en la documentación.
+{
+  const sim = new Simulation(seedWorld(), 7) as unknown as {
+    citizens: Map<number, unknown>;
+    index: { ofRole: (r: string) => Array<{ ax: number; az: number; id: string }> };
+    step: () => void;
+  } & Record<string, unknown>;
+  const homes = sim.index.ofRole('residential');
+  const TARGET = 3000;
+  let n = 0;
+  while (sim.citizens.size < TARGET) {
+    const h = homes[n % homes.length];
+    (sim.spawnCitizen as (ax: number, az: number, id: string) => void)(h.ax, h.az, h.id);
+    n++;
+  }
+  for (let i = 0; i < 5; i++) sim.step(); // warmup JIT
+  const N = 20;
+  const t0 = performance.now();
+  for (let i = 0; i < N; i++) sim.step();
+  const perTick = (performance.now() - t0) / N;
+  check(`escala: ${TARGET} hab. sintéticos ≤ 50 ms/tick`, perTick <= 50, `→ ${perTick.toFixed(2)} ms`);
+}
+
 console.log(`\n${passed} ok, ${failed} fallos`);
 if (failed > 0) throw new Error(`${failed} tests fallidos`);
