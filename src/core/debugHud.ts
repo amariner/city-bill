@@ -10,6 +10,8 @@ import { worldToCell } from '../world/grid';
 export interface DebugStats {
   agents?: number;
   chunks?: number;
+  /** "HH:MM día N ×v" del reloj de sim. */
+  clock?: string;
 }
 
 export class DebugHud {
@@ -91,6 +93,7 @@ export class DebugHud {
       `geometries ${mem.geometries}`,
       `textures   ${mem.textures}`,
       `agents     ${this.stats.agents ?? 0}`,
+      `clock      ${this.stats.clock ?? '—'}`,
       `chunks vis ${this.stats.chunks ?? 0}`,
       `cell       ${this.hoverCell[0]}, ${this.hoverCell[1]}`,
       `zoom       ${this.camera.zoomIndex}`,
