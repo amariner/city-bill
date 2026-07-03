@@ -14,7 +14,7 @@ const stage = createStage();
 stage.scene.add(sceneName === 'buildings' ? buildShowcase() : buildNeighborhood());
 
 const camera = new IsoCamera();
-camera.setTarget(sceneName === 'buildings' ? 0 : 15, sceneName === 'buildings' ? 0 : 15);
+camera.setTarget(sceneName === 'buildings' ? 0 : 20, sceneName === 'buildings' ? 0 : 20);
 camera.setZoomIndex(1);
 camera.apply();
 

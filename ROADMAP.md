@@ -292,3 +292,15 @@ aprieta, T3.8-T3.10 y la Fase 4 valen más que cualquier cosa de la Fase 5.
   `parkingGarage`, `civic` y `factory`, con retículas de ventanas en `InstancedMesh`
   por edificio (helper `windowGrid`). Expositor visual en `showcase.ts`, accesible
   con `?scene=buildings` — úsalo como test visual del catálogo en T1.3.
+- 2026-07-03 — Fase 1 (T1.1–T1.4) hecha. Decisiones:
+  · El terreno se renderiza como UNA malla mergeada con vertex-colors (`render/terrain.ts`):
+    color base por región (parches grandes) + jitter fino por celda → patchwork con ~1 draw call.
+  · El campo de fondo se siembra dentro del grid (área finita ±90 celdas). El streaming
+    infinito llega en T1.7; por ahora el mundo es finito.
+  · El estanque se aproxima con celdas `water` (borde escalonado). Aceptable; mejorable luego.
+  · TRAMPA APRENDIDA (para futuras mallas a mano): un BufferGeometry de quads en el plano
+    XZ necesita winding CCW visto desde +Y o el backface culling lo descarta (se ve el
+    fondo del cielo y parece que "no hay suelo"). La normal declarada NO afecta al culling,
+    solo a la luz. Además, computeBoundingSphere() explícito por higiene.
+  · Deuda T1.4: los árboles se renderizan como Groups individuales (cientos de draw calls).
+    Lo resuelve T1.6 (instancing). No tocar hasta entonces.
