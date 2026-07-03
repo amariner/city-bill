@@ -205,7 +205,7 @@ repetido, arbolado automático en márgenes de carretera (rasgo de identidad).
 - [ ] **T3.9 Vehículos.** Coches (T2+) para trayectos > 40 celdas: el ciudadano camina
   a su coche, el coche recorre el grafo vial (velocidad por tipo de vía, pausa en
   cruces ocupados), aparca cerca del destino. Tractores recorren campos en franjas.
-- [ ] **T3.10 Inspector de ciudadano.** Click en un ciudadano → tarjetita diegética:
+- [x] **T3.10 Inspector de ciudadano.** Click en un ciudadano → tarjetita diegética:
   nombre, actividad actual ("Volviendo a casa"), necesidades como barritas mínimas.
   Cámara puede seguirle (tecla F). Es la ventana para VERIFICAR la autonomía.
 
@@ -213,20 +213,20 @@ repetido, arbolado automático en márgenes de carretera (rasgo de identidad).
 > Objetivo: la ciudad se construye y evoluciona sola; el jugador es más alcalde-jardinero
 > que constructor. Modo "solo observar" completamente viable.
 
-- [ ] **T4.1 Demanda.** `world/growth.ts` calcula demanda residencial/comercial/agrícola
+- [x] **T4.1 Demanda.** `world/growth.ts` calcula demanda residencial/comercial/agrícola
   a partir del estado real de la sim (desempleo, viviendas llenas, tiendas saturadas).
-- [ ] **T4.2 Crecimiento por etapas.** En celdas zonificadas (o adyacentes a carretera
+- [~] **T4.2 Crecimiento por etapas.** En celdas zonificadas (o adyacentes a carretera
   en modo autónomo total), la demanda materializa edificios por etapas con animación de
   construcción (andamio low-poly → pop). Parcela vacía → casita → casa con jardín →
   adosados → bloque, según densidad local. Cada edificio nuevo genera/atrae ciudadanos.
-- [ ] **T4.3 Inmigración/emigración.** Familias llegan si hay vivienda+empleo+felicidad;
+- [~] **T4.3 Inmigración/emigración.** Familias llegan si hay vivienda+empleo+felicidad;
   se van si no. La población es consecuencia, no un slider.
 - [ ] **T4.4 Modo autónomo.** Toggle: la ciudad también traza carreteras nuevas
   (extensiones del grafo hacia demanda no servida, siempre ortogonales y arboladas).
   Con el juego en marcha y sin input, en 30 min de juego debe emerger un pueblo
   coherente y bonito desde una sola granja. **Este es el test de aceptación estrella
   del proyecto** — grabarlo con screenshots periódicos.
-- [ ] **T4.5 Hitos y tiers.** Población desbloquea tiers del catálogo (T1→T4) con una
+- [~] **T4.5 Hitos y tiers.** Población desbloquea tiers del catálogo (T1→T4) con una
   tarjeta de celebración discreta. El tier T4 introduce la estética Zlín (bloques de
   ladrillo, fábrica, tren) — ver CATALOG.md.
 

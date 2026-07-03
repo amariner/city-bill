@@ -39,8 +39,8 @@ export class GameClock {
    */
   get darkness(): number {
     const h = this.hour;
-    // Coseno centrado en las 12h: -1 mediodía, +1 medianoche → [0,1].
-    return (Math.cos(((h - 12) / 24) * Math.PI * 2) + 1) / 2;
+    // Coseno del día: +1 a medianoche (h=0), -1 a mediodía (h=12) → [0,1].
+    return (Math.cos((h / 24) * Math.PI * 2) + 1) / 2;
   }
 
   /** "HH:MM" para HUD/debug. */

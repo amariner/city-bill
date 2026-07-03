@@ -23,18 +23,42 @@ export class WorldView {
   readonly root = new THREE.Group();
   readonly chunkCount: number;
   private visuals: ChunkVisual[] = [];
+  private byChunk = new Map<string, ChunkVisual>();
   private frustum = new THREE.Frustum();
   private mat = new THREE.Matrix4();
 
-  constructor(grid: Grid) {
+  constructor(private grid: Grid) {
     grid.forEachChunk((chunk) => {
       const visual = this.buildChunk(grid, chunk);
       if (visual) {
-        this.visuals.push(visual);
-        this.root.add(visual.group);
+        this.addVisual(chunk, visual);
       }
     });
     this.chunkCount = this.visuals.length;
+  }
+
+  private addVisual(chunk: Chunk, visual: ChunkVisual): void {
+    this.visuals.push(visual);
+    this.byChunk.set(`${chunk.chx},${chunk.chz}`, visual);
+    this.root.add(visual.group);
+  }
+
+  /** Reconstruye la vista del chunk que contiene la celda (cx,cz) — para
+   * crecimiento autónomo y construcción del jugador. */
+  refreshChunkAt(cx: number, cz: number): void {
+    const chx = Math.floor(cx / CHUNK);
+    const chz = Math.floor(cz / CHUNK);
+    const key = `${chx},${chz}`;
+    const chunk = this.grid.chunkAt(chx, chz);
+    if (!chunk) return;
+    const old = this.byChunk.get(key);
+    if (old) {
+      this.root.remove(old.group);
+      this.visuals.splice(this.visuals.indexOf(old), 1);
+      this.byChunk.delete(key);
+    }
+    const visual = this.buildChunk(this.grid, chunk);
+    if (visual) this.addVisual(chunk, visual);
   }
 
   private buildChunk(grid: Grid, chunk: Chunk): ChunkVisual | null {

@@ -87,7 +87,7 @@ export interface SnapshotMsg {
 
 export interface SimEventMsg {
   type: 'event';
-  name: 'citizenBorn' | 'citizenLeft' | 'jobTaken' | 'chatStarted' | 'cityGrew';
+  name: 'citizenBorn' | 'citizenLeft' | 'jobTaken' | 'chatStarted' | 'cityGrew' | 'tierUnlocked';
   data?: Record<string, unknown>;
 }
 

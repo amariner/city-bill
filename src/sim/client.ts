@@ -35,6 +35,8 @@ export class SimClient {
   /** Tiempo de juego (s) del último snapshot — para HUD. */
   gameTime = 0;
   onCitizenInfo: ((info: CitizenInfoMsg) => void) | null = null;
+  /** Eventos de sim (cityGrew, citizenBorn…) para que el main reaccione. */
+  onEvent: ((name: string, data?: Record<string, unknown>) => void) | null = null;
 
   constructor(seed: number, gridJson: string) {
     this.worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
@@ -74,7 +76,8 @@ export class SimClient {
         this.onCitizenInfo?.(msg);
         break;
       case 'event':
-        break; // Fase 4/5: toasts, hitos…
+        this.onEvent?.(msg.name, msg.data);
+        break;
     }
   }
 

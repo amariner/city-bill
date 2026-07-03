@@ -90,7 +90,20 @@ velocidad de paseo en `simulation.ts` (WALK_CELLS_PER_TICK = 0.9 celdas/tick).
 
 ## 5. Estado actual (2026-07-03, sesión Fable)
 
-Hecho y con tests verdes (10/10, `npm test`):
+Hecho y con tests verdes (14/14, `npm test`):
+- **Fase 4 (lógica)**: `world/growth.ts` — demanda desde el estado real
+  (computeDemand: trabajo si paro>35% o parados sin vacantes; vivienda si no
+  hay huecos y hay vacantes; comercio si prosperidad alta), parcelas junto a
+  vía con retranqueo y fachada a la calle (findParcel), compacidad hacia el
+  centro de masa. La sim intenta crecer 1 vez/hora de juego, solo de día.
+  El worker construye en SU grid y emite `cityGrew`; el main replica con
+  `worldGrid.placeBuilding` + `worldView.refreshChunkAt` (ver main.ts).
+  Inmigración: cada vivienda nueva se llena de familias (`fillHome`).
+  Tiers T4.5: pop 25→T2, 80→T3, 200→T4 (evento `tierUnlocked`, sin UI aún).
+- T3.10 inspector: click en ciudadano → tarjeta (nombre, actividad, barritas);
+  F sigue, Esc cierra (`ui/inspector.ts`).
+- BUG ARREGLADO: `clock.darkness` estaba invertida (1 a mediodía). Si tocas
+  esa curva, añade un check de cordura: darkness(0h) ≈ 1, darkness(12h) ≈ 0.
 - T3.1 worker+protocolo+reloj (velocidades 0-3 con teclas 0-3; HUD F3 muestra reloj).
 - T3.2 A* incremental (falta suavizado de esquinas VISUAL, ver §6).
 - T3.3 ciudadano+necesidades. T3.4 cerebro (día coherente verificado por test).

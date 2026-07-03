@@ -22,12 +22,14 @@ import { chooseActivity } from './citizens/brain';
 import { ACTIVITY_BY_KIND, SimContext, activityLabel } from './citizens/activities';
 import { SocialSystem } from './citizens/social';
 import { AgentState, ActivityKind, activityId, AGENT_STRIDE } from './protocol';
+import { computeDemand, itemForDemand, findParcel, townCenter, GrowthPlacement } from '../world/growth';
+import { catalogData, Tier } from '../world/catalogData';
 
 /** Velocidad al caminar, en celdas por tick (0.25 s reales a vel. 1). */
 const WALK_CELLS_PER_TICK = 0.9; // ≈ 7 km/h de juego a escala urbana
 
 export interface SimEvent {
-  name: 'citizenBorn' | 'jobTaken' | 'chatStarted';
+  name: 'citizenBorn' | 'jobTaken' | 'chatStarted' | 'cityGrew' | 'tierUnlocked';
   data: Record<string, unknown>;
 }
 
@@ -42,6 +44,12 @@ export class Simulation {
   private nextId = 1;
   private lastDay = 0;
   events: SimEvent[] = [];
+  /** T4.4: la ciudad crece sola. Activado por defecto (es el alma del juego). */
+  autonomousGrowth = true;
+  /** Tier desbloqueado (T4.5 lo ligará a población; fijo de momento). */
+  tier: Tier = 1;
+  /** Familias alojadas por vivienda ('ax,az') — para la demanda de techo. */
+  private households = new Map<string, number>();
 
   constructor(readonly grid: Grid, seed: number) {
     this.rng = createRng(seed ^ 0x5f3759df);
@@ -58,15 +66,30 @@ export class Simulation {
   /** 1-3 adultos por hueco de vivienda. Vecinos de la misma casa se conocen. */
   private spawnPopulation(): void {
     for (const b of this.index.ofRole('residential')) {
-      const households = b.data.capacity ?? 1;
-      for (let h = 0; h < households; h++) {
-        const adults = 1 + Math.floor(this.rng.next() * 2.4); // 1-3
-        const family: Citizen[] = [];
-        for (let a = 0; a < adults; a++) family.push(this.spawnCitizen(b.ax, b.az, b.id));
-        for (let i = 0; i < family.length; i++)
-          for (let j = i + 1; j < family.length; j++) SocialSystem.acquaint(family[i], family[j], 0.6);
-      }
+      this.fillHome(b.ax, b.az, b.id, b.data.capacity ?? 1);
     }
+  }
+
+  /** Aloja `count` familias en una vivienda (inmigración T4.3 y arranque). */
+  private fillHome(ax: number, az: number, buildingId: string, count: number): void {
+    const k = `${ax},${az}`;
+    this.households.set(k, (this.households.get(k) ?? 0) + count);
+    for (let h = 0; h < count; h++) {
+      const adults = 1 + Math.floor(this.rng.next() * 2.4); // 1-3
+      const family: Citizen[] = [];
+      for (let a = 0; a < adults; a++) family.push(this.spawnCitizen(ax, az, buildingId));
+      for (let i = 0; i < family.length; i++)
+        for (let j = i + 1; j < family.length; j++) SocialSystem.acquaint(family[i], family[j], 0.6);
+    }
+  }
+
+  /** Huecos de familia libres en todas las viviendas. */
+  private freeHousing(): number {
+    let free = 0;
+    for (const b of this.index.ofRole('residential')) {
+      free += (b.data.capacity ?? 1) - (this.households.get(`${b.ax},${b.az}`) ?? 0);
+    }
+    return free;
   }
 
   private spawnCitizen(ax: number, az: number, buildingId: string): Citizen {
@@ -178,12 +201,69 @@ export class Simulation {
       this.events.push({ name: 'chatStarted', data: { a: a.id, b: b.id } });
     }
 
-    // Cierre del día: economía y recontratación.
+    // Crecimiento autónomo: un intento por hora de juego, solo de día
+    // (los edificios "brotan" con luz — cosmética barata y determinista).
+    if (this.autonomousGrowth && this.clock.tick % 100 === 0 && this.clock.darkness < 0.5) {
+      this.maybeGrow();
+    }
+
+    // Cierre del día: economía, recontratación e hitos de tier (T4.5).
     if (this.clock.day !== this.lastDay) {
       this.lastDay = this.clock.day;
       this.economy.endOfDay();
       this.hireAndAcquaint();
+      const pop = this.citizens.size;
+      const unlocked: Tier = pop >= 200 ? 4 : pop >= 80 ? 3 : pop >= 25 ? 2 : 1;
+      if (unlocked > this.tier) {
+        this.tier = unlocked;
+        this.events.push({ name: 'tierUnlocked', data: { tier: unlocked, population: pop } });
+      }
     }
+  }
+
+  // --- Crecimiento autónomo (T4.1-T4.3) ---------------------------------------
+
+  private maybeGrow(): void {
+    const stats = this.economy.stats(this.citizens);
+    const shops = this.economy.workplaces.filter((w) => w.building.data.role === 'commerce');
+    let avgProsperity = 0;
+    for (const s of shops) avgProsperity += this.economy.prosperity.get(`${s.building.ax},${s.building.az}`) ?? 0.5;
+    avgProsperity = shops.length > 0 ? avgProsperity / shops.length : 0;
+
+    const demand = computeDemand({
+      population: stats.population,
+      employed: stats.employed,
+      jobs: stats.jobs,
+      freeHousing: this.freeHousing(),
+      shops: shops.length,
+      avgProsperity,
+      tier: this.tier,
+    });
+    if (!demand) return;
+
+    const id = itemForDemand(demand, this.tier);
+    const it = catalogData(id);
+    if (!it) return;
+    const center = townCenter(
+      this.index.buildings.filter((b) => b.data.role !== 'nature').map((b) => [b.ax, b.az]),
+    );
+    const p = findParcel(this.grid, id, center, this.rng);
+    if (!p) return;
+    this.applyGrowth(p);
+  }
+
+  /** Coloca el edificio, reindexa y aloja/contrata. Emite `cityGrew` para que
+   * el main replique la colocación en el grid de render. */
+  private applyGrowth(p: GrowthPlacement): void {
+    const it = catalogData(p.id);
+    if (!it || !this.grid.placeBuilding(p.id, it.w, it.d, p.cx, p.cz, p.rot)) return;
+    this.index.rebuild();
+    this.economy.rebuild(this.index, this.citizens);
+    if (it.role === 'residential') {
+      this.fillHome(p.cx, p.cz, p.id, it.capacity ?? 1); // inmigración
+    }
+    this.hireAndAcquaint();
+    this.events.push({ name: 'cityGrew', data: { ...p } });
   }
 
   private stepCitizen(c: Citizen, ctx: SimContext): void {

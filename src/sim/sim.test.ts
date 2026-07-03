@@ -81,6 +81,23 @@ check('T3.5: casi todos comen', eaters >= citizens.length * 0.8, `→ ${eaters}/
 check('T3.2: los agentes se mueven por rutas', r.moves > 100, `→ ${r.moves} ticks-moving`);
 check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
 
+// Crecimiento autónomo (T4.1-T4.3): con días de juego, la ciudad construye
+// sola, cerca de vías, y la población crece por inmigración.
+{
+  const sim = new Simulation(seedWorld(), 42);
+  const before = sim.index.buildings.length;
+  const popBefore = sim.citizens.size;
+  let grew = 0;
+  for (let t = 0; t < TICKS_PER_DAY * 4; t++) {
+    sim.step();
+    for (const e of sim.takeEvents()) if (e.name === 'cityGrew') grew++;
+  }
+  check('T4.2: la ciudad construye sola', grew > 0, `→ ${grew} edificios en 4 días`);
+  check('T4.2: el índice refleja lo construido', sim.index.buildings.length === before + grew);
+  check('T4.3: la población crece por inmigración', sim.citizens.size > popBefore, `→ ${popBefore} → ${sim.citizens.size}`);
+  check('T4.2: crecimiento contenido (< 4/día de media)', grew <= 16, `→ ${grew}`);
+}
+
 // Determinismo: mismo snapshot final con la misma semilla.
 const a = runDays(7, 1).sim.snapshot();
 const b = runDays(7, 1).sim.snapshot();

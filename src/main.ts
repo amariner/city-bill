@@ -9,11 +9,13 @@ import { CameraController } from './core/cameraController';
 import { GameLoop } from './core/loop';
 import { DebugHud } from './core/debugHud';
 import { createWorldView, worldGrid } from './neighborhood';
+import { catalogItem } from './world/catalog';
 import { buildShowcase } from './showcase';
 import { SimClient, AgentView } from './sim/client';
 import { CitizenView } from './world/render/citizens';
 import { DAY_GAME_SECONDS } from './sim/clock';
 import { Speed } from './sim/protocol';
+import { CitizenInspector } from './ui/inspector';
 
 const sceneName = new URLSearchParams(window.location.search).get('scene');
 
@@ -37,6 +39,16 @@ if (sceneName === 'buildings') {
   simClient = new SimClient(20260703, worldGrid.serialize());
   citizenView = new CitizenView();
   stage.scene.add(citizenView.root);
+  // Crecimiento autónomo (T4.2): el worker construye → replicamos en el
+  // grid de render y refrescamos el chunk (misma colocación, mismo mundo).
+  simClient.onEvent = (name, data) => {
+    if (name !== 'cityGrew' || !data || !worldView) return;
+    const { id, cx, cz, rot } = data as { id: string; cx: number; cz: number; rot: 0 | 1 | 2 | 3 };
+    const it = catalogItem(id);
+    if (!it) return;
+    worldGrid.placeBuilding(id, it.w, it.d, cx, cz, rot);
+    worldView.refreshChunkAt(cx, cz);
+  };
   window.addEventListener('keydown', (e) => {
     if (e.key >= '0' && e.key <= '3') simClient!.setSpeed(Number(e.key) as Speed);
   });
@@ -46,6 +58,7 @@ camera.apply();
 const input = new Input(stage.renderer.domElement);
 const controller = new CameraController(camera, input);
 const hud = new DebugHud(stage.renderer, camera);
+const inspector = simClient ? new CitizenInspector(stage.renderer, camera, simClient) : null;
 
 window.addEventListener('resize', () => {
   stage.renderer.setSize(window.innerWidth, window.innerHeight);
@@ -61,6 +74,10 @@ loop.onUpdate((dt) => {
   if (simClient && citizenView) {
     const n = simClient.view(agentViews);
     citizenView.update(agentViews, n, dt);
+    if (inspector) {
+      inspector.setAgents(agentViews, n);
+      inspector.update(agentViews, n);
+    }
     const t = simClient.gameTime;
     const day = Math.floor(t / DAY_GAME_SECONDS);
     const h = (t % DAY_GAME_SECONDS) / 3600;
