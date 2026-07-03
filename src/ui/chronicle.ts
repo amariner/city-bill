@@ -8,17 +8,10 @@
  * Solo DOM/canvas 2D; cero lógica de sim.
  */
 import { DAY_GAME_SECONDS } from '../sim/clock';
+import { activeLogicNames } from '../sim/logics';
 
-/** Lógicas integradas — AMPLIAR en cada ciclo de RESEARCH.md. */
-export const ACTIVE_LOGICS = [
-  'necesidades + cerebro',
-  'social (charlas/afinidad)',
-  'economía (empleos)',
-  'crecimiento autónomo',
-  'vida (generaciones)',
-  'educación',
-  'alimento (cadena granja→tienda→despensa)',
-];
+/** Lógicas integradas — la fuente de verdad es sim/logics.ts (manifiesto). */
+const ACTIVE_LOGICS = activeLogicNames();
 
 interface ChronicleData {
   /** [año, población, edificios] por año de la ciudad. */

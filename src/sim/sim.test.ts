@@ -154,6 +154,21 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
   check('alimento: hay despensas con comida', somePantry);
 }
 
+// Ciclo 2 RESEARCH.md — lógica de dinero: el trabajo paga, la comida cuesta,
+// el dinero circula y los hogares con empleo ahorran.
+{
+  const sim = new Simulation(seedWorld(), 42);
+  for (let t = 0; t < TICKS_PER_DAY * 5; t++) sim.step();
+  const e = sim.economy;
+  check('dinero: se pagan salarios', e.wagesPaid > 0, `→ ${e.wagesPaid.toFixed(0)}`);
+  check('dinero: se gasta (circula)', e.moneySpent > 0, `→ ${e.moneySpent.toFixed(0)}`);
+  const totalSavings = [...e.wallets.values()].reduce((a, b) => a + b, 0);
+  check('dinero: hay ahorro agregado', totalSavings > 0, `→ ${totalSavings.toFixed(0)}`);
+  const cs = [...sim.citizens.values()];
+  const avgFood = cs.reduce((s, c) => s + c.needs.food, 0) / cs.length;
+  check('dinero: la sociedad sigue comiendo (no colapsa)', avgFood > 0.2, `→ ${avgFood.toFixed(2)}`);
+}
+
 // Determinismo: mismo snapshot final con la misma semilla.
 const a = runDays(7, 1).sim.snapshot();
 const b = runDays(7, 1).sim.snapshot();

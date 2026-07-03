@@ -23,6 +23,8 @@ export interface SimContext {
   visitCounters: Map<string, number>;
   /** Despensa por hogar ('ax,az') — lógica de alimento (ciclo 1). */
   pantry: Map<string, number>;
+  /** Ahorro por hogar ('ax,az') — lógica de dinero (ciclo 2). */
+  wallets: Map<string, number>;
 }
 
 export interface ActivityDef {
@@ -139,10 +141,13 @@ export const ACTIVITIES: ActivityDef[] = [
     findTarget: (ctx, c) => {
       // Con despensa se come en casa; vacía, se come fuera (tienda) y de paso
       // se trae algo a casa — la cadena de alimento cierra sola.
-      if ((ctx.pantry.get(`${c.home.ax},${c.home.az}`) ?? 0) >= 1) {
+      const k = `${c.home.ax},${c.home.az}`;
+      if ((ctx.pantry.get(k) ?? 0) >= 1) {
         const b = homeBuilding(ctx, c);
         return b ? entranceTarget(b) : null;
       }
+      // Comer fuera solo si el hogar puede pagarlo: sin dinero hay hambre real.
+      if ((ctx.wallets.get(k) ?? 0) < 2) return null;
       const s = nearestOfRole(ctx, c, 'commerce');
       return s ? entranceTarget(s) : null;
     },

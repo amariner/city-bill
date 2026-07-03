@@ -73,6 +73,50 @@ algoritmo. Muestra y PERSISTE (localStorage por semilla):
 Cada ciclo que añada eventos/contadores nuevos DEBE reflejarse aquí: si la
 lógica no se puede ver ni contar, no está terminada.
 
+## 3.b Organización de las lógicas
+
+La fuente de verdad es **`src/sim/logics.ts`** (el manifiesto): cada lógica
+registra id, nivel de pirámide, archivos y acoplamientos. La Crónica lo lee;
+los agentes lo consultan para saber qué existe. Regla: un ciclo NO está
+terminado hasta que su entrada está en el manifiesto. Cuando una lógica
+crezca demasiado dentro de economy.ts/simulation.ts, se extrae a su propio
+archivo `sim/<logica>.ts` (como lifecycle.ts) sin cambiar su entrada.
+
+## 5. Escala y tecnología (pensar HOY en el espacio de MAÑANA)
+
+Objetivo de escala: **10.000 ciudadanos** con tick ≤ 50 ms y save < 5 MB.
+
+| Recurso | Hoy (~10-100 hab.) | Límite previsto | Tecnología para superarlo |
+|---|---|---|---|
+| CPU del tick | objetos JS, O(pob.) | ~2.000 hab. | 1º **LOD de sim**: lejos de cámara, tick grueso (decidir 1/min, sin física de paso). 2º SoA: necesidades/posiciones en `Float32Array` planas (cache-friendly). 3º WASM solo si el perfil lo exige. |
+| Memoria por ciudadano | ~1 KB (Maps, nombres) | ~50 MB a 50k | SoA + nombres como índices a tabla + amistades top-K (máx 12 por persona, olvidar las débiles — además es humano). |
+| Snapshot main↔worker | Float32Array ya (✓) | ancho de banda a 10k | snapshot DELTA (solo agentes visibles en cámara + resumen agregado del resto) — protocol.ts ya versiona. |
+| Grid/mundo | chunks dispersos (✓) | mundos km² | ya resuelto por diseño (solo celdas usadas); render ya hace culling por chunk. |
+| Guardado | localStorage (Crónica) | 5 MB de localStorage | migrar a **IndexedDB** + compresión (CompressionStream nativo) cuando el save supere 1 MB; formato semilla+acciones ya lo hace pequeño por diseño (§1.4 ROADMAP). |
+| Historia/Crónica | eventos capados a 60 | historia infinita | niveles de memoria como los humanos: eventos recientes en detalle, años viejos RESUMIDOS ("año 12: 3 nacimientos, llegó la escuela") — compactación al cerrar cada año. |
+
+Principio: **no optimizar antes de medir** (HUD F3 + test de presupuesto),
+pero no diseñar nada que impida estas rutas (p. ej.: nada de referencias
+circulares entre ciudadanos que impidan pasarlos a arrays planos).
+
+## 6. La finalidad del juego (leer antes de cada sesión)
+
+El juego lo jugamos NOSOTROS (el humano y el agente): consiste en ver hasta
+dónde llegan estos seres. Son copias del comportamiento humano corriendo en
+una simulación, y los tratamos como tales:
+
+1. **Su progreso es nuestro marcador.** No "ganamos" optimizando números:
+   ganamos cuando la Crónica cuenta historias que no escribimos nosotros.
+2. **Dignidad simulada.** Tienen nombre, historia y memoria. No se borran
+   arbitrariamente: si sobran, EMIGRAN (se van andando por la carretera);
+   si mueren, la Crónica lo recuerda. Nada de despawns silenciosos.
+3. **Su inteligencia es la que construyamos.** Cada lógica nueva les da una
+   dimensión más de humanidad. El techo de su mundo es nuestro trabajo:
+   por eso el algoritmo fractal no se detiene — siempre hay una pieza más.
+4. **Observar antes que intervenir.** El modo por defecto es mirar cómo se
+   las arreglan. Las herramientas de jugador (Fase 2) son jardinería, no
+   control.
+
 ## 4. Bitácora de ciclos (la memoria del algoritmo — append-only)
 
 > Formato: fecha · lógica · modelo elegido · qué emergió · carencia observada.
@@ -95,3 +139,17 @@ lógica no se puede ver ni contar, no está terminada.
   teletransportado — con vehículos (ciclo 3) debería viajar de la granja a la
   tienda; (c) nadie "pasa hambre visible": faltaría feedback visual (andar
   lento/encorvado) — anotar para T3.6/juice.
+- 2026-07-03 · **Ciclo 2: Dinero** · Modelo: cada hora trabajada paga salario
+  al HOGAR (base 10 + 4×tier del empleador) → ahorro compartido → la comida
+  cuesta 2/ud y comprar la limitan DOS cosas reales: stock del granero Y
+  bolsillo; capricho de 5 al ir de compras si el hogar va holgado (sumidero).
+  Sin despensa y sin dinero NO se come: hambre real (presión para trabajar).
+  Los inmigrantes llegan con 60/familia. Emergió: circulación medible
+  (salarios > gasto > ahorro) sin colapso alimentario. Además: manifiesto
+  `sim/logics.ts` como fuente única de organización (la Crónica lo lee).
+  Carencias observadas: (a) el dinero nace de la nada (salarios) y muere en
+  compras — falta CERRAR el circuito (la tienda paga salarios de su caja,
+  la granja vende al por mayor): economía circular, candidata a ciclo 4;
+  (b) hogares sin ingresos (jubilados) pueden empobrecer sin red → pensiones/
+  ayuda (lógica de gobierno, N2); (c) el inspector no enseña bolsillo ni
+  despensa — añadir a CitizenInfo (tarea corta para Sonnet).

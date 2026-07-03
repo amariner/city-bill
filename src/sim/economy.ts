@@ -21,6 +21,17 @@ export interface Workplace {
 /** Producción de comida por granjero y hora trabajada (lógica de alimento). */
 export const FOOD_PER_FARMER_HOUR = 4;
 
+// --- Lógica de dinero (ciclo 2 de RESEARCH.md) --------------------------------
+/** Salario base por hora trabajada; los tiers altos pagan más. */
+export const WAGE_PER_HOUR = 10;
+export const WAGE_TIER_BONUS = 4; // por nivel de tier del empleador
+/** Precio de la unidad de comida. */
+export const FOOD_PRICE = 2;
+/** Gasto de capricho al ir de compras (si el hogar puede permitírselo). */
+export const SHOP_TREAT_PRICE = 5;
+/** Con qué llega una familia inmigrante. */
+export const STARTING_MONEY = 60;
+
 export class Economy {
   workplaces: Workplace[] = [];
   /** Granero comunal: lo llenan los granjeros, lo venden las tiendas.
@@ -28,6 +39,31 @@ export class Economy {
   granary = 60;
   /** Unidades de comida vendidas (métrica de la cadena para tests/crónica). */
   foodSold = 0;
+  /** Ahorro por hogar ('ax,az') — lógica de dinero. */
+  wallets = new Map<string, number>();
+  /** Métricas de circulación (tests/crónica). */
+  wagesPaid = 0;
+  moneySpent = 0;
+
+  /** Nómina: el trabajo mete dinero en el hogar del trabajador. */
+  payWage(homeKey: string, hours: number, employerTier: number): void {
+    const amount = (WAGE_PER_HOUR + WAGE_TIER_BONUS * employerTier) * hours;
+    this.wallets.set(homeKey, (this.wallets.get(homeKey) ?? 0) + amount);
+    this.wagesPaid += amount;
+  }
+
+  /** Gasta hasta `amount` del hogar; devuelve lo realmente gastado. */
+  spend(homeKey: string, amount: number): number {
+    const w = this.wallets.get(homeKey) ?? 0;
+    const spent = Math.min(w, amount);
+    this.wallets.set(homeKey, w - spent);
+    this.moneySpent += spent;
+    return spent;
+  }
+
+  walletOf(homeKey: string): number {
+    return this.wallets.get(homeKey) ?? 0;
+  }
   /** Clientes acumulados HOY por tienda ('ax,az'). */
   visitsToday = new Map<string, number>();
   /** Prosperidad [0,1] por tienda, media móvil de días. */
@@ -93,12 +129,15 @@ export class Economy {
     this.granary += FOOD_PER_FARMER_HOUR * farmerHours;
   }
 
-  /** Compra hasta `want` unidades; devuelve lo que había. Sin comida en el
-   * granero, la tienda no puede vender: el hambre aprieta de verdad. */
-  buyFood(want: number): number {
-    const got = Math.min(this.granary, want);
+  /** Compra hasta `want` unidades pagándolas del hogar. Limitan DOS cosas
+   * reales: el stock del granero y el dinero del hogar. */
+  buyFood(homeKey: string, want: number): number {
+    const affordable = Math.floor(this.walletOf(homeKey) / FOOD_PRICE);
+    const got = Math.min(this.granary, want, affordable);
+    if (got <= 0) return 0;
     this.granary -= got;
     this.foodSold += got;
+    this.spend(homeKey, got * FOOD_PRICE);
     return got;
   }
 

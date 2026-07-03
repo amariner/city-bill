@@ -24,6 +24,7 @@ import { SocialSystem } from './citizens/social';
 import { AgentState, ActivityKind, activityId, AGENT_STRIDE } from './protocol';
 import { computeDemand, itemForDemand, findParcel, townCenter, GrowthPlacement } from '../world/growth';
 import { lifeYear } from './lifecycle';
+import { STARTING_MONEY, SHOP_TREAT_PRICE } from './economy';
 import { catalogData, Tier } from '../world/catalogData';
 
 /** Velocidad al caminar, en celdas por tick (0.25 s reales a vel. 1). */
@@ -77,8 +78,9 @@ export class Simulation {
   private fillHome(ax: number, az: number, buildingId: string, count: number): void {
     const k = `${ax},${az}`;
     this.households.set(k, (this.households.get(k) ?? 0) + count);
-    // Los recién llegados traen algo de comida en la mudanza.
+    // Los recién llegados traen algo de comida y unos ahorros en la mudanza.
     this.pantry.set(k, (this.pantry.get(k) ?? 0) + 3 * count);
+    this.economy.wallets.set(k, (this.economy.wallets.get(k) ?? 0) + STARTING_MONEY * count);
     for (let h = 0; h < count; h++) {
       const adults = 1 + Math.floor(this.rng.next() * 2.4); // 1-3
       const family: Citizen[] = [];
@@ -170,6 +172,7 @@ export class Simulation {
       citizens: this.citizens,
       visitCounters: this.economy.visitsToday,
       pantry: this.pantry,
+      wallets: this.economy.wallets,
     };
   }
 
@@ -347,9 +350,12 @@ export class Simulation {
             if (r) restore(c.needs, k, r * hours);
           }
           if (c.activity === 'school') c.education = Math.min(1, c.education + EDU_PER_HOUR * hours);
-          // Cadena de alimento: los granjeros en faena llenan el granero.
-          if (c.activity === 'work' && c.work && catalogData(c.work.buildingId)?.role === 'agriculture') {
-            this.economy.produceFood(hours);
+          if (c.activity === 'work' && c.work) {
+            const employer = catalogData(c.work.buildingId);
+            // Cadena de alimento: los granjeros en faena llenan el granero.
+            if (employer?.role === 'agriculture') this.economy.produceFood(hours);
+            // Dinero: cada hora trabajada es salario para el hogar.
+            this.economy.payWage(`${c.home.ax},${c.home.az}`, hours, employer?.tier ?? 0);
           }
         }
         if (this.clock.time >= c.phase.until) {
@@ -369,17 +375,19 @@ export class Simulation {
     c.inside = def?.indoors ?? false;
     if (planned.activity === 'shop' && planned.target) {
       this.economy.registerVisit(planned.target);
-      // Compra de comida: la tienda vende lo que el granero tiene.
       const k = `${c.home.ax},${c.home.az}`;
-      const got = this.economy.buyFood(3);
+      // Compra de comida: limitada por granero Y bolsillo (lógica de dinero).
+      const got = this.economy.buyFood(k, 3);
       this.pantry.set(k, (this.pantry.get(k) ?? 0) + got);
+      // Un capricho si el hogar va holgado (sumidero de dinero).
+      if (this.economy.walletOf(k) > 30) this.economy.spend(k, SHOP_TREAT_PRICE);
     }
     if (planned.activity === 'eat') {
       const k = `${c.home.ax},${c.home.az}`;
       const atShop = planned.target && catalogData(planned.target.buildingId)?.role === 'commerce';
       if (atShop) {
         // Comer fuera: compra, come una unidad y lleva el resto a la despensa.
-        const got = this.economy.buyFood(4);
+        const got = this.economy.buyFood(k, 4);
         this.pantry.set(k, (this.pantry.get(k) ?? 0) + Math.max(0, got - 1));
         if (planned.target) this.economy.registerVisit(planned.target);
       } else {
