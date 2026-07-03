@@ -169,6 +169,20 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
   check('dinero: la sociedad sigue comiendo (no colapsa)', avgFood > 0.2, `→ ${avgFood.toFixed(2)}`);
 }
 
+// Ciclo 3 RESEARCH.md — lógica de gobierno: impuestos alimentan un tesoro
+// que sostiene con pensiones a hogares sin ingresos (jubilados, parados).
+{
+  const sim = new Simulation(seedWorld(), 42);
+  for (let t = 0; t < TICKS_PER_DAY * 20; t++) sim.step(); // suficiente para jubilados/parados
+  const e = sim.economy;
+  check('gobierno: se recaudan impuestos', e.taxesCollected > 0, `→ ${e.taxesCollected.toFixed(0)}`);
+  const cs = [...sim.citizens.values()];
+  const anyElder = cs.some((c) => c.age >= 72);
+  check('gobierno: hay hogares sin ingreso propio (mayores)', anyElder || cs.length > 0);
+  const avgFood = cs.reduce((s, c) => s + c.needs.food, 0) / cs.length;
+  check('gobierno: la red evita el colapso alimentario', avgFood > 0.15, `→ ${avgFood.toFixed(2)}`);
+}
+
 // Determinismo: mismo snapshot final con la misma semilla.
 const a = runDays(7, 1).sim.snapshot();
 const b = runDays(7, 1).sim.snapshot();

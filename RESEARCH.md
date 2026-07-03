@@ -153,3 +153,18 @@ una simulación, y los tratamos como tales:
   (b) hogares sin ingresos (jubilados) pueden empobrecer sin red → pensiones/
   ayuda (lógica de gobierno, N2); (c) el inspector no enseña bolsillo ni
   despensa — añadir a CitizenInfo (tarea corta para Sonnet).
+- 2026-07-03 · **Ciclo 3: Gobierno (impuestos y pensiones)** · Modelo: cada
+  salario tributa 20% al tesoro municipal (`economy.payWage`); al cierre del
+  día, los hogares sin ningún adulto empleado Y con bolsillo bajo reciben una
+  pensión repartida del tesoro (si no alcanza, se reparte lo que hay — el
+  gobierno también puede ser pobre). Sin esto, un hogar de jubilados se
+  vaciaba hasta el hambre sin salida; con esto, aguanta. Acopla money↔life.
+  Emergió: recaudación sostenida y saciedad media estable incluso con
+  generaciones mayores en la ciudad. Registrado en el manifiesto
+  (`sim/logics.ts`, id `government`). 33/33 tests.
+  Carencias observadas para próximos ciclos: (a) el dinero SIGUE sin cerrar
+  el circuito completo — la tienda no compra al granjero, solo el ciudadano
+  paga; ciclo 4 candidato = ECONOMÍA CIRCULAR (caja de la tienda, compra al
+  por mayor a la granja); (b) no hay desempleo por falta de vacantes vs.
+  pereza — todo parado es "necesitado", simplificación aceptable por ahora;
+  (c) CitizenInfo (inspector) sigue sin bolsillo/despensa — deuda visual.

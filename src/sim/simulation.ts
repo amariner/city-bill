@@ -24,7 +24,7 @@ import { SocialSystem } from './citizens/social';
 import { AgentState, ActivityKind, activityId, AGENT_STRIDE } from './protocol';
 import { computeDemand, itemForDemand, findParcel, townCenter, GrowthPlacement } from '../world/growth';
 import { lifeYear } from './lifecycle';
-import { STARTING_MONEY, SHOP_TREAT_PRICE } from './economy';
+import { STARTING_MONEY, SHOP_TREAT_PRICE, PENSION_PER_DAY } from './economy';
 import { catalogData, Tier } from '../world/catalogData';
 
 /** Velocidad al caminar, en celdas por tick (0.25 s reales a vel. 1). */
@@ -225,6 +225,7 @@ export class Simulation {
       this.lastDay = this.clock.day;
       this.stepLife();
       this.economy.endOfDay();
+      this.payPensions();
       this.hireAndAcquaint();
       const pop = this.citizens.size;
       const unlocked: Tier = pop >= 200 ? 4 : pop >= 80 ? 3 : pop >= 25 ? 2 : 1;
@@ -233,6 +234,23 @@ export class Simulation {
         this.events.push({ name: 'tierUnlocked', data: { tier: unlocked, population: pop } });
       }
     }
+  }
+
+  // --- Lógica de gobierno (impuestos ya en economy.payWage; pensiones aquí) ---
+
+  /** Hogares sin ningún adulto empleado y con bolsillo bajo: red de
+   * protección mínima (ciclo 3 de RESEARCH.md). Sostiene a jubilados y
+   * parados de larga duración para que no emigren por pura miseria. */
+  private payPensions(): void {
+    const employedHomes = new Set<string>();
+    for (const c of this.citizens.values()) if (c.work) employedHomes.add(`${c.home.ax},${c.home.az}`);
+    const needy: string[] = [];
+    for (const k of this.households.keys()) {
+      if (employedHomes.has(k)) continue;
+      if (this.economy.walletOf(k) < PENSION_PER_DAY * 2) needy.push(k);
+    }
+    needy.sort(); // determinista
+    this.economy.payPensions(needy);
   }
 
   // --- Lógica de vida (lifecycle.ts) -------------------------------------------

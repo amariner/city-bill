@@ -32,6 +32,12 @@ export const SHOP_TREAT_PRICE = 5;
 /** Con qué llega una familia inmigrante. */
 export const STARTING_MONEY = 60;
 
+// --- Lógica de gobierno (ciclo 3): impuestos y pensiones ----------------------
+/** Parte del salario que va al tesoro municipal. */
+export const TAX_RATE = 0.2;
+/** Pensión diaria por hogar sin ingresos (si el tesoro alcanza). */
+export const PENSION_PER_DAY = 18;
+
 export class Economy {
   workplaces: Workplace[] = [];
   /** Granero comunal: lo llenan los granjeros, lo venden las tiendas.
@@ -44,12 +50,37 @@ export class Economy {
   /** Métricas de circulación (tests/crónica). */
   wagesPaid = 0;
   moneySpent = 0;
+  /** Tesoro municipal (impuestos) y lo pagado en pensiones (gobierno). */
+  treasury = 0;
+  taxesCollected = 0;
+  pensionsPaid = 0;
 
-  /** Nómina: el trabajo mete dinero en el hogar del trabajador. */
+  /** Nómina: el trabajo mete dinero en el hogar del trabajador, menos la
+   * parte que va al tesoro municipal (impuesto sobre la renta, lógica de
+   * gobierno). El tesoro es lo que luego paga pensiones. */
   payWage(homeKey: string, hours: number, employerTier: number): void {
-    const amount = (WAGE_PER_HOUR + WAGE_TIER_BONUS * employerTier) * hours;
-    this.wallets.set(homeKey, (this.wallets.get(homeKey) ?? 0) + amount);
-    this.wagesPaid += amount;
+    const gross = (WAGE_PER_HOUR + WAGE_TIER_BONUS * employerTier) * hours;
+    const tax = gross * TAX_RATE;
+    const net = gross - tax;
+    this.wallets.set(homeKey, (this.wallets.get(homeKey) ?? 0) + net);
+    this.wagesPaid += net;
+    this.treasury += tax;
+    this.taxesCollected += tax;
+  }
+
+  /** Pensión diaria a hogares sin ningún ingreso propio (ni salario del día,
+   * ni ahorro para comer): el tesoro los sostiene mientras alcance. Sin red,
+   * un hogar de solo jubilados o parados de larga duración se moriría de
+   * hambre sin más remedio que emigrar — con pensión, aguanta. */
+  payPensions(needyHomes: string[]): void {
+    if (needyHomes.length === 0) return;
+    const perHome = Math.min(PENSION_PER_DAY, this.treasury / needyHomes.length);
+    if (perHome <= 0) return;
+    for (const k of needyHomes) {
+      this.wallets.set(k, (this.wallets.get(k) ?? 0) + perHome);
+      this.treasury -= perHome;
+      this.pensionsPaid += perHome;
+    }
   }
 
   /** Gasta hasta `amount` del hogar; devuelve lo realmente gastado. */
