@@ -7,10 +7,11 @@
  */
 import { ActivityKind } from '../protocol';
 import { Citizen, PlannedActivity, PlaceRef } from './citizen';
-import { NeedKey } from './needs';
+import { NeedKey, urgency } from './needs';
 import { WorldIndex, SimBuilding } from '../worldIndex';
 import { CellXZ, manhattan } from '../geometry';
 import { Rng } from '../../rng';
+import { SEEK_CLINIC_HEALTH } from '../health';
 
 export interface SimContext {
   index: WorldIndex;
@@ -27,10 +28,16 @@ export interface SimContext {
   wallets: Map<string, number>;
 }
 
+/** Coste de la consulta (lógica de salud, ciclo 5) — acopla con dinero. */
+export const CLINIC_FEE = 6;
+
 export interface ActivityDef {
   kind: ActivityKind;
-  /** Necesidad principal que atiende. */
+  /** Necesidad principal que atiende (urgencia = urgency(needs[need])). */
   need: NeedKey;
+  /** Si la urgencia no sale de `needs` (p. ej. salud, que vive fuera de
+   * Needs): la sustituye por completo cuando está presente. */
+  urgencyOverride?: (c: Citizen) => number;
   /** Restauración por HORA de juego haciendo la actividad. */
   restorePerHour: Partial<Record<NeedKey, number>>;
   /** Duración típica en horas de juego [min,max] (RNG determinista). */
@@ -133,6 +140,32 @@ export const ACTIVITIES: ActivityDef[] = [
     eligible: (c) => c.age >= SCHOOL_MIN_AGE && c.age < SCHOOL_MAX_AGE,
   },
   {
+    kind: 'clinic',
+    need: 'energy', // placeholder: la urgencia real la da urgencyOverride (salud)
+    urgencyOverride: (c) => urgency(c.health),
+    restorePerHour: {},
+    durationH: [0.8, 1.5],
+    suitability: (ctx) => Math.max(0.15, 1 - ctx.darkness * 1.3), // consulta de día, urgencias sí de noche
+    findTarget: (ctx, c) => {
+      let best: { place: PlaceRef; cell: CellXZ } | null = null;
+      let bestD = Infinity;
+      for (const b of ctx.index.buildings) {
+        if (b.id !== 'clinic' || !b.entrance) continue;
+        const d = manhattan([c.x | 0, c.z | 0], b.entrance);
+        if (d < bestD) {
+          bestD = d;
+          best = { place: placeOf(b), cell: b.entrance };
+        }
+      }
+      // Sin dinero para la consulta, no se puede ir (lógica de dinero).
+      if (best && (ctx.wallets.get(`${c.home.ax},${c.home.az}`) ?? 0) < CLINIC_FEE) return null;
+      return best;
+    },
+    personality: () => 1,
+    indoors: true,
+    eligible: (c) => c.health < SEEK_CLINIC_HEALTH,
+  },
+  {
     kind: 'eat',
     need: 'food',
     restorePerHour: { food: 1.4, energy: 0.05 },
@@ -225,6 +258,7 @@ export function activityLabel(kind: ActivityKind, moving: boolean): string {
     sleep: 'Durmiendo',
     work: 'Trabajando',
     school: 'En la escuela',
+    clinic: 'En el consultorio',
     eat: 'Comiendo',
     shop: 'De compras',
     stroll: 'Paseando',
@@ -236,6 +270,7 @@ export function activityLabel(kind: ActivityKind, moving: boolean): string {
     sleep: 'Volviendo a casa',
     work: 'Yendo al trabajo',
     school: 'Yendo a la escuela',
+    clinic: 'Yendo al consultorio',
     eat: 'Volviendo a comer',
     shop: 'Yendo a la tienda',
     stroll: 'Saliendo a pasear',

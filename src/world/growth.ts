@@ -36,9 +36,12 @@ export interface DemandInput {
   /** Niños en edad escolar y plazas de alumno existentes (educación). */
   children: number;
   studentSlots: number;
+  /** Salud media de la población y si ya existe consultorio (ciclo 5). */
+  avgHealth: number;
+  hasClinic: boolean;
 }
 
-export type DemandKind = 'residential' | 'commerce' | 'work' | 'school' | null;
+export type DemandKind = 'residential' | 'commerce' | 'work' | 'school' | 'clinic' | null;
 
 /**
  * T4.1 — ¿Qué pide la ciudad AHORA? Una sola cosa por vez (crecer despacio
@@ -49,6 +52,9 @@ export function computeDemand(d: DemandInput): DemandKind {
   const unemployment = d.population > 0 ? (d.population - d.employed) / d.population : 0;
   // Niños sin plaza escolar → escuela (antes que nada: la escuela es sagrada).
   if (d.children > d.studentSlots && d.children >= 3) return 'school';
+  // Salud media baja y sin consultorio → clínica (una población enferma no
+  // rinde en el trabajo: atender esto es más urgente que más empleos).
+  if (!d.hasClinic && d.avgHealth < 0.88 && d.population >= 10) return 'clinic';
   // Paro alto, o parados sin ninguna vacante → un lugar de trabajo.
   if (unemployment > 0.35 || (openJobs <= 0 && unemployment >= 0.15)) return 'work';
   // Gente queriendo venir (hay trabajo, o la ciudad va bien) y sin casas → vivienda.
@@ -70,9 +76,11 @@ export function itemForDemand(kind: Exclude<DemandKind, null>, tier: Tier): stri
     case 'commerce':
       return byRole(['commerce']).sort((a, b) => b.tier - a.tier)[0]?.id ?? 'shop';
     case 'work':
-      return byRole(['commerce', 'work', 'civic']).filter((it) => !it.students).sort((a, b) => b.tier - a.tier)[0]?.id ?? 'shop';
+      return byRole(['commerce', 'work', 'civic']).filter((it) => !it.students && it.id !== 'clinic').sort((a, b) => b.tier - a.tier)[0]?.id ?? 'shop';
     case 'school':
       return 'school';
+    case 'clinic':
+      return 'clinic';
   }
 }
 

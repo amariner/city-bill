@@ -32,6 +32,7 @@ export const LOGICS: LogicEntry[] = [
   { id: 'growth', name: 'ciudad autónoma (demanda→construcción)', level: 2, files: ['world/growth.ts'], couples: ['jobs', 'life', 'food'] },
   { id: 'government', name: 'gobierno (impuestos y pensiones)', level: 2, files: ['economy.ts', 'simulation.ts'], couples: ['money', 'life'] },
   { id: 'circular-economy', name: 'economía circular (mayorista + caja de tienda)', level: 2, files: ['economy.ts'], couples: ['money', 'food', 'government'] },
+  { id: 'health', name: 'salud (consultorio, bajas laborales)', level: 2, files: ['sim/health.ts', 'citizens/activities.ts'], couples: ['life', 'money', 'jobs'] },
 ];
 
 /** Para la Crónica: nombres ordenados por nivel (básico → superior). */

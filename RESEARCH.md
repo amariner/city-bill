@@ -186,3 +186,30 @@ una simulación, y los tratamos como tales:
   economía a largo plazo, vigilar en Crónica; (c) con 200+ ciudadanos, el
   bucle `for (const [homeKey, hours] of farmerHoursToday)` dentro del loop de
   tiendas es O(tiendas×granjeros) — barato hoy, revisar si escala mal.
+- 2026-07-03 · **Ciclo 5: Salud** · Modelo: `health` [0,1] es un FONDO (no
+  una actividad): decae si hambre/sueño llevan tiempo crónicos (<0.2) o solo
+  por ser mayor (OLD_AGE), se recupera despacio descansando y rápido en la
+  clínica (consultorio civic nuevo). Bajo `WORK_BLOCK_HEALTH` ya no se puede
+  EMPEZAR a trabajar (brain.ts lo bloquea, aunque seguir un turno ya iniciado
+  hasta el final es realista); bajo `SEEK_CLINIC_HEALTH` la utility AI empieza
+  a valorar ir a curarse — sin guion, mismo motor que todo lo demás. La
+  consulta cuesta una tasa que va al tesoro (acopla salud↔dinero↔gobierno).
+  growth.ts pide clínica cuando la salud media baja y no hay consultorio.
+  Hallazgo IMPORTANTE durante la verificación (no del ciclo de salud en sí):
+  intenté "arreglar" un supuesto bug de estancamiento perpetuo en growth.ts
+  bajando el umbral de paro para 'work'/'residential' — provocó una EXPLOSIÓN
+  demográfica descontrolada (750+ habitantes en 35 días, rompiendo T4.2
+  "crecimiento contenido"). Al revertir y observar más días, confirmé que el
+  "estancamiento" se autocorrige SOLO en ~20-25 días vía nacimientos/muertes
+  (lifecycle) que desplazan la fracción de parados fuera de la zona muerta.
+  **Lección para futuros ciclos: verificar con MÁS días antes de diagnosticar
+  estancamiento como bug — el sistema ya tiene mecanismos de auto-corrección
+  emergentes que no siempre son obvios a corto plazo.** 40/40 tests.
+  Carencias observadas: (a) salud no acopla aún con MORTALIDAD (lifecycle.ts
+  no lee c.health) — un anciano con salud 0.1 muere con la misma probabilidad
+  que uno con salud 0.9; acoplamiento real pendiente, cuidado al cerrarlo (no
+  desestabilizar los tests de vida ya verdes); (b) el inspector (CitizenInfo)
+  sigue sin mostrar salud/bolsillo/despensa — ya son TRES ciclos pidiendo esto,
+  debería ser la próxima tarea de pulido aunque no abra lógica nueva; (c) sin
+  vehículos, ir a la clínica desde el extremo del pueblo es una caminata larga
+  para alguien enfermo — motivo más para el ciclo de vehículos.

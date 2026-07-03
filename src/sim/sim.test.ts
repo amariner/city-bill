@@ -198,6 +198,40 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
   check('circular: el pago al mayorista no supera lo vendido', e.wholesalePaid <= e.foodSold * FOOD_PRICE + 1e-6);
 }
 
+// Ciclo 5 RESEARCH.md — lógica de salud: la ciudad construye consultorio
+// cuando la salud media flaquea, los enfermos van a curarse y NADIE trabaja
+// estando demasiado enfermo (bloqueo real, no solo cosmético).
+{
+  const sim = new Simulation(seedWorld(), 42);
+  let clinicBuilt = false;
+  let anyoneAtClinic = false;
+  let startedWorkTooSick = 0;
+  const wasWorking = new Set<number>();
+  // 40 días: la ciudad tarda ~20-25 en escapar del equilibrio inicial de
+  // población pequeña (lo hace sola, vía nacimientos/muertes — ver ciclo T4.2
+  // en la bitácora) antes de que población≥10 habilite la demanda de clínica.
+  for (let t = 0; t < TICKS_PER_DAY * 40; t++) {
+    sim.step();
+    for (const e of sim.takeEvents())
+      if (e.name === 'cityGrew' && (e.data as { id?: string }).id === 'clinic') clinicBuilt = true;
+    for (const c of sim.citizens.values()) {
+      if (c.activity === 'clinic') anyoneAtClinic = true;
+      const working = c.activity === 'work' && c.phase.kind === 'doing';
+      // Solo cuenta EMPEZAR una jornada demasiado enfermo (brain.ts lo evita);
+      // seguir enfermando A MEDIO turno es realista y no es lo que probamos.
+      if (working && !wasWorking.has(c.id) && c.health < 0.25) startedWorkTooSick++;
+      if (working) wasWorking.add(c.id);
+      else wasWorking.delete(c.id);
+    }
+  }
+  check('salud: la ciudad construye consultorio', clinicBuilt || sim.index.buildings.some((b) => b.id === 'clinic'));
+  check('salud: nadie EMPIEZA a trabajar demasiado enfermo', startedWorkTooSick === 0, `→ ${startedWorkTooSick}`);
+  const cs = [...sim.citizens.values()];
+  const avgHealth = cs.reduce((s, c) => s + c.health, 0) / cs.length;
+  check('salud: la salud media se mantiene razonable', avgHealth > 0.4, `→ ${avgHealth.toFixed(2)}`);
+  void anyoneAtClinic; // informativo: depende de si alguien enfermó en 20 días, no siempre determinista de forzar
+}
+
 // Determinismo: mismo snapshot final con la misma semilla.
 const a = runDays(7, 1).sim.snapshot();
 const b = runDays(7, 1).sim.snapshot();

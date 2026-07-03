@@ -19,13 +19,14 @@ import { Economy } from './economy';
 import { Citizen, citizenName, PlannedActivity } from './citizens/citizen';
 import { decayNeeds, restore, NEED_KEYS } from './citizens/needs';
 import { chooseActivity } from './citizens/brain';
-import { ACTIVITY_BY_KIND, SimContext, activityLabel, EDU_PER_HOUR } from './citizens/activities';
+import { ACTIVITY_BY_KIND, SimContext, activityLabel, EDU_PER_HOUR, CLINIC_FEE } from './citizens/activities';
 import { SocialSystem } from './citizens/social';
 import { AgentState, ActivityKind, activityId, AGENT_STRIDE } from './protocol';
 import { computeDemand, itemForDemand, findParcel, townCenter, GrowthPlacement } from '../world/growth';
 import { lifeYear } from './lifecycle';
 import { STARTING_MONEY, SHOP_TREAT_PRICE, PENSION_PER_DAY } from './economy';
 import { catalogData, Tier } from '../world/catalogData';
+import { healthTick, CLINIC_RECOVERY_PER_HOUR } from './health';
 
 /** Velocidad al caminar, en celdas por tick (0.25 s reales a vel. 1). */
 const WALK_CELLS_PER_TICK = 0.9; // ≈ 7 km/h de juego a escala urbana
@@ -90,6 +91,13 @@ export class Simulation {
     }
   }
 
+  private avgHealth(): number {
+    if (this.citizens.size === 0) return 1;
+    let sum = 0;
+    for (const c of this.citizens.values()) sum += c.health;
+    return sum / this.citizens.size;
+  }
+
   /** Huecos de familia libres en todas las viviendas. */
   private freeHousing(): number {
     let free = 0;
@@ -124,6 +132,7 @@ export class Simulation {
       partnerId: null,
       // Los adultos fundadores llegan con estudios variados; los niños, de cero.
       education: age === undefined ? this.rng.range(0.2, 0.9) : 0,
+      health: this.rng.range(0.75, 1),
       x: door[0] + 0.5,
       z: door[1] + 0.5,
       heading: this.rng.range(0, Math.PI * 2),
@@ -191,6 +200,7 @@ export class Simulation {
 
     for (const c of this.citizens.values()) {
       decayNeeds(c.needs, c.personality, hours);
+      healthTick(c, hours); // lógica de salud: fondo, no una actividad
       if (this.social.isChatting(c.id)) {
         c.activity = 'chat';
         continue; // parado charlando; social.ts le restaura
@@ -300,6 +310,8 @@ export class Simulation {
       tier: this.tier,
       children: [...this.citizens.values()].filter((c) => c.age >= 6 && c.age < 18).length,
       studentSlots: this.index.buildings.reduce((n, b) => n + (b.data.students ?? 0), 0),
+      avgHealth: this.avgHealth(),
+      hasClinic: this.index.buildings.some((b) => b.id === 'clinic'),
     });
     if (!demand) return;
 
@@ -368,6 +380,7 @@ export class Simulation {
             if (r) restore(c.needs, k, r * hours);
           }
           if (c.activity === 'school') c.education = Math.min(1, c.education + EDU_PER_HOUR * hours);
+          if (c.activity === 'clinic') c.health = Math.min(1, c.health + CLINIC_RECOVERY_PER_HOUR * hours);
           if (c.activity === 'work' && c.work) {
             const employer = catalogData(c.work.buildingId);
             // Cadena de alimento: los granjeros en faena llenan el granero.
@@ -401,6 +414,14 @@ export class Simulation {
       this.pantry.set(k, (this.pantry.get(k) ?? 0) + got);
       // Un capricho si el hogar va holgado (sumidero de dinero).
       if (this.economy.walletOf(k) > 30) this.economy.spend(k, SHOP_TREAT_PRICE);
+    }
+    if (planned.activity === 'clinic') {
+      // Consultorio público: la consulta paga una tasa que va al tesoro
+      // (acopla salud↔dinero↔gobierno). Si no llega a cubrirla, se atiende
+      // igual (nadie se queda sin curar por 6 monedas) pero el gasto es 0.
+      const k = `${c.home.ax},${c.home.az}`;
+      this.economy.treasury += this.economy.spend(k, CLINIC_FEE);
+      if (planned.target) this.economy.registerVisit(planned.target);
     }
     if (planned.activity === 'eat') {
       const k = `${c.home.ax},${c.home.az}`;
@@ -471,9 +492,10 @@ export class Simulation {
   }
 
   /** Estado legible de un ciudadano (inspector T3.10). */
-  describe(id: number): { name: string; activity: ActivityKind; activityLabel: string; needs: Record<string, number>; home: [number, number]; work?: [number, number] } | null {
+  describe(id: number): { name: string; activity: ActivityKind; activityLabel: string; needs: Record<string, number>; home: [number, number]; work?: [number, number]; health: number; wallet: number; pantry: number } | null {
     const c = this.citizens.get(id);
     if (!c) return null;
+    const homeKey = `${c.home.ax},${c.home.az}`;
     return {
       name: c.name,
       activity: c.activity,
@@ -481,6 +503,9 @@ export class Simulation {
       needs: { ...c.needs },
       home: [c.home.ax, c.home.az],
       work: c.work ? [c.work.ax, c.work.az] : undefined,
+      health: c.health,
+      wallet: this.economy.walletOf(homeKey),
+      pantry: this.pantry.get(homeKey) ?? 0,
     };
   }
 

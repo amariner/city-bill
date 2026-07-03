@@ -13,8 +13,8 @@ import { SocialSystem } from './citizens/social';
 import { Rng } from '../rng';
 
 export const ADULT_AGE = 18;
-/** Edad desde la que la muerte empieza a rondar. */
-const OLD_AGE = 72;
+/** Edad desde la que la muerte empieza a rondar (y la salud, ciclo 5, decae más). */
+export const OLD_AGE = 72;
 /** Prob. de muerte por año una vez mayor (rampa suave). */
 function deathChance(age: number): number {
   if (age < OLD_AGE) return 0;

@@ -10,6 +10,7 @@ import { Citizen, PlannedActivity } from './citizen';
 import { urgency } from './needs';
 import { ACTIVITIES, SimContext, plan } from './activities';
 import { manhattan } from '../geometry';
+import { WORK_BLOCK_HEALTH } from '../health';
 
 /** Distancia a partir de la cual ir andando "pesa" la mitad en el score. */
 const HALF_DISTANCE = 60; // celdas = 120 m
@@ -19,11 +20,13 @@ export function chooseActivity(c: Citizen, ctx: SimContext): PlannedActivity | n
   let bestScore = 0.05; // umbral de apatía: por debajo, seguir como estás
 
   for (const def of ACTIVITIES) {
-    const u = urgency(c.needs[def.need]);
+    const u = def.urgencyOverride ? def.urgencyOverride(c) : urgency(c.needs[def.need]);
     if (u <= 0.02) continue; // depósito lleno: ni lo considera
     // Los desempleados no puntúan 'work' (su purpose decae igual: presión
     // para aceptar el empleo que economy.ts les ofrezca).
     if (def.kind === 'work' && !c.work) continue;
+    // Demasiado enfermo para trabajar (lógica de salud, ciclo 5).
+    if (def.kind === 'work' && c.health < WORK_BLOCK_HEALTH) continue;
     if (def.eligible && !def.eligible(c)) continue;
 
     const suit = def.suitability(ctx, c);

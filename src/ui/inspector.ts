@@ -151,12 +151,18 @@ export class CitizenInspector {
   private renderCard(): void {
     const info = this.lastInfo;
     if (!info) return;
+    const bar = (v: number) => {
+      const n = Math.round(Math.max(0, Math.min(1, v)) * 8);
+      return `${'▮'.repeat(n)}${'▯'.repeat(8 - n)}`;
+    };
     const bars = Object.entries(info.needs)
-      .map(([k, v]) => {
-        const n = Math.round(v * 8);
-        return `${(NEED_LABELS[k] ?? k).padEnd(7)}${'▮'.repeat(n)}${'▯'.repeat(8 - n)}`;
-      })
+      .map(([k, v]) => `${(NEED_LABELS[k] ?? k).padEnd(7)}${bar(v)}`)
       .join('\n');
-    this.el.textContent = `${info.name}\n${info.activityLabel}${this.follow ? '  ⌖' : ''}\n\n${bars}\n\n[F] seguir · [Esc] cerrar`;
+    const meta = [
+      `salud   ${bar(info.health)}`,
+      `dinero  ${info.wallet.toFixed(0)}`,
+      `despensa ${info.pantry.toFixed(0)} uds`,
+    ].join('\n');
+    this.el.textContent = `${info.name}\n${info.activityLabel}${this.follow ? '  ⌖' : ''}\n\n${bars}\n${meta}\n\n[F] seguir · [Esc] cerrar`;
   }
 }

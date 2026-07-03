@@ -61,6 +61,9 @@ export interface Citizen {
   partnerId: number | null;
   /** Nivel educativo [0,1] (lógica de educación). Abre empleos de tier alto. */
   education: number;
+  /** Salud [0,1] (lógica de salud, ciclo 5). Decae con hambre/sueño crónicos
+   * y la edad; se recupera descansando o en la clínica. */
+  health: number;
   /** Afinidad por id de conocido [0,1]. Se refuerza con encuentros. */
   friends: Map<number, number>;
   /** Tick en que terminó su última charla (histéresis anti-bucle). */

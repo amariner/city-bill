@@ -50,6 +50,7 @@ export const CATALOG_DATA: CatalogItemData[] = [
   { id: 'parking', name: 'Parking en altura', w: 8, d: 5, tier: 3, role: 'infra', jobs: 2 },
   { id: 'civic', name: 'Ayuntamiento', w: 8, d: 5, tier: 3, role: 'civic', jobs: 10 },
   { id: 'school', name: 'Escuela', w: 6, d: 4, tier: 1, role: 'civic', jobs: 2, students: 24 },
+  { id: 'clinic', name: 'Consultorio', w: 4, d: 3, tier: 1, role: 'civic', jobs: 2 },
   { id: 'office', name: 'Oficinas', w: 5, d: 5, tier: 4, role: 'work', jobs: 30 },
   { id: 'factory', name: 'Fábrica', w: 8, d: 6, tier: 4, role: 'work', jobs: 40 },
 

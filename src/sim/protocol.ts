@@ -35,6 +35,7 @@ export const ACTIVITY_IDS = [
   'visit',
   'chat',
   'school',
+  'clinic',
 ] as const;
 export type ActivityKind = (typeof ACTIVITY_IDS)[number];
 
@@ -111,6 +112,10 @@ export interface CitizenInfoMsg {
   needs: Record<string, number>;
   home: [number, number];
   work?: [number, number];
+  /** Salud, ahorro y despensa del hogar — ciclos 2/4/5 de RESEARCH.md. */
+  health: number;
+  wallet: number;
+  pantry: number;
 }
 
 export type WorkerToMain = SnapshotMsg | SimEventMsg | CitizenInfoMsg;
