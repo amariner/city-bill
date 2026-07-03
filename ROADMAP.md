@@ -201,8 +201,11 @@ repetido, arbolado automático en márgenes de carretera (rasgo de identidad).
   del catálogo (granja 2, tienda 3…). Los ciudadanos solicitan empleo por cercanía y
   personalidad; las tiendas requieren clientes para prosperar; los campos activos
   requieren granjeros para pasar de barbecho a cultivo (feedback 100 % visual: el campo
-  cambia de color por franjas). Sin dinero explícito todavía: demanda/oferta simple.
-- [ ] **T3.9 Vehículos.** Coches (T2+) para trayectos > 40 celdas: el ciudadano camina
+  cambia de color por franjas). Dinero explícito añadido en RESEARCH.md
+  ciclos 2/3/4 (salario, impuestos, economía circular) — ver `sim/economy.ts`.
+- [~] **T3.9 Vehículos** (lógica hecha en `sim/simulation.ts`, ciclo 8 de
+  RESEARCH.md; falta mesh de coche — TODO en `render/citizens.ts`). Coches
+  (T2+) para trayectos > 40 celdas: el ciudadano camina
   a su coche, el coche recorre el grafo vial (velocidad por tipo de vía, pausa en
   cruces ocupados), aparca cerca del destino. Tractores recorren campos en franjas.
 - [x] **T3.10 Inspector de ciudadano.** Click en un ciudadano → tarjetita diegética:
