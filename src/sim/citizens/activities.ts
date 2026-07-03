@@ -21,6 +21,8 @@ export interface SimContext {
   /** darkness [0,1] del reloj (0 mediodía, 1 medianoche). */
   darkness: number;
   hour: number;
+  /** Día de juego (ciclo 10 — para la fecha de fiestas del calendario). */
+  day: number;
   citizens: Map<number, Citizen>;
   /** Clientes por tienda en el día (economía T3.8). */
   visitCounters: Map<string, number>;
@@ -284,12 +286,41 @@ export const ACTIVITIES: ActivityDef[] = [
     personality: (c) => 0.6 + 0.9 * c.personality.sociable,
     indoors: true,
   },
+  {
+    kind: 'festival',
+    need: 'fun',
+    // El mayor subidón de todo el motor: la alegría comunal supera a
+    // cualquier plan individual — por eso arrastra incluso a quien no
+    // tenía el fun muy bajo (personality lo hace irresistible al sociable).
+    restorePerHour: { fun: 1.3, social: 1.0 },
+    durationH: [1.5, 3],
+    suitability: (ctx) => {
+      if (!isFestivalDay(ctx.day)) return 0; // fuera de la fecha, no existe
+      if (ctx.weather.rain) return 0.15; // hasta las fiestas se deslucen con lluvia
+      return Math.max(0.2, 1 - ctx.darkness * 0.9); // dura toda la tarde-noche
+    },
+    findTarget: (ctx, c) => {
+      const plaza = nearestOfRole(ctx, c, 'civic');
+      return plaza ? entranceTarget(plaza) : null;
+    },
+    personality: (c) => 0.7 + 0.8 * c.personality.sociable,
+    indoors: false,
+  },
 ];
 
 /** Afinidad mínima para considerarse parte del mismo círculo cercano
  * ("club"): muy por encima del umbral de una visita 1:1 (0.25) — hace
  * falta tiempo compartido de verdad, no un simple conocido. */
 export const CLUB_AFFINITY = 0.5;
+
+// --- Lógica de fiestas de barrio (ciclo 10, N5 autorrealización) --------------
+/** Cada cuántos días de juego cae la fiesta mayor — una FECHA de calendario,
+ * como cualquier fiesta real, no un horario de decisión de personaje: quién
+ * va, cuántos y qué pasa (charlas en cascada) sigue siendo 100% emergente. */
+export const FESTIVAL_DAY_INTERVAL = 15;
+export function isFestivalDay(day: number): boolean {
+  return day > 0 && day % FESTIVAL_DAY_INTERVAL === 0;
+}
 
 export const ACTIVITY_BY_KIND: Map<ActivityKind, ActivityDef> = new Map(
   ACTIVITIES.map((a) => [a.kind, a]),
@@ -303,6 +334,7 @@ export function activityLabel(kind: ActivityKind, moving: boolean): string {
     school: 'En la escuela',
     clinic: 'En el consultorio',
     club: 'De charla con la pandilla',
+    festival: 'En la fiesta del pueblo',
     eat: 'Comiendo',
     shop: 'De compras',
     stroll: 'Paseando',
@@ -316,6 +348,7 @@ export function activityLabel(kind: ActivityKind, moving: boolean): string {
     school: 'Yendo a la escuela',
     clinic: 'Yendo al consultorio',
     club: 'Yendo a ver a la pandilla',
+    festival: 'Yendo a la fiesta',
     eat: 'Volviendo a comer',
     shop: 'Yendo a la tienda',
     stroll: 'Saliendo a pasear',

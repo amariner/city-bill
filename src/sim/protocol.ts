@@ -47,6 +47,7 @@ export const ACTIVITY_IDS = [
   'school',
   'clinic',
   'club',
+  'festival',
 ] as const;
 export type ActivityKind = (typeof ACTIVITY_IDS)[number];
 
@@ -109,7 +110,8 @@ export interface SimEventMsg {
     | 'chatStarted'
     | 'cityGrew'
     | 'tierUnlocked'
-    | 'coupleFormed';
+    | 'coupleFormed'
+    | 'festivalDay';
   data?: Record<string, unknown>;
 }
 

@@ -19,7 +19,7 @@ import { Economy } from './economy';
 import { Citizen, citizenName, PlannedActivity, TravelMode } from './citizens/citizen';
 import { decayNeeds, restore, NEED_KEYS } from './citizens/needs';
 import { chooseActivity } from './citizens/brain';
-import { ACTIVITY_BY_KIND, SimContext, activityLabel, EDU_PER_HOUR, CLINIC_FEE } from './citizens/activities';
+import { ACTIVITY_BY_KIND, SimContext, activityLabel, EDU_PER_HOUR, CLINIC_FEE, isFestivalDay } from './citizens/activities';
 import { SocialSystem } from './citizens/social';
 import { AgentState, ActivityKind, activityId, AGENT_STRIDE, TravelModeCode } from './protocol';
 import { computeDemand, itemForDemand, findParcel, townCenter, GrowthPlacement } from '../world/growth';
@@ -50,7 +50,7 @@ const CAR_CELLS_PER_TICK_OFFROAD = WALK_CELLS_PER_TICK;
 const COMFORT_FUN_PER_HOUR = 0.15;
 
 export interface SimEvent {
-  name: 'citizenBorn' | 'citizenLeft' | 'jobTaken' | 'chatStarted' | 'cityGrew' | 'tierUnlocked' | 'coupleFormed';
+  name: 'citizenBorn' | 'citizenLeft' | 'jobTaken' | 'chatStarted' | 'cityGrew' | 'tierUnlocked' | 'coupleFormed' | 'festivalDay';
   data: Record<string, unknown>;
 }
 
@@ -203,6 +203,7 @@ export class Simulation {
       rng: this.rng,
       darkness: this.clock.darkness,
       hour: this.clock.hour,
+      day: this.clock.day,
       citizens: this.citizens,
       visitCounters: this.economy.visitsToday,
       pantry: this.pantry,
@@ -270,6 +271,9 @@ export class Simulation {
       this.payPensions();
       this.economy.investInHomes(this.households.keys()); // estatus, ciclo 9
       this.hireAndAcquaint();
+      if (isFestivalDay(this.clock.day)) {
+        this.events.push({ name: 'festivalDay', data: { day: this.clock.day } });
+      }
       const pop = this.citizens.size;
       const unlocked: Tier = pop >= 200 ? 4 : pop >= 80 ? 3 : pop >= 25 ? 2 : 1;
       if (unlocked > this.tier) {

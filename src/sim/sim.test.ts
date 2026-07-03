@@ -303,6 +303,27 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
   check('estatus: el prestigio nunca sale de [0,1]', capped);
 }
 
+// Ciclo 10 RESEARCH.md — fiestas de barrio (N5, cierra la pirámide completa
+// N0-N5): fecha de calendario fija, pero asistencia y efecto emergentes.
+{
+  const sim = new Simulation(seedWorld(), 42);
+  let festivalDays = 0;
+  let festivalAttendance = 0;
+  let attendanceOnNonFestivalDay = 0;
+  for (let t = 0; t < TICKS_PER_DAY * 46; t++) {
+    sim.step();
+    for (const e of sim.takeEvents()) if (e.name === 'festivalDay') festivalDays++;
+    for (const c of sim.citizens.values()) {
+      if (c.activity !== 'festival' || c.phase.kind !== 'doing') continue;
+      if (sim.clock.day % 15 === 0 && sim.clock.day > 0) festivalAttendance++;
+      else attendanceOnNonFestivalDay++;
+    }
+  }
+  check('fiestas: caen en su fecha de calendario', festivalDays >= 3, `→ ${festivalDays} en 46 días`);
+  check('fiestas: la gente asiste de verdad', festivalAttendance > 0, `→ ${festivalAttendance} ticks`);
+  check('fiestas: NUNCA fuera de fecha (nada de guion suelto)', attendanceOnNonFestivalDay === 0, `→ ${attendanceOnNonFestivalDay}`);
+}
+
 // Determinismo: mismo snapshot final con la misma semilla.
 const a = runDays(7, 1).sim.snapshot();
 const b = runDays(7, 1).sim.snapshot();

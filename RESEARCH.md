@@ -308,3 +308,32 @@ una simulación, y los tratamos como tales:
   (c) con esto completo, la pirámide de RESEARCH.md §2 solo tiene N5
   (autorrealización — fiestas emergentes) sin empezar; sería el ciclo 10 y
   cerraría la pirámide entera desde N0 hasta N5.
+- 2026-07-04 · **Ciclo 10: Fiestas de barrio (N5 autorrealización) — PIRÁMIDE
+  COMPLETA N0→N5** · Modelo: FESTIVAL_DAY_INTERVAL=15 es una FECHA de
+  calendario fija (como cualquier fiesta real: San Juan, mercado mensual —
+  no un "horario de personaje", es un hecho del mundo). En ese día, la
+  actividad 'festival' se vuelve puntuable para todos vía la MISMA utility
+  AI de siempre (suitability=0 cualquier otro día — verificado con un test
+  que exige CERO asistencia fuera de fecha); quién va, cuántos y si la
+  fiesta "prende" depende de personalidad, clima y lo que cada cual tenía
+  entre manos — 100% emergente sobre una fecha fija, exactamente como en la
+  vida real. Restauración de fun+social más alta que cualquier otra
+  actividad (la alegría comunal). Reutiliza el ayuntamiento como plaza (sin
+  mesh de plaza propio — TODO Sonnet). Evento `festivalDay` narrado en la
+  Crónica. 113/113 tests.
+  **Hito de sesión**: con este ciclo, las 13 lógicas activas cubren los 6
+  niveles de la pirámide de Maslow (N0 física → N5 autorrealización) de
+  RESEARCH.md §2 sin ningún hueco — el "multiuniverso de lógicas" que dio
+  origen a esta metodología (idea original del usuario, sesión anterior) ha
+  producido su primer ciclo completo del árbol de necesidades humanas.
+  Carencias observadas para la Fase 5 (atmósfera) y ciclos futuros:
+  (a) sin plaza/mesh propios de fiesta (luces, puestos) — visual, Sonnet;
+  (b) ninguna lógica tiene aún reflejo en el TERRENO más allá de granjas
+  (T3.8 ya lo prometía: "el campo cambia de color por franjas" — sigue sin
+  implementarse, es deuda de VARIOS ciclos atrás, no de este); (c) con la
+  pirámide cerrada, el trabajo que más valor añade ya no es "una lógica
+  más" sino PROFUNDIDAD: acoplar más fuerte lo que ya existe (prestigio→
+  inmigración, salud→mortalidad, clima→coche) y el pulido visual acumulado
+  para Sonnet (escuela, consultorio, coche, plaza — 4 TODOs de mesh
+  pendientes). El algoritmo fractal sigue vivo: la siguiente pregunta no es
+  "qué lógica falta" sino "qué acoplamiento falta entre las que ya hay".

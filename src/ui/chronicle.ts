@@ -112,6 +112,9 @@ export class Chronicle {
       case 'tierUnlocked':
         text = `¡hito! tier ${data?.tier} desbloqueado (${data?.population} hab.)`;
         break;
+      case 'festivalDay':
+        text = 'fiesta mayor del pueblo';
+        break;
       default:
         return;
     }
