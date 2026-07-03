@@ -36,6 +36,7 @@ export const ACTIVITY_IDS = [
   'chat',
   'school',
   'clinic',
+  'club',
 ] as const;
 export type ActivityKind = (typeof ACTIVITY_IDS)[number];
 

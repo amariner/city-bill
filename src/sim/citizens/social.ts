@@ -12,7 +12,9 @@ import { Rng } from '../../rng';
 /** Distancia máx. (celdas) para pararse a charlar. */
 const CHAT_RANGE = 3;
 /** Necesitan tener ganas: social por debajo de este umbral. */
-const SOCIAL_THRESHOLD = 0.78;
+/** Bajo esto, alguien "tiene ganas" de socializar (charla, club). Compartido
+ * con activities.ts para que el ciclo 7 (club) use el mismo criterio. */
+export const SOCIAL_THRESHOLD = 0.78;
 /** Ticks de gracia tras una charla (evita bucles de saludo infinito). */
 const CHAT_COOLDOWN_TICKS = 60; // ≈ 36 min de juego
 

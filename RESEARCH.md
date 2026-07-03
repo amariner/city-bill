@@ -236,3 +236,23 @@ una simulación, y los tratamos como tales:
   cuando llegue el ciclo de vehículos; (c) `DAYS_PER_SEASON=20` es arbitrario,
   ajustar si el playtesting dice que el ciclo se siente demasiado rápido o
   lento una vez haya paleta estacional visible.
+- 2026-07-04 · **Ciclo 7: Vecindario y pandillas (tercer lugar)** · Modelo:
+  un "club" no se guarda ni se sincroniza — emerge cada tick: si 2+ amigos
+  de CONFIANZA (afinidad ≥ CLUB_AFFINITY=0.5, muy por encima del umbral de
+  una visita cualquiera) están también libres y faltos de socializar, el
+  ciudadano prefiere ir al "local de siempre" (la tienda más cercana,
+  reutilizada como tercer lugar) en vez de visitar a uno solo en casa.
+  Restaura más que una visita 1:1. Sin coordinación explícita: si varios
+  convergen de verdad, el sistema de encuentros YA existente los sienta a
+  charlar — composición limpia sobre lo ya construido, cero bookkeeping
+  nuevo. Verificado con más rigor que un simple >0: comparé frecuencia con
+  'visit' (100k ticks club vs 110k visit en 45 días, 46 hab.) para confirmar
+  que no es un caso residual. 103/103 tests.
+  Carencias observadas: (a) sigue sin existir un edificio "plaza/bar" propio
+  — el tercer lugar de facto es la tienda; con uno dedicado (plaza con
+  bancos) esto sería más creíble y visualmente distinguible (tarea de
+  catálogo, no de lógica); (b) las pandillas no tienen identidad propia
+  (nombre, tamaño estable) — si se quiere un evento tipo "fiesta de barrio"
+  (N5, pendiente) hará falta detectar el CLÚSTER real, no solo pares
+  cercanos; (c) CLUB_AFFINITY=0.5 tarda ~6 charlas en alcanzarse
+  (AFFINITY_PER_CHAT=0.08) — revisar si en partidas cortas nunca llega a verse.

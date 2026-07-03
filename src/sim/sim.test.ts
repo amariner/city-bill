@@ -258,6 +258,24 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
   );
 }
 
+// Ciclo 7 RESEARCH.md — vecindario/pandillas (tercer lugar): cuando el
+// círculo cercano (afinidad alta, no un conocido cualquiera) coincide libre,
+// alguien va al "local de siempre" en vez de visitar a uno solo en casa.
+{
+  const sim = new Simulation(seedWorld(), 42);
+  let clubOutings = 0;
+  let closeFriendships = 0;
+  for (let t = 0; t < TICKS_PER_DAY * 45; t++) {
+    sim.step();
+    for (const c of sim.citizens.values()) if (c.activity === 'club' && c.phase.kind === 'doing') clubOutings++;
+  }
+  for (const c of sim.citizens.values()) {
+    for (const aff of c.friends.values()) if (aff >= 0.5) closeFriendships++;
+  }
+  check('vecindario: se forman amistades de confianza (afinidad alta)', closeFriendships > 0, `→ ${closeFriendships}`);
+  check('vecindario: emergen salidas de pandilla al tercer lugar', clubOutings > 0, `→ ${clubOutings} ticks`);
+}
+
 // Determinismo: mismo snapshot final con la misma semilla.
 const a = runDays(7, 1).sim.snapshot();
 const b = runDays(7, 1).sim.snapshot();

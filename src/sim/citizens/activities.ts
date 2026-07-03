@@ -13,6 +13,7 @@ import { CellXZ, manhattan } from '../geometry';
 import { Rng } from '../../rng';
 import { SEEK_CLINIC_HEALTH } from '../health';
 import { Weather } from '../weather';
+import { SOCIAL_THRESHOLD } from './social';
 
 export interface SimContext {
   index: WorldIndex;
@@ -255,7 +256,40 @@ export const ACTIVITIES: ActivityDef[] = [
     personality: (c) => 0.5 + 1.0 * c.personality.sociable,
     indoors: true,
   },
+  {
+    kind: 'club',
+    need: 'social',
+    // Mejor que una visita 1:1: el "tercer lugar" (ciclo 7) rinde más porque
+    // ahí confluyen VARIOS del círculo cercano, no solo uno.
+    restorePerHour: { social: 1.0, fun: 0.5 },
+    durationH: [1, 2],
+    suitability: (ctx) => Math.max(0.1, 1 - ctx.darkness * 1.2) * (0.7 + 0.3 * ctx.weather.outdoorFactor),
+    findTarget: (ctx, c) => {
+      // Un "club" no es una entidad que se guarda: emerge cada vez que 2+
+      // amigos de CONFIANZA (afinidad alta, no cualquier conocido) están
+      // TAMBIÉN libres y faltos de socializar ahora mismo. Sin coordinación
+      // explícita: si varios convergen en el mismo local, el sistema de
+      // encuentros (social.ts) ya se encarga de sentarlos a charlar.
+      let closeAndFree = 0;
+      for (const [id, aff] of c.friends) {
+        if (aff < CLUB_AFFINITY) continue;
+        const f = ctx.citizens.get(id);
+        if (!f || f.inside || f.activity === 'sleep' || f.activity === 'work') continue;
+        if (f.needs.social < SOCIAL_THRESHOLD) closeAndFree++;
+      }
+      if (closeAndFree < 2) return null; // hace falta un CÍRCULO, no un amigo suelto
+      const spot = nearestOfRole(ctx, c, 'commerce');
+      return spot ? entranceTarget(spot) : null;
+    },
+    personality: (c) => 0.6 + 0.9 * c.personality.sociable,
+    indoors: true,
+  },
 ];
+
+/** Afinidad mínima para considerarse parte del mismo círculo cercano
+ * ("club"): muy por encima del umbral de una visita 1:1 (0.25) — hace
+ * falta tiempo compartido de verdad, no un simple conocido. */
+export const CLUB_AFFINITY = 0.5;
 
 export const ACTIVITY_BY_KIND: Map<ActivityKind, ActivityDef> = new Map(
   ACTIVITIES.map((a) => [a.kind, a]),
@@ -268,6 +302,7 @@ export function activityLabel(kind: ActivityKind, moving: boolean): string {
     work: 'Trabajando',
     school: 'En la escuela',
     clinic: 'En el consultorio',
+    club: 'De charla con la pandilla',
     eat: 'Comiendo',
     shop: 'De compras',
     stroll: 'Paseando',
@@ -280,6 +315,7 @@ export function activityLabel(kind: ActivityKind, moving: boolean): string {
     work: 'Yendo al trabajo',
     school: 'Yendo a la escuela',
     clinic: 'Yendo al consultorio',
+    club: 'Yendo a ver a la pandilla',
     eat: 'Volviendo a comer',
     shop: 'Yendo a la tienda',
     stroll: 'Saliendo a pasear',
