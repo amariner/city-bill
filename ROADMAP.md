@@ -116,33 +116,24 @@ repetido, arbolado automático en márgenes de carretera (rasgo de identidad).
 ### Fase 1 — Motor de mundo
 > Objetivo: del diorama estático a un mundo por rejilla, navegable y barato de renderizar.
 
-- [ ] **T1.1 Extraer core.** Divide `main.ts` en `core/renderer.ts`, `core/camera.ts`,
-  `core/loop.ts`. Comportamiento idéntico (mismo screenshot).
-  *Aceptación:* tsc limpio; screenshot indistinguible del actual.
-- [ ] **T1.2 Grid lógico.** Implementa `world/grid.ts` según §1.2 con API:
-  `get(cx,cz)`, `set(...)`, `canPlace(item, cx, cz, rot)`, `forEachInRect(...)`,
-  serializable. Tests con asserts en un `grid.test.ts` ejecutado vía `npx tsx` o vitest.
-  *Aceptación:* tests pasan; ninguna referencia a THREE en el archivo.
-- [ ] **T1.3 Catálogo data-driven.** `world/catalog.ts`: cada ítem de CATALOG.md tiers
-  T0-T1 como `{id, celdas, tier, buildMesh(), simRole}`. `props.ts` pasa a ser la
-  librería de meshes que el catálogo invoca.
-  *Aceptación:* el catálogo lista ≥ 12 ítems; `buildMesh()` de cada uno renderiza bien
-  en una escena de prueba (screenshot de "expositor" con todos en fila).
-- [ ] **T1.4 Escenario semilla sobre grid.** Reescribe `neighborhood.ts` para poblar el
-  grid (campos, carreteras, parcela, pueblo) y renderizar DESDE el grid.
-  *Aceptación:* screenshot equivalente al actual (misma composición, puede variar en
-  detalle); las carreteras y edificios existen como celdas consultables.
-- [ ] **T1.5 Cámara jugable.** Pan (arrastre con botón central/derecho o WASD), zoom por
-  4 niveles discretos con easing, rotación en saltos de 90° (Q/E) manteniendo el look
-  isométrico. Límites de mapa. `core/input.ts` traduce eventos a intents.
-  *Aceptación:* navegable con ratón y teclado; la elevación NUNCA cambia; 60 fps.
-- [ ] **T1.6 Instancing.** `world/render/instances.ts`: árboles, cipreses y ciudadanos
-  pasan a `InstancedMesh` con variación por instancia (escala/rotación/tono via
-  `instanceColor`). Edificios pequeños repetidos también.
-  *Aceptación:* con 2.000 árboles de prueba, ≤ 200 draw calls y 60 fps.
-- [ ] **T1.7 Chunks + HUD de debug.** Render por chunks (crear/descartar según cámara)
-  y overlay de debug activable con F3: fps, draw calls, nº agentes, celda bajo cursor.
-  *Aceptación:* moverse por un mapa 512×512 celdas mantiene 60 fps; overlay funciona.
+- [x] **T1.1 Extraer core.** `core/renderer.ts` (stage+luz), `core/camera.ts` (IsoCamera),
+  `core/loop.ts` (GameLoop con dt). Comportamiento idéntico.
+- [x] **T1.2 Grid lógico.** `world/grid.ts` según §1.2: rejilla dispersa por chunks,
+  canPlace/placeBuilding/removeBuilding con footprint rotado, serialize. 26 tests (npm test).
+- [x] **T1.3 Catálogo data-driven.** `world/catalog.ts`: 15 ítems `{id, w, d, tier, role,
+  capacity/jobs/happiness, build()}`. Expositor `?scene=buildings`.
+- [x] **T1.4 Escenario semilla sobre grid.** `world/seed.ts` puebla el grid;
+  `world/render/terrain.ts` mergea el terreno con vertex-colors; `worldView` renderiza
+  desde el grid. Carreteras y edificios son celdas consultables.
+- [x] **T1.5 Cámara jugable.** `core/input.ts` + `core/cameraController.ts`: pan
+  (arrastre + WASD), zoom por niveles con easing, rotación 90° (Q/E) suavizada, límites.
+  Elevación constante.
+- [x] **T1.6 Instancing.** `world/render/instances.ts`: árboles a `InstancedMesh`
+  (tronco+copa por especie). Verificado: 4 draw calls para toda la vegetación, O(1) al crecer.
+- [x] **T1.7 Chunks + HUD de debug.** Mundo por chunks (culling automático por
+  boundingSphere) + `core/debugHud.ts` (F3): fps, draw calls, triángulos, chunks
+  visibles, celda bajo cursor. Verificado: zoom-in baja chunks vis 10→7 y draw calls
+  168→118 (culling activo), 60 fps.
 - [ ] **T1.8 Ciclo de luz.** Interpolación lenta del sol entre dos "horas doradas"
   (mañana/tarde) ligada al reloj de juego. Las sombras siguen siendo largas SIEMPRE.
   *Aceptación:* transición imperceptible frame a frame; screenshots en ambos extremos

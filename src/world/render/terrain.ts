@@ -1,16 +1,14 @@
 /**
- * Renderiza el terreno del grid como UNA malla mergeada con vertex-colors:
- * un quad por celda con tono variado (RNG determinista por celda), de modo que
- * el patchwork pastel se conserva pero cuesta ~1 draw call.
- * El render LEE el grid; nunca lo modifica.
+ * Renderiza el terreno como mallas mergeadas con vertex-colors: un quad por
+ * celda con tono variado (patchwork por región + jitter por celda), ~1 draw
+ * call por chunk. Al trocearlo por chunk, el frustum culling de THREE descarta
+ * los chunks fuera de cámara. El render LEE el grid; nunca lo modifica.
  */
 import * as THREE from 'three';
 import { PALETTE } from '../../palette';
 import { createRng } from '../../rng';
-import { Grid, Terrain, CELL_SIZE, Cell } from '../grid';
+import { Grid, Chunk, Terrain, CELL_SIZE, Cell } from '../grid';
 
-// Altura de cada capa: escalona las vías por encima del suelo para evitar
-// z-fighting sin necesidad de polygonOffset.
 const LAYER_Y: Record<Terrain, number> = {
   none: 0,
   field: 0.02,
@@ -37,53 +35,73 @@ function baseColor(terrain: Terrain, rng: ReturnType<typeof createRng>): number 
   }
 }
 
-export function buildTerrainMesh(grid: Grid): THREE.Mesh {
-  const positions: number[] = [];
-  const normals: number[] = [];
-  const colors: number[] = [];
-  const c = new THREE.Color();
+interface QuadBuffers {
+  positions: number[];
+  normals: number[];
+  colors: number[];
+}
 
-  grid.forEachChunk((chunk) => {
-    chunk.cells.forEach((cell: Cell, key: number) => {
-      if (cell.terrain === 'none') return;
-      // Reconstruye coords de celda desde la clave empaquetada.
-      const cx = Math.floor(key / 65536) - 32768;
-      const cz = (key % 65536) - 32768;
+function cellFromKey(key: number): [number, number] {
+  return [Math.floor(key / 65536) - 32768, (key % 65536) - 32768];
+}
 
-      // Color base por REGIÓN (parches grandes tipo patchwork) + jitter fino
-      // por celda. Los campos usan parches grandes (16 celdas); la hierba,
-      // parches medianos (4 celdas) que evocan el césped segado a franjas.
-      const shift = cell.terrain === 'field' ? 4 : cell.terrain === 'grass' ? 2 : 8;
-      const regionRng = createRng(((cx >> shift) * 73856093) ^ ((cz >> shift) * 19349663));
-      c.set(baseColor(cell.terrain, regionRng));
-      const cellRng = createRng((cx * 83492791) ^ (cz * 29874321));
-      c.multiplyScalar(0.97 + cellRng.next() * 0.06);
+function emitCell(buf: QuadBuffers, cx: number, cz: number, cell: Cell, c: THREE.Color): void {
+  if (cell.terrain === 'none') return;
 
-      const y = LAYER_Y[cell.terrain];
-      const x0 = cx * CELL_SIZE;
-      const x1 = x0 + CELL_SIZE;
-      const z0 = cz * CELL_SIZE;
-      const z1 = z0 + CELL_SIZE;
+  // Color base por región (parches grandes) + jitter fino por celda.
+  const shift = cell.terrain === 'field' ? 4 : cell.terrain === 'grass' ? 2 : 8;
+  const regionRng = createRng(((cx >> shift) * 73856093) ^ ((cz >> shift) * 19349663));
+  c.set(baseColor(cell.terrain, regionRng));
+  const cellRng = createRng((cx * 83492791) ^ (cz * 29874321));
+  c.multiplyScalar(0.97 + cellRng.next() * 0.06);
 
-      // Dos triángulos con winding CCW visto desde +Y (cara frontal arriba,
-      // hacia la cámara) — si no, el backface culling los descartaría.
-      positions.push(x0, y, z0, x1, y, z1, x1, y, z0, x0, y, z0, x0, y, z1, x1, y, z1);
-      for (let i = 0; i < 6; i++) {
-        normals.push(0, 1, 0);
-        colors.push(c.r, c.g, c.b);
-      }
-    });
-  });
+  const y = LAYER_Y[cell.terrain];
+  const x0 = cx * CELL_SIZE;
+  const x1 = x0 + CELL_SIZE;
+  const z0 = cz * CELL_SIZE;
+  const z1 = z0 + CELL_SIZE;
 
+  // Winding CCW visto desde +Y (cara frontal hacia la cámara).
+  buf.positions.push(x0, y, z0, x1, y, z1, x1, y, z0, x0, y, z0, x0, y, z1, x1, y, z1);
+  for (let i = 0; i < 6; i++) {
+    buf.normals.push(0, 1, 0);
+    buf.colors.push(c.r, c.g, c.b);
+  }
+}
+
+function finish(buf: QuadBuffers): THREE.Mesh {
   const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  geo.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
-  geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(buf.positions, 3));
+  geo.setAttribute('normal', new THREE.Float32BufferAttribute(buf.normals, 3));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(buf.colors, 3));
   geo.computeBoundingSphere();
-
-  const mat = new THREE.MeshLambertMaterial({ vertexColors: true });
-  const mesh = new THREE.Mesh(geo, mat);
+  const mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true }));
   mesh.receiveShadow = true;
   mesh.name = 'terrain';
   return mesh;
+}
+
+/** Malla de terreno de un solo chunk (o null si no tiene terreno). */
+export function buildTerrainMeshForChunk(chunk: Chunk): THREE.Mesh | null {
+  const buf: QuadBuffers = { positions: [], normals: [], colors: [] };
+  const c = new THREE.Color();
+  chunk.cells.forEach((cell, key) => {
+    const [cx, cz] = cellFromKey(key);
+    emitCell(buf, cx, cz, cell, c);
+  });
+  if (buf.positions.length === 0) return null;
+  return finish(buf);
+}
+
+/** Malla de terreno de todo el grid (una sola geometría). */
+export function buildTerrainMesh(grid: Grid): THREE.Mesh {
+  const buf: QuadBuffers = { positions: [], normals: [], colors: [] };
+  const c = new THREE.Color();
+  grid.forEachChunk((chunk) => {
+    chunk.cells.forEach((cell, key) => {
+      const [cx, cz] = cellFromKey(key);
+      emitCell(buf, cx, cz, cell, c);
+    });
+  });
+  return finish(buf);
 }

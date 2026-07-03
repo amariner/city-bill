@@ -1,46 +1,83 @@
 /**
- * Construye la vista 3D LEYENDO el grid: terreno mergeado + edificios del
- * catálogo colocados en el centro de su footprint + árboles de las celdas prop.
- * En T1.6 los árboles pasarán a InstancedMesh; aquí van como grupos.
+ * Vista 3D del mundo, construida por CHUNKS leyendo el grid. Cada chunk es un
+ * Group (terreno + vegetación + edificios anclados en él) con una boundingSphere
+ * acotada, de modo que el frustum culling de THREE descarta los chunks fuera de
+ * cámara. La clase ofrece `countVisibleChunks` para el HUD de debug.
  */
 import * as THREE from 'three';
-import { Grid, CELL_SIZE, rotatedFootprint, Cell } from '../grid';
+import { Grid, Chunk, CELL_SIZE, CHUNK, rotatedFootprint } from '../grid';
 import { catalogItem } from '../catalog';
-import { buildTerrainMesh } from './terrain';
-import { buildVegetation } from './instances';
+import { buildTerrainMeshForChunk } from './terrain';
+import { buildVegetationForChunk } from './instances';
 
 function cellFromKey(key: number): [number, number] {
   return [Math.floor(key / 65536) - 32768, (key % 65536) - 32768];
 }
 
-export function buildWorldView(grid: Grid): THREE.Group {
-  const world = new THREE.Group();
-  world.add(buildTerrainMesh(grid));
+interface ChunkVisual {
+  group: THREE.Group;
+  sphere: THREE.Sphere;
+}
 
-  const buildings = new THREE.Group();
-  buildings.name = 'buildings';
-  world.add(buildings);
+export class WorldView {
+  readonly root = new THREE.Group();
+  readonly chunkCount: number;
+  private visuals: ChunkVisual[] = [];
+  private frustum = new THREE.Frustum();
+  private mat = new THREE.Matrix4();
 
-  grid.forEachChunk((chunk) => {
-    chunk.cells.forEach((cell: Cell, key: number) => {
-      const [cx, cz] = cellFromKey(key);
-      // Edificios: solo en la celda ancla.
-      if (cell.building && cell.building.anchorX === cx && cell.building.anchorZ === cz) {
-        const it = catalogItem(cell.building.id);
-        if (it) {
-          const rot = cell.building.rot;
-          const [fw, fd] = rotatedFootprint(it.w, it.d, rot);
-          const mesh = it.build();
-          mesh.position.set((cx + fw / 2) * CELL_SIZE, 0, (cz + fd / 2) * CELL_SIZE);
-          mesh.rotation.y = (-rot * Math.PI) / 2;
-          buildings.add(mesh);
-        }
+  constructor(grid: Grid) {
+    grid.forEachChunk((chunk) => {
+      const visual = this.buildChunk(grid, chunk);
+      if (visual) {
+        this.visuals.push(visual);
+        this.root.add(visual.group);
       }
     });
-  });
+    this.chunkCount = this.visuals.length;
+  }
 
-  // Árboles: todos instanciados (~4 draw calls).
-  world.add(buildVegetation(grid));
+  private buildChunk(grid: Grid, chunk: Chunk): ChunkVisual | null {
+    const group = new THREE.Group();
+    group.name = `chunk_${chunk.chx}_${chunk.chz}`;
 
-  return world;
+    const terrain = buildTerrainMeshForChunk(chunk);
+    if (terrain) group.add(terrain);
+
+    const veg = buildVegetationForChunk(chunk);
+    if (veg) group.add(veg);
+
+    // Edificios anclados en este chunk.
+    chunk.cells.forEach((cell, key) => {
+      const [cx, cz] = cellFromKey(key);
+      if (cell.building && cell.building.anchorX === cx && cell.building.anchorZ === cz) {
+        const it = catalogItem(cell.building.id);
+        if (!it) return;
+        const rot = cell.building.rot;
+        const [fw, fd] = rotatedFootprint(it.w, it.d, rot);
+        const mesh = it.build();
+        mesh.position.set((cx + fw / 2) * CELL_SIZE, 0, (cz + fd / 2) * CELL_SIZE);
+        mesh.rotation.y = (-rot * Math.PI) / 2;
+        group.add(mesh);
+      }
+    });
+
+    if (group.children.length === 0) return null;
+
+    // BoundingSphere del chunk (centro del chunk + margen para edificios altos).
+    const cx = (chunk.chx * CHUNK + CHUNK / 2) * CELL_SIZE;
+    const cz = (chunk.chz * CHUNK + CHUNK / 2) * CELL_SIZE;
+    const radius = (CHUNK * CELL_SIZE * Math.SQRT2) / 2 + 20;
+    const sphere = new THREE.Sphere(new THREE.Vector3(cx, 0, cz), radius);
+    return { group, sphere };
+  }
+
+  /** Cuántos chunks intersectan el frustum de la cámara ahora mismo. */
+  countVisibleChunks(cam: THREE.Camera): number {
+    this.mat.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);
+    this.frustum.setFromProjectionMatrix(this.mat);
+    let n = 0;
+    for (const v of this.visuals) if (this.frustum.intersectsSphere(v.sphere)) n++;
+    return n;
+  }
 }

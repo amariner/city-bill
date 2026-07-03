@@ -7,7 +7,7 @@
 import * as THREE from 'three';
 import { PALETTE } from '../../palette';
 import { createRng } from '../../rng';
-import { Grid, CELL_SIZE, Cell } from '../grid';
+import { Grid, Chunk, CELL_SIZE, Cell } from '../grid';
 import { mat } from '../../props';
 
 interface TreeInstance {
@@ -72,27 +72,22 @@ function trunkMesh(geo: THREE.BufferGeometry, list: TreeInstance[]): THREE.Insta
   return mesh;
 }
 
-export function buildVegetation(grid: Grid): THREE.Group {
-  const blobs: TreeInstance[] = [];
-  const cypresses: TreeInstance[] = [];
+function collect(cell: Cell, key: number, blobs: TreeInstance[], cypresses: TreeInstance[]): void {
+  if (!cell.prop) return;
+  const [cx, cz] = cellFromKey(key);
+  const rng = createRng(cell.prop.variant);
+  const inst: TreeInstance = {
+    wx: (cx + 0.5) * CELL_SIZE,
+    wz: (cz + 0.5) * CELL_SIZE,
+    scale: rng.range(0.75, 1.3),
+    rotY: rng.range(0, Math.PI * 2),
+    alt: rng.next() < 0.45,
+  };
+  if (cell.prop.id === 'tree-cypress') cypresses.push(inst);
+  else blobs.push(inst);
+}
 
-  grid.forEachChunk((chunk) => {
-    chunk.cells.forEach((cell: Cell, key: number) => {
-      if (!cell.prop) return;
-      const [cx, cz] = cellFromKey(key);
-      const rng = createRng(cell.prop.variant);
-      const inst: TreeInstance = {
-        wx: (cx + 0.5) * CELL_SIZE,
-        wz: (cz + 0.5) * CELL_SIZE,
-        scale: rng.range(0.75, 1.3),
-        rotY: rng.range(0, Math.PI * 2),
-        alt: rng.next() < 0.45,
-      };
-      if (cell.prop.id === 'tree-cypress') cypresses.push(inst);
-      else blobs.push(inst);
-    });
-  });
-
+function assemble(blobs: TreeInstance[], cypresses: TreeInstance[]): THREE.Group {
   const geo = makeGeometries();
   const group = new THREE.Group();
   group.name = 'vegetation';
@@ -118,4 +113,21 @@ export function buildVegetation(grid: Grid): THREE.Group {
   }
 
   return group;
+}
+
+/** Vegetación de todo el grid. */
+export function buildVegetation(grid: Grid): THREE.Group {
+  const blobs: TreeInstance[] = [];
+  const cypresses: TreeInstance[] = [];
+  grid.forEachChunk((chunk) => chunk.cells.forEach((cell, key) => collect(cell, key, blobs, cypresses)));
+  return assemble(blobs, cypresses);
+}
+
+/** Vegetación de un solo chunk (o null si no tiene árboles). */
+export function buildVegetationForChunk(chunk: Chunk): THREE.Group | null {
+  const blobs: TreeInstance[] = [];
+  const cypresses: TreeInstance[] = [];
+  chunk.cells.forEach((cell, key) => collect(cell, key, blobs, cypresses));
+  if (blobs.length === 0 && cypresses.length === 0) return null;
+  return assemble(blobs, cypresses);
 }
