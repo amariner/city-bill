@@ -54,6 +54,8 @@ export class Economy {
       for (const w of this.workplaces) {
         const jobs = w.building.data.jobs ?? 0;
         if (w.workers.length >= jobs || !w.building.entrance) continue;
+        // Empleos de tier alto piden estudios (lógica de educación).
+        if (w.building.data.tier >= 3 && c.education < 0.5) continue;
         const d = manhattan([c.home.ax, c.home.az], w.building.entrance);
         if (d < bestD) {
           bestD = d;

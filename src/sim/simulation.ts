@@ -19,7 +19,7 @@ import { Economy } from './economy';
 import { Citizen, citizenName, PlannedActivity } from './citizens/citizen';
 import { decayNeeds, restore, NEED_KEYS } from './citizens/needs';
 import { chooseActivity } from './citizens/brain';
-import { ACTIVITY_BY_KIND, SimContext, activityLabel } from './citizens/activities';
+import { ACTIVITY_BY_KIND, SimContext, activityLabel, EDU_PER_HOUR } from './citizens/activities';
 import { SocialSystem } from './citizens/social';
 import { AgentState, ActivityKind, activityId, AGENT_STRIDE } from './protocol';
 import { computeDemand, itemForDemand, findParcel, townCenter, GrowthPlacement } from '../world/growth';
@@ -116,6 +116,8 @@ export class Simulation {
       home: { ax, az, buildingId },
       work: null,
       partnerId: null,
+      // Los adultos fundadores llegan con estudios variados; los niños, de cero.
+      education: age === undefined ? this.rng.range(0.2, 0.9) : 0,
       x: door[0] + 0.5,
       z: door[1] + 0.5,
       heading: this.rng.range(0, Math.PI * 2),
@@ -266,6 +268,8 @@ export class Simulation {
       shops: shops.length,
       avgProsperity,
       tier: this.tier,
+      children: [...this.citizens.values()].filter((c) => c.age >= 6 && c.age < 18).length,
+      studentSlots: this.index.buildings.reduce((n, b) => n + (b.data.students ?? 0), 0),
     });
     if (!demand) return;
 
@@ -333,6 +337,7 @@ export class Simulation {
             const r = def.restorePerHour[k];
             if (r) restore(c.needs, k, r * hours);
           }
+          if (c.activity === 'school') c.education = Math.min(1, c.education + EDU_PER_HOUR * hours);
         }
         if (this.clock.time >= c.phase.until) {
           c.phase = { kind: 'deciding' };

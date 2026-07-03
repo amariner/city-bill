@@ -122,6 +122,24 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
   check('vida: los niños no trabajan', kidsWorking === 0, `→ ${kidsWorking}`);
 }
 
+// Lógica de educación: con niños, la ciudad construye escuela, los niños
+// van a clase y ganan nivel educativo.
+{
+  const sim = new Simulation(seedWorld(), 42);
+  let schoolBuilt = false;
+  for (let t = 0; t < TICKS_PER_DAY * 30; t++) {
+    sim.step();
+    for (const e of sim.takeEvents())
+      if (e.name === 'cityGrew' && (e.data as { id?: string }).id === 'school') schoolBuilt = true;
+  }
+  const cs = [...sim.citizens.values()];
+  const kids = cs.filter((c) => c.age >= 6 && c.age < 18);
+  const schooled = kids.filter((c) => c.education > 0).length;
+  check('educación: la ciudad construye escuela', schoolBuilt);
+  check('educación: hay niños en edad escolar', kids.length > 0, `→ ${kids.length}`);
+  check('educación: los niños aprenden', kids.length === 0 || schooled > 0, `→ ${schooled}/${kids.length}`);
+}
+
 // Determinismo: mismo snapshot final con la misma semilla.
 const a = runDays(7, 1).sim.snapshot();
 const b = runDays(7, 1).sim.snapshot();

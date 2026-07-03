@@ -34,6 +34,7 @@ export const ACTIVITY_IDS = [
   'stroll',
   'visit',
   'chat',
+  'school',
 ] as const;
 export type ActivityKind = (typeof ACTIVITY_IDS)[number];
 

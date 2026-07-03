@@ -28,6 +28,8 @@ export interface CatalogItemData {
   capacity?: number;
   /** Puestos de trabajo que ofrece. */
   jobs?: number;
+  /** Plazas de alumno (lógica de educación). */
+  students?: number;
   /** Bonus de felicidad para naturaleza/ocio. */
   happiness?: { radius: number; amount: number };
 }
@@ -47,6 +49,7 @@ export const CATALOG_DATA: CatalogItemData[] = [
   { id: 'supermarket', name: 'Supermercado', w: 9, d: 6, tier: 3, role: 'commerce', jobs: 12 },
   { id: 'parking', name: 'Parking en altura', w: 8, d: 5, tier: 3, role: 'infra', jobs: 2 },
   { id: 'civic', name: 'Ayuntamiento', w: 8, d: 5, tier: 3, role: 'civic', jobs: 10 },
+  { id: 'school', name: 'Escuela', w: 6, d: 4, tier: 1, role: 'civic', jobs: 2, students: 24 },
   { id: 'office', name: 'Oficinas', w: 5, d: 5, tier: 4, role: 'work', jobs: 30 },
   { id: 'factory', name: 'Fábrica', w: 8, d: 6, tier: 4, role: 'work', jobs: 40 },
 

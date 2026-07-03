@@ -39,7 +39,14 @@ export interface ActivityDef {
   personality: (c: Citizen) => number;
   /** true si se hace bajo techo (el agente desaparece). */
   indoors: boolean;
+  /** Quién puede hacerla (p. ej. escuela = niños). Sin definir = todos. */
+  eligible?: (c: Citizen) => boolean;
 }
+
+/** Educación ganada por hora de escuela: ~12 años escolarizado ≈ nivel 1. */
+export const EDU_PER_HOUR = 1 / 70;
+const SCHOOL_MIN_AGE = 6;
+const SCHOOL_MAX_AGE = 18;
 
 function placeOf(b: SimBuilding): PlaceRef {
   return { ax: b.ax, az: b.az, buildingId: b.id };
@@ -97,6 +104,29 @@ export const ACTIVITIES: ActivityDef[] = [
     },
     personality: (c) => 0.6 + 0.8 * c.personality.trabajador,
     indoors: true,
+  },
+  {
+    kind: 'school',
+    need: 'purpose',
+    restorePerHour: { purpose: 1 / 6, social: 0.08 }, // el patio también es vida
+    durationH: [4, 6],
+    suitability: (ctx) => Math.max(0, 1 - ctx.darkness * 1.6), // horario lectivo emerge de la luz
+    findTarget: (ctx, c) => {
+      let best: { place: PlaceRef; cell: CellXZ } | null = null;
+      let bestD = Infinity;
+      for (const b of ctx.index.ofRole('civic')) {
+        if (!b.data.students || !b.entrance) continue;
+        const d = manhattan([c.x | 0, c.z | 0], b.entrance);
+        if (d < bestD) {
+          bestD = d;
+          best = { place: placeOf(b), cell: b.entrance };
+        }
+      }
+      return best;
+    },
+    personality: () => 1,
+    indoors: true,
+    eligible: (c) => c.age >= SCHOOL_MIN_AGE && c.age < SCHOOL_MAX_AGE,
   },
   {
     kind: 'eat',
@@ -181,6 +211,7 @@ export function activityLabel(kind: ActivityKind, moving: boolean): string {
   const doing: Record<string, string> = {
     sleep: 'Durmiendo',
     work: 'Trabajando',
+    school: 'En la escuela',
     eat: 'Comiendo',
     shop: 'De compras',
     stroll: 'Paseando',
@@ -191,6 +222,7 @@ export function activityLabel(kind: ActivityKind, moving: boolean): string {
   const going: Record<string, string> = {
     sleep: 'Volviendo a casa',
     work: 'Yendo al trabajo',
+    school: 'Yendo a la escuela',
     eat: 'Volviendo a comer',
     shop: 'Yendo a la tienda',
     stroll: 'Saliendo a pasear',

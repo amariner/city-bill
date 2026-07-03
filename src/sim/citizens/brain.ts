@@ -24,6 +24,7 @@ export function chooseActivity(c: Citizen, ctx: SimContext): PlannedActivity | n
     // Los desempleados no puntúan 'work' (su purpose decae igual: presión
     // para aceptar el empleo que economy.ts les ofrezca).
     if (def.kind === 'work' && !c.work) continue;
+    if (def.eligible && !def.eligible(c)) continue;
 
     const suit = def.suitability(ctx, c);
     if (suit <= 0.01) continue;

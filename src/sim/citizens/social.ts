@@ -49,32 +49,46 @@ export class SocialSystem {
 
   /**
    * Detecta cruces entre ciudadanos CAMINANDO al aire libre y arranca charlas.
-   * `walkers` ya viene filtrado (fuera, en fase moving) — O(n²) con n pequeño;
-   * cuando haya cientos, sustituir por hash espacial (nota en SIMULATION.md).
+   * Hash espacial por buckets de 4 celdas: solo se comparan vecinos de bucket
+   * (O(n) amortizado; CHAT_RANGE=1.6 < 4 garantiza que no se escapa ninguno).
    */
   detectEncounters(walkers: Citizen[], tick: number): ChatPair[] {
     const started: ChatPair[] = [];
-    for (let i = 0; i < walkers.length; i++) {
-      const a = walkers[i];
+    const BUCKET = 4;
+    const buckets = new Map<number, Citizen[]>();
+    const bkey = (x: number, z: number) => (Math.floor(x / BUCKET) + 4096) * 8192 + (Math.floor(z / BUCKET) + 4096);
+    for (const w of walkers) {
+      const k = bkey(w.x, w.z);
+      (buckets.get(k) ?? buckets.set(k, []).get(k)!).push(w);
+    }
+    for (const a of walkers) {
       if (this.chatting.has(a.id) || a.needs.social >= SOCIAL_THRESHOLD) continue;
       if (tick - a.lastChatTick < CHAT_COOLDOWN_TICKS) continue;
-      for (let j = i + 1; j < walkers.length; j++) {
-        const b = walkers[j];
-        if (this.chatting.has(b.id) || b.needs.social >= SOCIAL_THRESHOLD) continue;
-        if (tick - b.lastChatTick < CHAT_COOLDOWN_TICKS) continue;
-        if (!a.friends.has(b.id)) continue; // solo conocidos se paran
-        const dx = a.x - b.x;
-        const dz = a.z - b.z;
-        if (dx * dx + dz * dz > CHAT_RANGE * CHAT_RANGE) continue;
+      let paired = false;
+      for (let dx = -1; dx <= 1 && !paired; dx++) {
+        for (let dz = -1; dz <= 1 && !paired; dz++) {
+          const cell = buckets.get(bkey(a.x + dx * BUCKET, a.z + dz * BUCKET));
+          if (!cell) continue;
+          for (const b of cell) {
+            if (b.id <= a.id) continue; // cada par una sola vez, determinista
+            if (this.chatting.has(b.id) || b.needs.social >= SOCIAL_THRESHOLD) continue;
+            if (tick - b.lastChatTick < CHAT_COOLDOWN_TICKS) continue;
+            if (!a.friends.has(b.id)) continue; // solo conocidos se paran
+            const ex = a.x - b.x;
+            const ez = a.z - b.z;
+            if (ex * ex + ez * ez > CHAT_RANGE * CHAT_RANGE) continue;
 
-        // Duración de la charla: 15-35 min de juego, sesgada por sociabilidad.
-        const mins = this.rng.range(15, 35) * (0.7 + 0.3 * (a.personality.sociable + b.personality.sociable) / 2);
-        const chat: ChatPair = { a: a.id, b: b.id, remaining: mins * 60 };
-        this.chats.push(chat);
-        this.chatting.add(a.id);
-        this.chatting.add(b.id);
-        started.push(chat);
-        break; // a ya está ocupado
+            // Duración de la charla: 15-35 min de juego, sesgada por sociabilidad.
+            const mins = this.rng.range(15, 35) * (0.7 + 0.3 * (a.personality.sociable + b.personality.sociable) / 2);
+            const chat: ChatPair = { a: a.id, b: b.id, remaining: mins * 60 };
+            this.chats.push(chat);
+            this.chatting.add(a.id);
+            this.chatting.add(b.id);
+            started.push(chat);
+            paired = true; // a ya está ocupado
+            break;
+          }
+        }
       }
     }
     return started;
