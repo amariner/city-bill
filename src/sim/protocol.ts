@@ -127,6 +127,8 @@ export interface CitizenInfoMsg {
   health: number;
   wallet: number;
   pantry: number;
+  /** Prestigio de la vivienda [0,1] — ciclo 9. */
+  prestige: number;
 }
 
 export type WorkerToMain = SnapshotMsg | SimEventMsg | CitizenInfoMsg;

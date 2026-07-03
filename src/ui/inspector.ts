@@ -162,6 +162,7 @@ export class CitizenInspector {
       `salud   ${bar(info.health)}`,
       `dinero  ${info.wallet.toFixed(0)}`,
       `despensa ${info.pantry.toFixed(0)} uds`,
+      `hogar   ${bar(info.prestige)}`,
     ].join('\n');
     this.el.textContent = `${info.name}\n${info.activityLabel}${this.follow ? '  ⌖' : ''}\n\n${bars}\n${meta}\n\n[F] seguir · [Esc] cerrar`;
   }

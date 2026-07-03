@@ -291,3 +291,20 @@ una simulación, y los tratamos como tales:
   — simplificación aceptable de momento (no hay inventario de vehículos),
   pero anotar si se quiere más realismo económico (comprar un coche, no solo
   pagar combustible por trayecto).
+- 2026-07-04 · **Ciclo 9: Estatus y propiedad (N4 estima)** · Modelo: un
+  hogar con ahorro sostenido por encima de PRESTIGE_SAVE_THRESHOLD=80 invierte
+  PRESTIGE_INVEST_COST=40 en mejorar su vivienda (jardín, fachada — sin mesh
+  aún, TODO para Sonnet) subiendo su `prestige` [0,1] en pasos de 0.15 hasta
+  llenarlo. Es un sumidero de dinero REAL (se resta del ahorro, cuenta en
+  moneySpent), no cosmético. Efecto de vuelta: vivir en una vivienda mejorada
+  restaura algo de `fun` extra al estar en casa (comodidad) — cierra el
+  círculo dinero→estatus→bienestar. Inspector actualizado con una barra de
+  "hogar". 110/110 tests, incluida una verificación de que el prestigio
+  nunca sale de [0,1] pese a subir en pasos.
+  Carencias observadas: (a) sin reflejo visual — el jardín/fachada mejorada
+  no se VE todavía (tarea de Sonnet, catálogo/props); (b) el prestigio no
+  influye aún en growth (una calle "de posibles" no atrae más inmigración
+  todavía) — acoplamiento natural pendiente con crecimiento autónomo;
+  (c) con esto completo, la pirámide de RESEARCH.md §2 solo tiene N5
+  (autorrealización — fiestas emergentes) sin empezar; sería el ciclo 10 y
+  cerraría la pirámide entera desde N0 hasta N5.

@@ -45,6 +45,10 @@ const CAR_CELLS_PER_TICK_ROAD = 3.6;
  * similar al peatón, no vuela por el campo. */
 const CAR_CELLS_PER_TICK_OFFROAD = WALK_CELLS_PER_TICK;
 
+// --- Lógica de estatus y propiedad (ciclo 9) ----------------------------------
+/** Bonus de 'fun' por hora en casa, a prestigio máximo (se escala por él). */
+const COMFORT_FUN_PER_HOUR = 0.15;
+
 export interface SimEvent {
   name: 'citizenBorn' | 'citizenLeft' | 'jobTaken' | 'chatStarted' | 'cityGrew' | 'tierUnlocked' | 'coupleFormed';
   data: Record<string, unknown>;
@@ -223,6 +227,12 @@ export class Simulation {
     for (const c of this.citizens.values()) {
       decayNeeds(c.needs, c.personality, hours);
       healthTick(c, hours); // lógica de salud: fondo, no una actividad
+      // Estatus (ciclo 9): una vivienda mejorada es más agradable — quien
+      // está EN CASA (durmiendo, comiendo) recupera algo más de ánimo.
+      if (c.inside && (c.activity === 'sleep' || c.activity === 'eat' || c.activity === 'none')) {
+        const prestige = this.economy.prestigeOf(`${c.home.ax},${c.home.az}`);
+        if (prestige > 0) restore(c.needs, 'fun', prestige * COMFORT_FUN_PER_HOUR * hours);
+      }
       if (this.social.isChatting(c.id)) {
         c.activity = 'chat';
         continue; // parado charlando; social.ts le restaura
@@ -258,6 +268,7 @@ export class Simulation {
       this.stepLife();
       this.economy.endOfDay();
       this.payPensions();
+      this.economy.investInHomes(this.households.keys()); // estatus, ciclo 9
       this.hireAndAcquaint();
       const pop = this.citizens.size;
       const unlocked: Tier = pop >= 200 ? 4 : pop >= 80 ? 3 : pop >= 25 ? 2 : 1;
@@ -550,7 +561,7 @@ export class Simulation {
   }
 
   /** Estado legible de un ciudadano (inspector T3.10). */
-  describe(id: number): { name: string; activity: ActivityKind; activityLabel: string; needs: Record<string, number>; home: [number, number]; work?: [number, number]; health: number; wallet: number; pantry: number } | null {
+  describe(id: number): { name: string; activity: ActivityKind; activityLabel: string; needs: Record<string, number>; home: [number, number]; work?: [number, number]; health: number; wallet: number; pantry: number; prestige: number } | null {
     const c = this.citizens.get(id);
     if (!c) return null;
     const homeKey = `${c.home.ax},${c.home.az}`;
@@ -564,6 +575,7 @@ export class Simulation {
       health: c.health,
       wallet: this.economy.walletOf(homeKey),
       pantry: this.pantry.get(homeKey) ?? 0,
+      prestige: this.economy.prestigeOf(homeKey),
     };
   }
 

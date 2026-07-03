@@ -38,6 +38,14 @@ export const TAX_RATE = 0.2;
 /** Pensión diaria por hogar sin ingresos (si el tesoro alcanza). */
 export const PENSION_PER_DAY = 18;
 
+// --- Lógica de estatus y propiedad (ciclo 9, N4 estima) ------------------------
+/** Ahorro sostenido por encima de esto: el hogar se plantea invertir. */
+export const PRESTIGE_SAVE_THRESHOLD = 80;
+/** Coste de cada mejora del hogar (jardín, fachada…). */
+export const PRESTIGE_INVEST_COST = 40;
+/** Cuánto sube el prestigio por mejora — hacen falta varias para llenarlo. */
+export const PRESTIGE_STEP = 0.15;
+
 // --- Lógica de economía circular (ciclo 4) -------------------------------------
 /** Lo que la tienda paga por unidad al comprar al por mayor (el resto de
  * FOOD_PRICE es su margen). Cierra el círculo: el cliente paga a la tienda,
@@ -55,6 +63,10 @@ export class Economy {
   foodSold = 0;
   /** Ahorro por hogar ('ax,az') — lógica de dinero. */
   wallets = new Map<string, number>();
+  /** Prestigio del hogar [0,1] (ciclo 9) — jardín, fachada, reformas. */
+  prestige = new Map<string, number>();
+  /** Cuánto se ha invertido en total (métrica de tests/Crónica). */
+  prestigeInvested = 0;
   /** Métricas de circulación (tests/crónica). */
   wagesPaid = 0;
   moneySpent = 0;
@@ -112,6 +124,27 @@ export class Economy {
 
   walletOf(homeKey: string): number {
     return this.wallets.get(homeKey) ?? 0;
+  }
+
+  prestigeOf(homeKey: string): number {
+    return this.prestige.get(homeKey) ?? 0;
+  }
+
+  /**
+   * Cierre del día (estatus, ciclo 9): los hogares con ahorro de sobra
+   * invierten en su vivienda — sumidero de dinero que sube su prestigio
+   * hasta llenarlo. Ordenado por clave para que el resultado sea
+   * determinista si dos hogares compiten (no compiten por nada compartido,
+   * pero el orden de iteración de un Map tras deserializar puede variar).
+   */
+  investInHomes(homeKeys: Iterable<string>): void {
+    for (const k of [...homeKeys].sort()) {
+      if (this.prestigeOf(k) >= 1) continue;
+      if (this.walletOf(k) < PRESTIGE_SAVE_THRESHOLD) continue;
+      this.spend(k, PRESTIGE_INVEST_COST);
+      this.prestige.set(k, Math.min(1, this.prestigeOf(k) + PRESTIGE_STEP));
+      this.prestigeInvested += PRESTIGE_INVEST_COST;
+    }
   }
   /** Clientes acumulados HOY por tienda ('ax,az'). */
   visitsToday = new Map<string, number>();

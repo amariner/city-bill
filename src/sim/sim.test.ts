@@ -291,6 +291,18 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
   check('vehículos: la columna mode del snapshot es siempre 0 o 1', validModes);
 }
 
+// Ciclo 9 RESEARCH.md — estatus y propiedad: el ahorro de sobra se invierte
+// en la vivienda (sumidero de dinero real, no cosmético) y sube el prestigio.
+{
+  const sim = new Simulation(seedWorld(), 42);
+  for (let t = 0; t < TICKS_PER_DAY * 25; t++) sim.step();
+  const anyPrestige = [...sim.economy.prestige.values()].some((p) => p > 0);
+  check('estatus: algún hogar invierte en su vivienda', anyPrestige, `→ invertido total ${sim.economy.prestigeInvested.toFixed(0)}`);
+  check('estatus: es un sumidero de dinero real', sim.economy.prestigeInvested > 0 && sim.economy.moneySpent >= sim.economy.prestigeInvested);
+  const capped = [...sim.economy.prestige.values()].every((p) => p >= 0 && p <= 1);
+  check('estatus: el prestigio nunca sale de [0,1]', capped);
+}
+
 // Determinismo: mismo snapshot final con la misma semilla.
 const a = runDays(7, 1).sim.snapshot();
 const b = runDays(7, 1).sim.snapshot();

@@ -36,6 +36,7 @@ export const LOGICS: LogicEntry[] = [
   { id: 'weather', name: 'clima y estaciones', level: 0, files: ['sim/weather.ts', 'citizens/activities.ts'], couples: ['needs', 'social'] },
   { id: 'third-place', name: 'vecindario y pandillas (tercer lugar)', level: 3, files: ['citizens/activities.ts'], couples: ['social'] },
   { id: 'vehicles', name: 'vehículos (coche para trayectos largos)', level: 0, files: ['sim/simulation.ts', 'sim/protocol.ts'], couples: ['space', 'money'] },
+  { id: 'status', name: 'estatus y propiedad (mejoras del hogar)', level: 4, files: ['economy.ts', 'sim/simulation.ts'], couples: ['money', 'needs'] },
 ];
 
 /** Para la Crónica: nombres ordenados por nivel (básico → superior). */
