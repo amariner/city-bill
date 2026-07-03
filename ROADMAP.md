@@ -163,19 +163,19 @@ repetido, arbolado automático en márgenes de carretera (rasgo de identidad).
 > Objetivo: ciudadanos con vida propia observable: viven, trabajan, compran, socializan
 > y duermen sin ningún script fijo. Todo dato puro en el worker; el main solo anima.
 
-- [ ] **T3.1 Worker + protocolo + reloj.** Levanta `sim/worker.ts` con `protocol.ts`
+- [x] **T3.1 Worker + protocolo + reloj.** Levanta `sim/worker.ts` con `protocol.ts`
   (§1.3) y `clock.ts` (día de 10 min, velocidades 0/1/2/3). El main interpola un
   snapshot vacío. *Aceptación:* HUD debug muestra hora de juego avanzando; pausar
   congela agentes pero no el render.
-- [ ] **T3.2 Grafo de navegación + A*.** `sim/pathfinding.ts`: nodos = celdas de
+- [x] **T3.2 Grafo de navegación + A*.** `sim/pathfinding.ts`: nodos = celdas de
   carretera/camino + entradas de edificio; A* con heurística Manhattan, presupuesto
   incremental (máx N expansiones/tick, colas por prioridad). Suavizado de esquinas.
   *Aceptación:* 200 rutas concurrentes calculadas sin pasar el tick de 50 ms.
-- [ ] **T3.3 El ciudadano.** `citizens/citizen.ts`: `{id, nombre, hogar, trabajo?,
+- [x] **T3.3 El ciudadano.** `citizens/citizen.ts`: `{id, nombre, hogar, trabajo?,
   edad, personalidad{sociable, trabajador, hogareño: 0-1}, needs, actividad, pos, path}`.
   Nace ligado a una vivienda con capacidad libre. `needs.ts`: energía, hambre, social,
   ocio, trabajo — decaen con tasas distintas moduladas por personalidad.
-- [ ] **T3.4 Cerebro (utility AI).** `brain.ts`: cada ciudadano puntúa las actividades
+- [x] **T3.4 Cerebro (utility AI).** `brain.ts`: cada ciudadano puntúa las actividades
   disponibles `score = urgencia(need) × idoneidad(hora) × cercanía × personalidad` y
   elige la mejor con algo de ruido (RNG con semilla, determinista). NADA de horarios
   hardcodeados: el patrón día/noche debe EMERGER de las curvas (dormir gana de noche
@@ -183,21 +183,21 @@ repetido, arbolado automático en márgenes de carretera (rasgo de identidad).
   *Aceptación:* en un día acelerado se observa: mañana → trabajo, mediodía → comida,
   tarde → compras/ocio/social, noche → casa. Registrar un log de un ciudadano y
   verificar que su día es coherente sin ningún `if hora==8`.
-- [ ] **T3.5 Actividades.** `activities.ts`: dormir, trabajar, comer, comprar (tienda),
+- [x] **T3.5 Actividades.** `activities.ts`: dormir, trabajar, comer, comprar (tienda),
   pasear (parque/estanque/arboleda), visitar amigo, mirar escaparate, sentarse.
   Cada una: destino, duración, needs que restaura, animación asociada.
-- [ ] **T3.6 Cuerpos en pantalla.** Los ciudadanos se renderizan instanciados con
+- [~] **T3.6 Cuerpos en pantalla.** Los ciudadanos se renderizan instanciados con
   interpolación de posición, orientación al andar, bobbing sutil al caminar y
   "idle sway" parados. LOD: a zoom lejano, sin bobbing. Aparecen/desaparecen al entrar
   y salir de edificios (fade de escala).
   *Aceptación:* 500 ciudadanos animados a 60 fps; de cerca se ven como la referencia
   (siluetas simples de colores apagados).
-- [ ] **T3.7 Social emergente.** `social.ts`: relaciones por afinidad (vecinos,
+- [x] **T3.7 Social emergente.** `social.ts`: relaciones por afinidad (vecinos,
   compañeros). Si dos conocidos se cruzan y ambos tienen `social` bajo, se detienen,
   se orientan cara a cara y "charlan" (como las dos figuras de la referencia) restaurando
   `social`. Amistades se refuerzan con encuentros; los amigos se visitan.
   *Aceptación:* observable sin tocar nada: parejas charlando en caminos y porches.
-- [ ] **T3.8 Economía viva.** `economy.ts`: los empleos son puestos REALES en edificios
+- [x] **T3.8 Economía viva.** `economy.ts`: los empleos son puestos REALES en edificios
   del catálogo (granja 2, tienda 3…). Los ciudadanos solicitan empleo por cercanía y
   personalidad; las tiendas requieren clientes para prosperar; los campos activos
   requieren granjeros para pasar de barbecho a cultivo (feedback 100 % visual: el campo
@@ -295,3 +295,17 @@ aprieta, T3.8-T3.10 y la Fase 4 valen más que cualquier cosa de la Fase 5.
     solo a la luz. Además, computeBoundingSphere() explícito por higiene.
   · Deuda T1.4: los árboles se renderizan como Groups individuales (cientos de draw calls).
     Lo resuelve T1.6 (instancing). No tocar hasta entonces.
+- 2026-07-03 (sesión Fable, lógica de sim) — Fase 3 casi completa: T3.1-T3.5, T3.7,
+  T3.8 hechas con tests headless (10/10 en `npm test`); T3.6 parcial (instanciado +
+  interpolación + bobbing/fade; falta LOD y estrés 500). **LEE `SIMULATION.md`**: es
+  la guía del territorio de `src/sim/` — arquitectura, contratos, trampas conocidas y
+  el orden recomendado de lo pendiente (T3.10 inspector primero). Decisiones clave:
+  · Catálogo partido en `catalogData.ts` (datos puros, sin THREE) + `catalog.ts`
+    (builders): la sim del worker importa SOLO los datos.
+  · La sim es una clase pura (`sim/simulation.ts`) testeable sin worker: `worker.ts`
+    solo la envuelve con mensajería. Los tests corren días de juego en ms.
+  · Necesidad 'purpose' en vez de need "trabajo" literal: los parados la sienten
+    decaer igual (presión para aceptar empleo), pero no puntúan 'work' sin puesto.
+  · Saltadas de momento en T3.5: 'mirar escaparate' y 'sentarse' (triviales de añadir
+    como entradas de ACTIVITIES cuando haya bancos/escaparates renderizados).
+  · Teclas 0-3 = velocidad de sim. HUD F3 muestra reloj de juego y agentes.
