@@ -23,13 +23,14 @@ import { ACTIVITY_BY_KIND, SimContext, activityLabel } from './citizens/activiti
 import { SocialSystem } from './citizens/social';
 import { AgentState, ActivityKind, activityId, AGENT_STRIDE } from './protocol';
 import { computeDemand, itemForDemand, findParcel, townCenter, GrowthPlacement } from '../world/growth';
+import { lifeYear } from './lifecycle';
 import { catalogData, Tier } from '../world/catalogData';
 
 /** Velocidad al caminar, en celdas por tick (0.25 s reales a vel. 1). */
 const WALK_CELLS_PER_TICK = 0.9; // ≈ 7 km/h de juego a escala urbana
 
 export interface SimEvent {
-  name: 'citizenBorn' | 'jobTaken' | 'chatStarted' | 'cityGrew' | 'tierUnlocked';
+  name: 'citizenBorn' | 'citizenLeft' | 'jobTaken' | 'chatStarted' | 'cityGrew' | 'tierUnlocked';
   data: Record<string, unknown>;
 }
 
@@ -92,13 +93,13 @@ export class Simulation {
     return free;
   }
 
-  private spawnCitizen(ax: number, az: number, buildingId: string): Citizen {
+  private spawnCitizen(ax: number, az: number, buildingId: string, age?: number): Citizen {
     const b = this.index.at(ax, az);
     const door: CellXZ = b?.entrance ?? [ax, az];
     const c: Citizen = {
       id: this.nextId++,
       name: citizenName(this.rng),
-      age: Math.floor(this.rng.range(18, 78)),
+      age: age ?? Math.floor(this.rng.range(18, 72)),
       personality: {
         sociable: this.rng.next(),
         trabajador: this.rng.next(),
@@ -114,6 +115,7 @@ export class Simulation {
       },
       home: { ax, az, buildingId },
       work: null,
+      partnerId: null,
       x: door[0] + 0.5,
       z: door[1] + 0.5,
       heading: this.rng.range(0, Math.PI * 2),
@@ -207,9 +209,10 @@ export class Simulation {
       this.maybeGrow();
     }
 
-    // Cierre del día: economía, recontratación e hitos de tier (T4.5).
+    // Cierre del día: vida (1 día = 1 año), economía, contratos, tiers.
     if (this.clock.day !== this.lastDay) {
       this.lastDay = this.clock.day;
+      this.stepLife();
       this.economy.endOfDay();
       this.hireAndAcquaint();
       const pop = this.citizens.size;
@@ -219,6 +222,30 @@ export class Simulation {
         this.events.push({ name: 'tierUnlocked', data: { tier: unlocked, population: pop } });
       }
     }
+  }
+
+  // --- Lógica de vida (lifecycle.ts) -------------------------------------------
+
+  /** Un año por día de juego: envejecer, emparejar, nacer, morir. */
+  private stepLife(): void {
+    const life = lifeYear(this.citizens, this.rng);
+    for (const d of life.deaths) {
+      const partner = d.partnerId !== null ? this.citizens.get(d.partnerId) : undefined;
+      if (partner) partner.partnerId = null;
+      this.citizens.delete(d.id);
+      const k = `${d.home.ax},${d.home.az}`;
+      // Ojo: la familia sigue en la casa; solo liberamos el hueco si era el último.
+      if (![...this.citizens.values()].some((c) => c.home.ax === d.home.ax && c.home.az === d.home.az)) {
+        this.households.set(k, Math.max(0, (this.households.get(k) ?? 1) - 1));
+      }
+      this.events.push({ name: 'citizenLeft', data: { id: d.id, name: d.name, age: d.age } });
+    }
+    for (const b of life.births) {
+      const child = this.spawnCitizen(b.home.ax, b.home.az, b.home.buildingId, 0);
+      SocialSystem.acquaint(child, b.parents[0], 0.8);
+      SocialSystem.acquaint(child, b.parents[1], 0.8);
+    }
+    if (life.deaths.length > 0) this.economy.rebuild(this.index, this.citizens);
   }
 
   // --- Crecimiento autónomo (T4.1-T4.3) ---------------------------------------
@@ -231,7 +258,8 @@ export class Simulation {
     avgProsperity = shops.length > 0 ? avgProsperity / shops.length : 0;
 
     const demand = computeDemand({
-      population: stats.population,
+      // Para el mercado laboral cuentan los adultos (los niños no son "paro").
+      population: stats.adults,
       employed: stats.employed,
       jobs: stats.jobs,
       freeHousing: this.freeHousing(),

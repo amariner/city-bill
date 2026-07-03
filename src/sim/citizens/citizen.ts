@@ -57,6 +57,8 @@ export interface Citizen {
   phase: CitizenPhase;
   /** Actividad en curso o planeada (para snapshot/inspector). */
   activity: ActivityKind;
+  /** Pareja (lógica de vida). null = soltero. */
+  partnerId: number | null;
   /** Afinidad por id de conocido [0,1]. Se refuerza con encuentros. */
   friends: Map<number, number>;
   /** Tick en que terminó su última charla (histéresis anti-bucle). */

@@ -98,6 +98,30 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
   check('T4.2: crecimiento contenido (< 4/día de media)', grew <= 16, `→ ${grew}`);
 }
 
+// Lógica de vida: en 25 años (25 días de juego) hay parejas, nacimientos y
+// muertes, y la sociedad sobrevive a las generaciones.
+{
+  const sim = new Simulation(seedWorld(), 42);
+  let born = 0;
+  let died = 0;
+  for (let t = 0; t < TICKS_PER_DAY * 25; t++) {
+    sim.step();
+    for (const e of sim.takeEvents()) {
+      if (e.name === 'citizenBorn' && (e.data as { age?: number }).age !== undefined) continue;
+      if (e.name === 'citizenLeft') died++;
+    }
+  }
+  const cs = [...sim.citizens.values()];
+  born = cs.filter((c) => c.age < 25).length;
+  const couples = cs.filter((c) => c.partnerId !== null).length;
+  check('vida: se forman parejas', couples >= 2, `→ ${couples}`);
+  check('vida: nacen niños', born > 0, `→ ${born}`);
+  check('vida: los mayores mueren', died > 0, `→ ${died}`);
+  check('vida: la sociedad sobrevive', cs.length >= 5, `→ ${cs.length}`);
+  const kidsWorking = cs.filter((c) => c.age < 18 && c.work).length;
+  check('vida: los niños no trabajan', kidsWorking === 0, `→ ${kidsWorking}`);
+}
+
 // Determinismo: mismo snapshot final con la misma semilla.
 const a = runDays(7, 1).sim.snapshot();
 const b = runDays(7, 1).sim.snapshot();

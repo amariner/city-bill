@@ -10,6 +10,7 @@
 import { Citizen, PlaceRef } from './citizens/citizen';
 import { WorldIndex, SimBuilding } from './worldIndex';
 import { manhattan } from './geometry';
+import { ADULT_AGE } from './lifecycle';
 
 export interface Workplace {
   building: SimBuilding;
@@ -44,7 +45,9 @@ export class Economy {
   /** Ofrece empleo a los parados. Determinista: orden por id. */
   assignJobs(citizens: Map<number, Citizen>): Array<{ citizen: number; work: PlaceRef }> {
     const hires: Array<{ citizen: number; work: PlaceRef }> = [];
-    const unemployed = [...citizens.values()].filter((c) => !c.work).sort((a, b) => a.id - b.id);
+    const unemployed = [...citizens.values()]
+      .filter((c) => !c.work && c.age >= ADULT_AGE)
+      .sort((a, b) => a.id - b.id);
     for (const c of unemployed) {
       let best: Workplace | null = null;
       let bestD = Infinity;
@@ -92,10 +95,14 @@ export class Economy {
   }
 
   /** Datos agregados para growth (Fase 4) y HUD. */
-  stats(citizens: Map<number, Citizen>): { population: number; employed: number; jobs: number } {
+  stats(citizens: Map<number, Citizen>): { population: number; adults: number; employed: number; jobs: number } {
     let employed = 0;
-    for (const c of citizens.values()) if (c.work) employed++;
+    let adults = 0;
+    for (const c of citizens.values()) {
+      if (c.work) employed++;
+      if (c.age >= ADULT_AGE) adults++;
+    }
     const jobs = this.workplaces.reduce((n, w) => n + (w.building.data.jobs ?? 0), 0);
-    return { population: citizens.size, employed, jobs };
+    return { population: citizens.size, adults, employed, jobs };
   }
 }
