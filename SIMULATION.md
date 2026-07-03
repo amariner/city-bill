@@ -128,11 +128,17 @@ Ya vivas: **necesidades** (needs.ts) ↔ **decisión** (brain.ts) ↔
 **social** (social.ts) ↔ **economía** (economy.ts) ↔ **urbanismo** (growth.ts),
 acopladas vía el estado del ciudadano y el índice del mundo.
 
-Candidatas siguientes (cada una es un archivo nuevo en `sim/`, con tests):
-- **Vida** (lifecycle.ts): edad que avanza, parejas, nacimientos, muerte;
-  las familias cambian de tamaño → acopla con vivienda (growth) y social.
-- **Educación** (education.ts): escuela como edificio con "puestos" de alumno;
-  nivel educativo modula qué empleos puede tomar un ciudadano (economy).
+Ya implementadas además:
+- **Vida** (`sim/lifecycle.ts`): 1 día de juego = 1 año. Envejecer, parejas
+  por afinidad (¡nacen de las charlas!), mudanza conjunta, nacimientos,
+  muerte que libera casa y empleo. `lifeYear()` NO muta población: devuelve
+  hechos y `simulation.stepLife()` los aplica. Sigue ese patrón.
+- **Educación** (repartida por diseño, no tiene archivo propio): actividad
+  'school' en activities.ts (con `eligible` por edad), campo
+  `citizen.education`, plazas `students` en catalogData, gating de empleos
+  tier ≥3 en economy.assignJobs, y demanda 'school' en growth (prioritaria).
+
+Candidatas siguientes (cada una con sus tests):
 - **Género/demografía**: distribución en el spawn y en nacimientos; afecta
   nombres, parejas y estadística — cuidado con caricaturas: datos, no clichés.
 - **Cultura/ocio**: festivales periódicos emergentes (plaza llena), círculos
@@ -174,8 +180,12 @@ crece + decisiones locales", no encaja en este motor.
   para mantener el determinismo. Si añades otra colección al índice, ordénala.
 - **`removeBuilding` escanea 40×40 desde el ancla** (grid.ts): válido para el
   catálogo actual (máx 10 celdas), no para futuros mega-edificios.
-- **social.detectEncounters es O(n²)** sobre caminantes: bien hasta ~200
-  simultáneos; con más, hash espacial por celda (bucket = floor(x/4),floor(z/4)).
+- **social.detectEncounters** usa hash espacial (buckets de 4 celdas; el par
+  se forma con `b.id > a.id` para no duplicar). Si cambias CHAT_RANGE > 4,
+  amplía también el tamaño de bucket o se perderán encuentros en el borde.
+- **La escuela usa el mesh de civic()** (TODO en catalog.ts): haz un mesh
+  propio cuando toques props, y quita el filtro `!it.students` de
+  itemForDemand('work') si algún día un edificio mixto da trabajo Y plazas.
 - **El RNG general se consume en spawn Y en decisiones**: cambiar el orden de
   spawn cambia TODO el futuro (es esperado, no un bug — pero no "reordenes por
   limpieza" sin actualizar las expectativas de tests).
