@@ -11,6 +11,7 @@ import { seedWorld } from '../world/seed';
 import { Simulation } from './simulation';
 import { TICK_GAME_S, DAY_GAME_SECONDS } from './clock';
 import { FOOD_PRICE } from './economy';
+import { weatherAt } from './weather';
 
 let passed = 0;
 let failed = 0;
@@ -230,6 +231,31 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
   const avgHealth = cs.reduce((s, c) => s + c.health, 0) / cs.length;
   check('salud: la salud media se mantiene razonable', avgHealth > 0.4, `→ ${avgHealth.toFixed(2)}`);
   void anyoneAtClinic; // informativo: depende de si alguien enfermó en 20 días, no siempre determinista de forzar
+}
+
+// Ciclo 6 RESEARCH.md — clima y estaciones: determinista por (semilla, día),
+// y la gente pasea MENOS en días de mal tiempo — sin ningún guion horario.
+{
+  const strolls: Record<'good' | 'bad', number> = { good: 0, bad: 0 };
+  for (let day = 0; day < 60; day++) {
+    const w = weatherAt(42, day);
+    const w2 = weatherAt(42, day);
+    check(`clima: determinista día ${day}`, w.outdoorFactor === w2.outdoorFactor && w.rain === w2.rain);
+  }
+  const sim = new Simulation(seedWorld(), 42);
+  let lastDay = -1;
+  for (let t = 0; t < TICKS_PER_DAY * 30; t++) {
+    sim.step();
+    if (sim.clock.day !== lastDay) lastDay = sim.clock.day;
+    const bucket = sim.weather.outdoorFactor > 0.7 ? 'good' : sim.weather.outdoorFactor < 0.4 ? 'bad' : null;
+    if (!bucket) continue;
+    for (const c of sim.citizens.values()) if (c.activity === 'stroll' && c.phase.kind === 'doing') strolls[bucket]++;
+  }
+  check(
+    'clima: se pasea más en días buenos que en días de mal tiempo',
+    strolls.good > strolls.bad,
+    `→ buenos ${strolls.good} vs malos ${strolls.bad}`,
+  );
 }
 
 // Determinismo: mismo snapshot final con la misma semilla.

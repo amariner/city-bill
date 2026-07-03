@@ -26,7 +26,8 @@ import { computeDemand, itemForDemand, findParcel, townCenter, GrowthPlacement }
 import { lifeYear } from './lifecycle';
 import { STARTING_MONEY, SHOP_TREAT_PRICE, PENSION_PER_DAY } from './economy';
 import { catalogData, Tier } from '../world/catalogData';
-import { healthTick, CLINIC_RECOVERY_PER_HOUR } from './health';
+import { healthTick, CLINIC_RECOVERY_PER_HOUR, WORK_BLOCK_HEALTH } from './health';
+import { weatherAt, Weather } from './weather';
 
 /** Velocidad al caminar, en celdas por tick (0.25 s reales a vel. 1). */
 const WALK_CELLS_PER_TICK = 0.9; // ≈ 7 km/h de juego a escala urbana
@@ -56,7 +57,7 @@ export class Simulation {
   /** Despensa por hogar ('ax,az') — lógica de alimento (ciclo 1). */
   readonly pantry = new Map<string, number>();
 
-  constructor(readonly grid: Grid, seed: number) {
+  constructor(readonly grid: Grid, readonly seed: number) {
     this.rng = createRng(seed ^ 0x5f3759df);
     this.index = new WorldIndex(grid);
     this.social = new SocialSystem(createRng(seed ^ 0x9e3779b9));
@@ -172,6 +173,11 @@ export class Simulation {
 
   // --- Tick -------------------------------------------------------------------
 
+  /** Tiempo de HOY — puro por (seed, día), no consume el RNG general. */
+  get weather(): Weather {
+    return weatherAt(this.seed, this.clock.day);
+  }
+
   private context(): SimContext {
     return {
       index: this.index,
@@ -182,6 +188,7 @@ export class Simulation {
       visitCounters: this.economy.visitsToday,
       pantry: this.pantry,
       wallets: this.economy.wallets,
+      weather: this.weather,
     };
   }
 
@@ -400,6 +407,15 @@ export class Simulation {
   }
 
   private beginDoing(c: Citizen, planned: PlannedActivity): void {
+    // Revalida salud AL LLEGAR (no solo al decidir): si empeoró de camino,
+    // se da media vuelta y vuelve a decidir (probablemente irá a curarse).
+    // Cierra un caso límite real observado en el ciclo 6: caminar a un
+    // trabajo lejano puede tardar más de lo que la salud aguanta.
+    if (planned.activity === 'work' && c.health < WORK_BLOCK_HEALTH) {
+      c.phase = { kind: 'deciding' };
+      c.activity = 'none';
+      return;
+    }
     const def = ACTIVITY_BY_KIND.get(planned.activity);
     c.activity = planned.activity;
     c.phase = { kind: 'doing', until: this.clock.time + planned.duration };

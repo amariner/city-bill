@@ -12,6 +12,7 @@ import { WorldIndex, SimBuilding } from '../worldIndex';
 import { CellXZ, manhattan } from '../geometry';
 import { Rng } from '../../rng';
 import { SEEK_CLINIC_HEALTH } from '../health';
+import { Weather } from '../weather';
 
 export interface SimContext {
   index: WorldIndex;
@@ -26,6 +27,8 @@ export interface SimContext {
   pantry: Map<string, number>;
   /** Ahorro por hogar ('ax,az') — lógica de dinero (ciclo 2). */
   wallets: Map<string, number>;
+  /** Tiempo de hoy (ciclo 6) — modula idoneidad de actividades al aire libre. */
+  weather: Weather;
 }
 
 /** Coste de la consulta (lógica de salud, ciclo 5) — acopla con dinero. */
@@ -192,8 +195,12 @@ export const ACTIVITIES: ActivityDef[] = [
     need: 'fun',
     restorePerHour: { fun: 0.5, food: 0.35, social: 0.1 },
     durationH: [0.7, 1.4],
-    // Comprar: con luz y mejor hacia la tarde (curva suave).
-    suitability: (ctx) => Math.max(0, 1 - ctx.darkness * 1.8) * (0.7 + 0.3 * Math.sin(((ctx.hour - 10) / 24) * Math.PI * 2)),
+    // Comprar: con luz, mejor hacia la tarde, algo menos con mal tiempo
+    // (trayecto corto: se nota menos que en un paseo — ciclo 6).
+    suitability: (ctx) =>
+      Math.max(0, 1 - ctx.darkness * 1.8) *
+      (0.7 + 0.3 * Math.sin(((ctx.hour - 10) / 24) * Math.PI * 2)) *
+      (0.6 + 0.4 * ctx.weather.outdoorFactor),
     findTarget: (ctx, c) => {
       const b = nearestOfRole(ctx, c, 'commerce');
       return b ? entranceTarget(b) : null;
@@ -206,7 +213,9 @@ export const ACTIVITIES: ActivityDef[] = [
     need: 'fun',
     restorePerHour: { fun: 0.8, energy: -0.02 },
     durationH: [0.8, 1.6],
-    suitability: (ctx) => Math.max(0, 1 - ctx.darkness * 1.4),
+    // Pasear es la actividad MÁS expuesta: el tiempo pega de lleno (ciclo 6)
+    // — con lluvia o crudeza, casi nadie sale a pasear, sin ningún guion.
+    suitability: (ctx) => Math.max(0, 1 - ctx.darkness * 1.4) * ctx.weather.outdoorFactor,
     findTarget: (ctx, c) => {
       if (ctx.index.strollSpots.length === 0) return null;
       // Punto de paseo aleatorio entre los 5 más cercanos: variedad sin absurdos.
@@ -224,7 +233,7 @@ export const ACTIVITIES: ActivityDef[] = [
     need: 'social',
     restorePerHour: { social: 0.7, fun: 0.2 },
     durationH: [1, 2],
-    suitability: (ctx) => Math.max(0.1, 1 - ctx.darkness * 1.2),
+    suitability: (ctx) => Math.max(0.1, 1 - ctx.darkness * 1.2) * (0.65 + 0.35 * ctx.weather.outdoorFactor),
     findTarget: (ctx, c) => {
       // Visitar al amigo con más afinidad que esté EN CASA (localizable).
       let best: Citizen | null = null;

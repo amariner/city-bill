@@ -213,3 +213,26 @@ una simulación, y los tratamos como tales:
   debería ser la próxima tarea de pulido aunque no abra lógica nueva; (c) sin
   vehículos, ir a la clínica desde el extremo del pueblo es una caminata larga
   para alguien enfermo — motivo más para el ciclo de vehículos.
+- 2026-07-04 · **Ciclo 6: Clima y estaciones** · Modelo: `weatherAt(seed,
+  día)` es PURA — determinista por semilla y día, sin RNG propio con estado
+  (usa un RNG efímero sembrado en cada llamada). 4 estaciones de 20 días;
+  cada día tiene `outdoorFactor` [0.15,1] que exprime a la baja la idoneidad
+  de pasear (de lleno, es la actividad más expuesta), comprar y visitar (algo
+  menos: trayecto corto). Ningún `if invierno` en brain.ts, solo el factor
+  multiplicando la curva de siempre. Aún sin efecto VISUAL (paleta
+  estacional = T5.1 del ROADMAP, tarea de Sonnet). Verificado con test
+  estadístico: se pasea más en días buenos que en días de mal tiempo.
+  Bug real encontrado y corregido durante la verificación (no cosmético):
+  al bajar la idoneidad de pasear, el mix de actividades cambió lo bastante
+  para destapar una condición de carrera ya latente en `beginDoing` — un
+  ciudadano podía EMPEZAR a trabajar con salud 0.2492 (por debajo del umbral
+  0.25) porque `brain.ts` solo valida al DECIDIR ir, no al LLEGAR, y caminar
+  hasta un trabajo lejano podía tardar lo bastante para enfermar de camino.
+  Arreglado revalidando salud en `beginDoing`: si empeoró por el camino, da
+  media vuelta y vuelve a decidir. 101/101 tests.
+  Carencias observadas: (a) el clima no tiene AÚN reflejo visual (nieve,
+  lluvia, paleta) — anotado para Sonnet en T5.1; (b) con vehículos, el tiempo
+  debería penalizar menos a quien va en coche que a quien va a pie — acoplar
+  cuando llegue el ciclo de vehículos; (c) `DAYS_PER_SEASON=20` es arbitrario,
+  ajustar si el playtesting dice que el ciclo se siente demasiado rápido o
+  lento una vez haya paleta estacional visible.
