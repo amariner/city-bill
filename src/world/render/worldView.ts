@@ -7,8 +7,7 @@ import * as THREE from 'three';
 import { Grid, CELL_SIZE, rotatedFootprint, Cell } from '../grid';
 import { catalogItem } from '../catalog';
 import { buildTerrainMesh } from './terrain';
-import { blobTree, cypress } from '../../props';
-import { createRng } from '../../rng';
+import { buildVegetation } from './instances';
 
 function cellFromKey(key: number): [number, number] {
   return [Math.floor(key / 65536) - 32768, (key % 65536) - 32768];
@@ -20,15 +19,12 @@ export function buildWorldView(grid: Grid): THREE.Group {
 
   const buildings = new THREE.Group();
   buildings.name = 'buildings';
-  const props = new THREE.Group();
-  props.name = 'props';
-  world.add(buildings, props);
+  world.add(buildings);
 
   grid.forEachChunk((chunk) => {
     chunk.cells.forEach((cell: Cell, key: number) => {
       const [cx, cz] = cellFromKey(key);
-
-      // --- Edificios: solo en la celda ancla --------------------------------
+      // Edificios: solo en la celda ancla.
       if (cell.building && cell.building.anchorX === cx && cell.building.anchorZ === cz) {
         const it = catalogItem(cell.building.id);
         if (it) {
@@ -40,21 +36,11 @@ export function buildWorldView(grid: Grid): THREE.Group {
           buildings.add(mesh);
         }
       }
-
-      // --- Props (árboles) --------------------------------------------------
-      if (cell.prop) {
-        const rng = createRng(cell.prop.variant);
-        const scale = rng.range(0.75, 1.3);
-        const tree =
-          cell.prop.id === 'tree-cypress'
-            ? cypress(scale)
-            : blobTree(scale, rng.next() < 0.45);
-        tree.position.set((cx + 0.5) * CELL_SIZE, 0, (cz + 0.5) * CELL_SIZE);
-        tree.rotation.y = rng.range(0, Math.PI * 2);
-        props.add(tree);
-      }
     });
   });
+
+  // Árboles: todos instanciados (~4 draw calls).
+  world.add(buildVegetation(grid));
 
   return world;
 }
