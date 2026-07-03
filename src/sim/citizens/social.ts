@@ -10,9 +10,9 @@ import { TICK_GAME_S } from '../clock';
 import { Rng } from '../../rng';
 
 /** Distancia máx. (celdas) para pararse a charlar. */
-const CHAT_RANGE = 1.6;
+const CHAT_RANGE = 3;
 /** Necesitan tener ganas: social por debajo de este umbral. */
-const SOCIAL_THRESHOLD = 0.6;
+const SOCIAL_THRESHOLD = 0.78;
 /** Ticks de gracia tras una charla (evita bucles de saludo infinito). */
 const CHAT_COOLDOWN_TICKS = 60; // ≈ 36 min de juego
 

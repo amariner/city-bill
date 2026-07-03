@@ -16,6 +16,7 @@ import { CitizenView } from './world/render/citizens';
 import { DAY_GAME_SECONDS } from './sim/clock';
 import { Speed } from './sim/protocol';
 import { CitizenInspector } from './ui/inspector';
+import { Chronicle } from './ui/chronicle';
 
 const sceneName = new URLSearchParams(window.location.search).get('scene');
 
@@ -27,6 +28,7 @@ camera.setZoomIndex(1);
 let worldView: ReturnType<typeof createWorldView> | null = null;
 let simClient: SimClient | null = null;
 let citizenView: CitizenView | null = null;
+let chronicle: Chronicle | null = null;
 if (sceneName === 'buildings') {
   stage.scene.add(buildShowcase());
   camera.setTarget(0, 0);
@@ -41,7 +43,9 @@ if (sceneName === 'buildings') {
   stage.scene.add(citizenView.root);
   // Crecimiento autónomo (T4.2): el worker construye → replicamos en el
   // grid de render y refrescamos el chunk (misma colocación, mismo mundo).
+  chronicle = new Chronicle(20260703);
   simClient.onEvent = (name, data) => {
+    chronicle?.onEvent(name, data);
     if (name !== 'cityGrew' || !data || !worldView) return;
     const { id, cx, cz, rot } = data as { id: string; cx: number; cz: number; rot: 0 | 1 | 2 | 3 };
     const it = catalogItem(id);
@@ -84,6 +88,7 @@ loop.onUpdate((dt) => {
     const hh = String(Math.floor(h)).padStart(2, '0');
     const mm = String(Math.floor((h % 1) * 60)).padStart(2, '0');
     hud.setStats({ agents: n, clock: `${hh}:${mm} día ${day} ×${simClient.speed}` });
+    chronicle?.update(t, simClient.population, simClient.buildings);
   }
   hud.update(dt);
 });

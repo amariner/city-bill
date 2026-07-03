@@ -30,6 +30,7 @@ function sendSnapshot(): void {
     tick: sim.clock.tick,
     speed,
     count: sim.citizens.size,
+    buildings: sim.index.buildings.length,
     agents,
   };
   post(msg, [agents.buffer]);

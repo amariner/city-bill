@@ -140,6 +140,20 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
   check('educación: los niños aprenden', kids.length === 0 || schooled > 0, `→ ${schooled}/${kids.length}`);
 }
 
+// Ciclo 1 RESEARCH.md — lógica de alimento: la comida se produce (granjeros),
+// se vende (tienda) y se consume (despensas); la sociedad no muere de hambre.
+{
+  const sim = new Simulation(seedWorld(), 42);
+  for (let t = 0; t < TICKS_PER_DAY * 5; t++) sim.step();
+  const cs = [...sim.citizens.values()];
+  const avgFood = cs.reduce((s, c) => s + c.needs.food, 0) / cs.length;
+  check('alimento: la tienda vende comida', sim.economy.foodSold > 0, `→ ${sim.economy.foodSold.toFixed(0)} uds`);
+  check('alimento: los granjeros producen', sim.economy.granary + sim.economy.foodSold > 30, `→ granero ${sim.economy.granary.toFixed(0)}`);
+  check('alimento: nadie muere de hambre crónica', avgFood > 0.2, `→ saciedad media ${avgFood.toFixed(2)}`);
+  const somePantry = [...sim.pantry.values()].some((v) => v > 0);
+  check('alimento: hay despensas con comida', somePantry);
+}
+
 // Determinismo: mismo snapshot final con la misma semilla.
 const a = runDays(7, 1).sim.snapshot();
 const b = runDays(7, 1).sim.snapshot();

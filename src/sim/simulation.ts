@@ -30,7 +30,7 @@ import { catalogData, Tier } from '../world/catalogData';
 const WALK_CELLS_PER_TICK = 0.9; // ≈ 7 km/h de juego a escala urbana
 
 export interface SimEvent {
-  name: 'citizenBorn' | 'citizenLeft' | 'jobTaken' | 'chatStarted' | 'cityGrew' | 'tierUnlocked';
+  name: 'citizenBorn' | 'citizenLeft' | 'jobTaken' | 'chatStarted' | 'cityGrew' | 'tierUnlocked' | 'coupleFormed';
   data: Record<string, unknown>;
 }
 
@@ -51,6 +51,8 @@ export class Simulation {
   tier: Tier = 1;
   /** Familias alojadas por vivienda ('ax,az') — para la demanda de techo. */
   private households = new Map<string, number>();
+  /** Despensa por hogar ('ax,az') — lógica de alimento (ciclo 1). */
+  readonly pantry = new Map<string, number>();
 
   constructor(readonly grid: Grid, seed: number) {
     this.rng = createRng(seed ^ 0x5f3759df);
@@ -75,6 +77,8 @@ export class Simulation {
   private fillHome(ax: number, az: number, buildingId: string, count: number): void {
     const k = `${ax},${az}`;
     this.households.set(k, (this.households.get(k) ?? 0) + count);
+    // Los recién llegados traen algo de comida en la mudanza.
+    this.pantry.set(k, (this.pantry.get(k) ?? 0) + 3 * count);
     for (let h = 0; h < count; h++) {
       const adults = 1 + Math.floor(this.rng.next() * 2.4); // 1-3
       const family: Citizen[] = [];
@@ -151,7 +155,7 @@ export class Simulation {
       for (let j = i + 1; j < all.length; j++) {
         const a = all[i];
         const b = all[j];
-        if (manhattan([a.home.ax, a.home.az], [b.home.ax, b.home.az]) < 12) SocialSystem.acquaint(a, b);
+        if (manhattan([a.home.ax, a.home.az], [b.home.ax, b.home.az]) < 40) SocialSystem.acquaint(a, b);
       }
   }
 
@@ -165,6 +169,7 @@ export class Simulation {
       hour: this.clock.hour,
       citizens: this.citizens,
       visitCounters: this.economy.visitsToday,
+      pantry: this.pantry,
     };
   }
 
@@ -188,7 +193,8 @@ export class Simulation {
         continue; // parado charlando; social.ts le restaura
       }
       this.stepCitizen(c, ctx);
-      if (c.phase.kind === 'moving' && !c.inside) walkers.push(c);
+      // Candidatos a saludo: cualquiera al aire libre (andando o parado).
+      if (!c.inside && (c.phase.kind === 'moving' || c.phase.kind === 'doing')) walkers.push(c);
     }
 
     // Encuentros emergentes entre caminantes.
@@ -241,6 +247,9 @@ export class Simulation {
         this.households.set(k, Math.max(0, (this.households.get(k) ?? 1) - 1));
       }
       this.events.push({ name: 'citizenLeft', data: { id: d.id, name: d.name, age: d.age } });
+    }
+    for (const [a, b] of life.couples) {
+      this.events.push({ name: 'coupleFormed', data: { a: a.name, b: b.name } });
     }
     for (const b of life.births) {
       const child = this.spawnCitizen(b.home.ax, b.home.az, b.home.buildingId, 0);
@@ -338,6 +347,10 @@ export class Simulation {
             if (r) restore(c.needs, k, r * hours);
           }
           if (c.activity === 'school') c.education = Math.min(1, c.education + EDU_PER_HOUR * hours);
+          // Cadena de alimento: los granjeros en faena llenan el granero.
+          if (c.activity === 'work' && c.work && catalogData(c.work.buildingId)?.role === 'agriculture') {
+            this.economy.produceFood(hours);
+          }
         }
         if (this.clock.time >= c.phase.until) {
           c.phase = { kind: 'deciding' };
@@ -354,7 +367,25 @@ export class Simulation {
     c.activity = planned.activity;
     c.phase = { kind: 'doing', until: this.clock.time + planned.duration };
     c.inside = def?.indoors ?? false;
-    if (planned.activity === 'shop' && planned.target) this.economy.registerVisit(planned.target);
+    if (planned.activity === 'shop' && planned.target) {
+      this.economy.registerVisit(planned.target);
+      // Compra de comida: la tienda vende lo que el granero tiene.
+      const k = `${c.home.ax},${c.home.az}`;
+      const got = this.economy.buyFood(3);
+      this.pantry.set(k, (this.pantry.get(k) ?? 0) + got);
+    }
+    if (planned.activity === 'eat') {
+      const k = `${c.home.ax},${c.home.az}`;
+      const atShop = planned.target && catalogData(planned.target.buildingId)?.role === 'commerce';
+      if (atShop) {
+        // Comer fuera: compra, come una unidad y lleva el resto a la despensa.
+        const got = this.economy.buyFood(4);
+        this.pantry.set(k, (this.pantry.get(k) ?? 0) + Math.max(0, got - 1));
+        if (planned.target) this.economy.registerVisit(planned.target);
+      } else {
+        this.pantry.set(k, Math.max(0, (this.pantry.get(k) ?? 0) - 1));
+      }
+    }
     // Ancla la posición a la celda destino (la puerta) mientras "hace".
     c.x = planned.cell[0] + 0.5;
     c.z = planned.cell[1] + 0.5;

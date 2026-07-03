@@ -21,6 +21,8 @@ export interface SimContext {
   citizens: Map<number, Citizen>;
   /** Clientes por tienda en el día (economía T3.8). */
   visitCounters: Map<string, number>;
+  /** Despensa por hogar ('ax,az') — lógica de alimento (ciclo 1). */
+  pantry: Map<string, number>;
 }
 
 export interface ActivityDef {
@@ -135,8 +137,14 @@ export const ACTIVITIES: ActivityDef[] = [
     durationH: [0.6, 1.1],
     suitability: () => 1, // comer siempre es apropiado si hay hambre
     findTarget: (ctx, c) => {
-      const b = homeBuilding(ctx, c);
-      return b ? entranceTarget(b) : null;
+      // Con despensa se come en casa; vacía, se come fuera (tienda) y de paso
+      // se trae algo a casa — la cadena de alimento cierra sola.
+      if ((ctx.pantry.get(`${c.home.ax},${c.home.az}`) ?? 0) >= 1) {
+        const b = homeBuilding(ctx, c);
+        return b ? entranceTarget(b) : null;
+      }
+      const s = nearestOfRole(ctx, c, 'commerce');
+      return s ? entranceTarget(s) : null;
     },
     personality: () => 1,
     indoors: true,

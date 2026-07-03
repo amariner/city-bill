@@ -151,6 +151,11 @@ comportamiento emergente prometido, luego el acoplamiento mínimo, y NUNCA
 un horario/guion. Si la lógica no puede explicarse como "estado que decae/
 crece + decisiones locales", no encaja en este motor.
 
+**El algoritmo que gobierna qué lógica va después es `RESEARCH.md`** (bucle
+fractal de investigación + pirámide + bitácora). La Crónica (`ui/chronicle.ts`,
+tecla C) es su memoria visual: si añades eventos/contadores, refléjalos ahí y
+amplía `ACTIVE_LOGICS`.
+
 ## 6. Trabajo pendiente, en orden recomendado
 
 1. **T3.10 Inspector** (la ventana para VERIFICAR la autonomía): raycast click →

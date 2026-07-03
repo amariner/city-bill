@@ -82,13 +82,22 @@ export interface SnapshotMsg {
   tick: number;
   speed: Speed;
   count: number;
+  /** Nº de edificios del índice de sim (para la Crónica). */
+  buildings: number;
   /** count * AGENT_STRIDE floats. TRANSFERIDO (zero-copy). */
   agents: Float32Array;
 }
 
 export interface SimEventMsg {
   type: 'event';
-  name: 'citizenBorn' | 'citizenLeft' | 'jobTaken' | 'chatStarted' | 'cityGrew' | 'tierUnlocked';
+  name:
+    | 'citizenBorn'
+    | 'citizenLeft'
+    | 'jobTaken'
+    | 'chatStarted'
+    | 'cityGrew'
+    | 'tierUnlocked'
+    | 'coupleFormed';
   data?: Record<string, unknown>;
 }
 

@@ -18,8 +18,16 @@ export interface Workplace {
   workers: number[];
 }
 
+/** Producción de comida por granjero y hora trabajada (lógica de alimento). */
+export const FOOD_PER_FARMER_HOUR = 4;
+
 export class Economy {
   workplaces: Workplace[] = [];
+  /** Granero comunal: lo llenan los granjeros, lo venden las tiendas.
+   * (Ciclo 1 de RESEARCH.md — stock POR tienda cuando haya dinero/logística.) */
+  granary = 60;
+  /** Unidades de comida vendidas (métrica de la cadena para tests/crónica). */
+  foodSold = 0;
   /** Clientes acumulados HOY por tienda ('ax,az'). */
   visitsToday = new Map<string, number>();
   /** Prosperidad [0,1] por tienda, media móvil de días. */
@@ -78,6 +86,20 @@ export class Economy {
   registerVisit(place: PlaceRef): void {
     const k = `${place.ax},${place.az}`;
     this.visitsToday.set(k, (this.visitsToday.get(k) ?? 0) + 1);
+  }
+
+  /** Los granjeros en faena llenan el granero. */
+  produceFood(farmerHours: number): void {
+    this.granary += FOOD_PER_FARMER_HOUR * farmerHours;
+  }
+
+  /** Compra hasta `want` unidades; devuelve lo que había. Sin comida en el
+   * granero, la tienda no puede vender: el hambre aprieta de verdad. */
+  buyFood(want: number): number {
+    const got = Math.min(this.granary, want);
+    this.granary -= got;
+    this.foodSold += got;
+    return got;
   }
 
   /** Cierre del día: convierte visitas en prosperidad (media móvil 3 días).

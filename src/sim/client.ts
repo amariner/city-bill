@@ -34,6 +34,9 @@ export class SimClient {
   speed: Speed = 1;
   /** Tiempo de juego (s) del último snapshot — para HUD. */
   gameTime = 0;
+  /** Población y edificios del último snapshot — para la Crónica. */
+  population = 0;
+  buildings = 0;
   onCitizenInfo: ((info: CitizenInfoMsg) => void) | null = null;
   /** Eventos de sim (cityGrew, citizenBorn…) para que el main reaccione. */
   onEvent: ((name: string, data?: Record<string, unknown>) => void) | null = null;
@@ -70,6 +73,8 @@ export class SimClient {
         this.curr = msg;
         this.currAt = performance.now();
         this.gameTime = msg.time;
+        this.population = msg.count;
+        this.buildings = msg.buildings;
         break;
       }
       case 'citizenInfo':
