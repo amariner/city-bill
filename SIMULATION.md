@@ -115,6 +115,36 @@ Hecho y con tests verdes (14/14, `npm test`):
 - T3.8 economía: empleos reales, visitas a tiendas, prosperidad media móvil.
   Falta: feedback visual de campos por franjas (necesita render de terreno).
 
+## 5.b Visión: multiuniverso de lógicas (norte del proyecto)
+
+La sociedad simulada es un **conjunto de lógicas independientes que
+interactúan**: cuantas más lógicas bien acopladas, más realista la vida.
+Las que ya existen siguen todas el mismo patrón, y las nuevas DEBEN seguirlo:
+
+> Una lógica = un módulo puro con su estado + una función de tick +
+> acoplamientos EXPLÍCITOS con otras lógicas (nunca accesos directos ocultos).
+
+Ya vivas: **necesidades** (needs.ts) ↔ **decisión** (brain.ts) ↔
+**social** (social.ts) ↔ **economía** (economy.ts) ↔ **urbanismo** (growth.ts),
+acopladas vía el estado del ciudadano y el índice del mundo.
+
+Candidatas siguientes (cada una es un archivo nuevo en `sim/`, con tests):
+- **Vida** (lifecycle.ts): edad que avanza, parejas, nacimientos, muerte;
+  las familias cambian de tamaño → acopla con vivienda (growth) y social.
+- **Educación** (education.ts): escuela como edificio con "puestos" de alumno;
+  nivel educativo modula qué empleos puede tomar un ciudadano (economy).
+- **Género/demografía**: distribución en el spawn y en nacimientos; afecta
+  nombres, parejas y estadística — cuidado con caricaturas: datos, no clichés.
+- **Cultura/ocio**: festivales periódicos emergentes (plaza llena), círculos
+  de amistad por afinidad de personalidad (social).
+- **Salud**: energía crónicamente baja → enfermedad → visita al médico
+  (edificio cívico) → presión de demanda para construir consultorio (growth).
+
+Regla de oro al añadir una lógica: primero su test headless demostrando el
+comportamiento emergente prometido, luego el acoplamiento mínimo, y NUNCA
+un horario/guion. Si la lógica no puede explicarse como "estado que decae/
+crece + decisiones locales", no encaja en este motor.
+
 ## 6. Trabajo pendiente, en orden recomendado
 
 1. **T3.10 Inspector** (la ventana para VERIFICAR la autonomía): raycast click →
