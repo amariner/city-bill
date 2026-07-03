@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "test": "tsx src/world/grid.test.ts",
+    "test": "tsx src/world/grid.test.ts && tsx src/sim/sim.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

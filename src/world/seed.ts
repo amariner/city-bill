@@ -5,7 +5,7 @@
  * consultables; el render se genera DESDE el grid (ver render/worldView.ts).
  */
 import { Grid, Rot } from './grid';
-import { catalogItem } from './catalog';
+import { catalogData } from './catalogData';
 import { createRng } from '../rng';
 
 const SEED = 20260703;
@@ -14,7 +14,7 @@ const SEED = 20260703;
 const EXTENT = 90;
 
 function place(grid: Grid, id: string, cx: number, cz: number, rot: Rot = 0): void {
-  const it = catalogItem(id);
+  const it = catalogData(id);
   if (!it) return;
   grid.placeBuilding(id, it.w, it.d, cx, cz, rot);
 }
