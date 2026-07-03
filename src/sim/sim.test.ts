@@ -276,6 +276,21 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
   check('vecindario: emergen salidas de pandilla al tercer lugar', clubOutings > 0, `→ ${clubOutings} ticks`);
 }
 
+// Ciclo 8 RESEARCH.md — vehículos: trayectos largos se hacen en coche (más
+// rápido, cuesta dinero), trayectos cortos siguen a pie. El snapshot lleva
+// el modo en su propia columna (contrato §1.3: AGENT_STRIDE ahora 7).
+{
+  const sim = new Simulation(seedWorld(), 42);
+  for (let t = 0; t < TICKS_PER_DAY * 10; t++) sim.step();
+  check('vehículos: se hacen trayectos en coche', sim.carTrips > 0, `→ ${sim.carTrips}`);
+  const snap = sim.snapshot();
+  check('vehículos: el snapshot tiene 7 floats por agente', snap.length === sim.citizens.size * 7);
+  // La columna mode (offset 6) solo puede ser 0 (a pie) o 1 (coche).
+  let validModes = true;
+  for (let i = 6; i < snap.length; i += 7) if (snap[i] !== 0 && snap[i] !== 1) validModes = false;
+  check('vehículos: la columna mode del snapshot es siempre 0 o 1', validModes);
+}
+
 // Determinismo: mismo snapshot final con la misma semilla.
 const a = runDays(7, 1).sim.snapshot();
 const b = runDays(7, 1).sim.snapshot();

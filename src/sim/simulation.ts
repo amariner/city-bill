@@ -16,12 +16,12 @@ import { PathQueue, pathLength } from './pathfinding';
 import { CellXZ, manhattan } from './geometry';
 import { WorldIndex } from './worldIndex';
 import { Economy } from './economy';
-import { Citizen, citizenName, PlannedActivity } from './citizens/citizen';
+import { Citizen, citizenName, PlannedActivity, TravelMode } from './citizens/citizen';
 import { decayNeeds, restore, NEED_KEYS } from './citizens/needs';
 import { chooseActivity } from './citizens/brain';
 import { ACTIVITY_BY_KIND, SimContext, activityLabel, EDU_PER_HOUR, CLINIC_FEE } from './citizens/activities';
 import { SocialSystem } from './citizens/social';
-import { AgentState, ActivityKind, activityId, AGENT_STRIDE } from './protocol';
+import { AgentState, ActivityKind, activityId, AGENT_STRIDE, TravelModeCode } from './protocol';
 import { computeDemand, itemForDemand, findParcel, townCenter, GrowthPlacement } from '../world/growth';
 import { lifeYear } from './lifecycle';
 import { STARTING_MONEY, SHOP_TREAT_PRICE, PENSION_PER_DAY } from './economy';
@@ -31,6 +31,19 @@ import { weatherAt, Weather } from './weather';
 
 /** Velocidad al caminar, en celdas por tick (0.25 s reales a vel. 1). */
 const WALK_CELLS_PER_TICK = 0.9; // ≈ 7 km/h de juego a escala urbana
+
+// --- Lógica de vehículos (ciclo 8) --------------------------------------------
+/** A partir de esta distancia (celdas), el trayecto se plantea en coche —
+ * igual que a pie, es una PREFERENCIA de la utility AI, no un guion: si no
+ * hay dinero para el trayecto, se va a pie igualmente (más lento pero libre). */
+const CAR_TRIP_THRESHOLD = 40;
+/** Coste de combustible por trayecto en coche (acopla vehículos↔dinero). */
+export const CAR_TRIP_COST = 4;
+/** Velocidad en coche sobre asfalto: mucho más rápida que a pie. */
+const CAR_CELLS_PER_TICK_ROAD = 3.6;
+/** Fuera de vía (aparcando, accediendo a la puerta) el coche va despacio —
+ * similar al peatón, no vuela por el campo. */
+const CAR_CELLS_PER_TICK_OFFROAD = WALK_CELLS_PER_TICK;
 
 export interface SimEvent {
   name: 'citizenBorn' | 'citizenLeft' | 'jobTaken' | 'chatStarted' | 'cityGrew' | 'tierUnlocked' | 'coupleFormed';
@@ -56,6 +69,8 @@ export class Simulation {
   private households = new Map<string, number>();
   /** Despensa por hogar ('ax,az') — lógica de alimento (ciclo 1). */
   readonly pantry = new Map<string, number>();
+  /** Trayectos en coche acumulados (ciclo 8 — métrica de tests/Crónica). */
+  carTrips = 0;
 
   constructor(readonly grid: Grid, readonly seed: number) {
     this.rng = createRng(seed ^ 0x5f3759df);
@@ -371,7 +386,17 @@ export class Simulation {
           return;
         }
         c.inside = false;
-        c.phase = { kind: 'moving', path: res.path, segment: 0, t: 0, next: c.phase.next };
+        // Trayecto largo Y el hogar puede pagar el combustible → coche;
+        // si no, a pie (más lento pero siempre disponible). Sin coordinación
+        // con nadie más: cada cual decide con lo suyo, como el resto del motor.
+        const homeKey = `${c.home.ax},${c.home.az}`;
+        let mode: TravelMode = 'foot';
+        if (pathLength(res.path) > CAR_TRIP_THRESHOLD && this.economy.walletOf(homeKey) >= CAR_TRIP_COST) {
+          this.economy.spend(homeKey, CAR_TRIP_COST);
+          mode = 'car';
+          this.carTrips++;
+        }
+        c.phase = { kind: 'moving', path: res.path, segment: 0, t: 0, next: c.phase.next, mode };
         return;
       }
       case 'moving': {
@@ -457,22 +482,36 @@ export class Simulation {
     c.z = planned.cell[1] + 0.5;
   }
 
+  /** Celdas/tick en (cx,cz): a pie siempre igual; en coche depende del
+   * terreno (rápido en 'road', al ritmo de un peatón fuera de vía). */
+  private speedAt(cx: number, cz: number, mode: 'foot' | 'car'): number {
+    if (mode === 'foot') return WALK_CELLS_PER_TICK;
+    const onRoad = this.grid.get(Math.round(cx), Math.round(cz))?.terrain === 'road';
+    return onRoad ? CAR_CELLS_PER_TICK_ROAD : CAR_CELLS_PER_TICK_OFFROAD;
+  }
+
   private stepWalk(c: Citizen): void {
     if (c.phase.kind !== 'moving') return;
-    let remaining = WALK_CELLS_PER_TICK;
     const ph = c.phase;
-    while (remaining > 0) {
+    // Presupuesto en FRACCIONES DE TICK (no celdas): así, si el trayecto
+    // cruza de asfalto a fuera de vía a media tick, la velocidad se
+    // recalcula en el momento justo del cambio, no de golpe al principio.
+    let tickBudget = 1;
+    while (tickBudget > 0) {
       const a = ph.path[ph.segment];
       const b = ph.path[ph.segment + 1];
       if (!b) {
         this.beginDoing(c, ph.next);
         return;
       }
+      const speed = this.speedAt(a[0], a[1], ph.mode);
       const segLen = manhattan(a, b);
-      const left = (1 - ph.t) * segLen;
-      const advance = Math.min(remaining, left);
-      ph.t += advance / segLen;
-      remaining -= advance;
+      const cellsLeft = (1 - ph.t) * segLen;
+      const ticksToFinish = speed > 0 ? cellsLeft / speed : Infinity;
+      const ticksUsed = Math.min(tickBudget, ticksToFinish);
+      const advance = ticksUsed * speed;
+      ph.t += segLen > 0 ? advance / segLen : 1;
+      tickBudget -= ticksUsed;
       const x = a[0] + (b[0] - a[0]) * ph.t + 0.5;
       const z = a[1] + (b[1] - a[1]) * ph.t + 0.5;
       c.heading = Math.atan2(x - c.x, z - c.z) || c.heading;
@@ -482,6 +521,8 @@ export class Simulation {
         ph.segment++;
         ph.t = 0;
       }
+      // Si no llegó a t=1, fue porque se agotó tickBudget (queda ~0): el
+      // `while` de arriba corta solo, sin condición extra que duplicar.
     }
   }
 
@@ -503,6 +544,7 @@ export class Simulation {
       arr[i++] = c.heading;
       arr[i++] = state;
       arr[i++] = activityId(c.activity);
+      arr[i++] = c.phase.kind === 'moving' && c.phase.mode === 'car' ? TravelModeCode.Car : TravelModeCode.Foot;
     }
     return arr;
   }

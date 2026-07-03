@@ -23,6 +23,9 @@ export interface AgentView {
   heading: number;
   state: AgentState;
   activity: number;
+  /** Modo de trayecto (ciclo 8 — vehículos): 0 a pie, 1 en coche. Categórico:
+   * NO se interpola, se toma el valor actual (un cambio de modo no "mezcla"). */
+  mode: number;
 }
 
 export class SimClient {
@@ -112,7 +115,7 @@ export class SimClient {
         if (dh < -Math.PI) dh += Math.PI * 2;
         heading = p[po + 3] + dh * alpha;
       }
-      if (!out[n]) out[n] = { id: 0, x: 0, z: 0, heading: 0, state: 0, activity: 0 };
+      if (!out[n]) out[n] = { id: 0, x: 0, z: 0, heading: 0, state: 0, activity: 0, mode: 0 };
       const v = out[n++];
       v.id = id;
       v.x = x;
@@ -120,6 +123,7 @@ export class SimClient {
       v.heading = heading;
       v.state = c.agents[o + 4] as AgentState;
       v.activity = c.agents[o + 5];
+      v.mode = c.agents[o + 6];
     }
     return n;
   }

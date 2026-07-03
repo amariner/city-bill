@@ -266,3 +266,28 @@ una simulación, y los tratamos como tales:
   (N5, pendiente) hará falta detectar el CLÚSTER real, no solo pares
   cercanos; (c) CLUB_AFFINITY=0.5 tarda ~6 charlas en alcanzarse
   (AFFINITY_PER_CHAT=0.08) — revisar si en partidas cortas nunca llega a verse.
+- 2026-07-04 · **Ciclo 8: Vehículos** · El único ciclo de esta sesión que
+  toca el CONTRATO de render (protocol.ts §1.3): AGENT_STRIDE pasó de 6 a 7,
+  columna nueva `mode` (0 a pie, 1 coche). Actualizados EN EL MISMO COMMIT
+  protocol.ts (escritor de contrato), simulation.snapshot() (escritor real)
+  y client.view() (lector) — la regla que el propio SIMULATION.md pedía para
+  este caso. Modelo: trayecto > 40 celdas Y el hogar puede pagar el
+  combustible (CAR_TRIP_COST=4, acopla vehículos↔dinero) → coche; si no hay
+  dinero, a pie igualmente (más lento pero siempre disponible, nunca bloquea
+  a nadie). Velocidad realista: 4× más rápido en asfalto que a pie, al ritmo
+  de un peatón fuera de vía (aparcando/accediendo). El cálculo de velocidad
+  se recalcula A MEDIO TICK si el trayecto cruza de asfalto a fuera de vía
+  dentro del mismo tick (presupuesto en fracciones de tick, no en celdas —
+  evita el error de "velocidad fija todo el tick aunque cambie el terreno").
+  Sin mesh de coche aún (TODO explícito para Sonnet en render/citizens.ts):
+  el dato `mode` ya viaja completo por todo el pipeline, listo para que el
+  render lo use. 107/107 tests, incluida una verificación exhaustiva de que
+  la nueva columna del snapshot es siempre 0 o 1 para TODOS los agentes.
+  Carencias observadas: (a) sin mesh/render de coche todavía — la próxima
+  tarea de Sonnet en T5.4/render; (b) el clima (ciclo 6) no penaliza menos
+  a quien va en coche — acoplamiento pendiente, anotado ya en el ciclo 6;
+  (c) no hay límite de "un coche por familia": cualquier miembro con dinero
+  puede coger "el coche" simultáneamente sin restarle disponibilidad a otro
+  — simplificación aceptable de momento (no hay inventario de vehículos),
+  pero anotar si se quiere más realismo económico (comprar un coche, no solo
+  pagar combustible por trayecto).

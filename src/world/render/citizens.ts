@@ -4,6 +4,11 @@
  * cada frame; nada de lógica de sim aquí.
  * - Inside → escala 0 (con fade rápido al entrar/salir).
  * - Walking → bobbing sutil; Idle → sway lento.
+ *
+ * TODO(Sonnet, ciclo 8 de RESEARCH.md — vehículos): `AgentView.mode` ya trae
+ * 0=a pie / 1=en coche desde la sim. Hoy se renderiza igual (silueta de
+ * peatón moviéndose más rápido). Falta: mesh de coche low-poly propio +
+ * InstancedMesh aparte, y no dibujar cuerpo/cabeza cuando mode===1.
  */
 import * as THREE from 'three';
 import { PALETTE } from '../../palette';

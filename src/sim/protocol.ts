@@ -3,8 +3,12 @@
  * Todo mensaje que cruce el hilo se tipa AQUÍ. Nada de THREE a ningún lado.
  *
  * Snapshot de agentes: Float32Array plano transferible, AGENT_STRIDE floats
- * por agente → [id, x, z, heading, state, activity]. x/z en CELDAS (float);
- * el main convierte a metros con CELL_SIZE al renderizar.
+ * por agente → [id, x, z, heading, state, activity, mode]. x/z en CELDAS
+ * (float); el main convierte a metros con CELL_SIZE al renderizar.
+ *
+ * Si cambias AGENT_STRIDE: actualiza TAMBIÉN `simulation.snapshot()`
+ * (escritor) y `client.view()` (lector) en el MISMO commit — es la única
+ * frontera y las tres piezas deben coincidir en el layout.
  */
 
 export type Speed = 0 | 1 | 2 | 3;
@@ -12,7 +16,13 @@ export type Speed = 0 | 1 | 2 | 3;
 /** Multiplicador de tiempo por nivel de velocidad. */
 export const SPEED_MULT: Record<Speed, number> = { 0: 0, 1: 1, 2: 3, 3: 8 };
 
-export const AGENT_STRIDE = 6;
+export const AGENT_STRIDE = 7;
+
+/** Modo de trayecto (columna `mode` del snapshot) — ciclo 8, vehículos. */
+export const enum TravelModeCode {
+  Foot = 0,
+  Car = 1,
+}
 
 /** Estado físico del agente (columna `state` del snapshot). */
 export const enum AgentState {

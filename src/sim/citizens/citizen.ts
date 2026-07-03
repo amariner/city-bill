@@ -23,10 +23,14 @@ export interface PlaceRef {
   buildingId: string;
 }
 
+/** Modo de trayecto (ciclo 8 — vehículos). A pie por defecto; en coche solo
+ * para trayectos largos y si el hogar puede pagar el trayecto. */
+export type TravelMode = 'foot' | 'car';
+
 export type CitizenPhase =
   | { kind: 'deciding' }
   | { kind: 'waitingPath'; ticket: number; next: PlannedActivity }
-  | { kind: 'moving'; path: CellXZ[]; segment: number; t: number; next: PlannedActivity }
+  | { kind: 'moving'; path: CellXZ[]; segment: number; t: number; next: PlannedActivity; mode: TravelMode }
   | { kind: 'doing'; until: number };
 
 export interface PlannedActivity {
