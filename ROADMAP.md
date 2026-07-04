@@ -113,7 +113,7 @@ repetido, arbolado automático en márgenes de carretera (rasgo de identidad).
 ### Fase 0 — Fundación visual ✅ COMPLETADA
 - [x] Stack Vite+TS+Three, paleta, props (árboles, casa, granero, cobertizo, casita, tienda, ciudadano), primer barrio con pueblo, luz firmada, RNG con semilla.
 
-### Fase 1 — Motor de mundo
+### Fase 1 — Motor de mundo ✅ COMPLETADA
 > Objetivo: del diorama estático a un mundo por rejilla, navegable y barato de renderizar.
 
 - [x] **T1.1 Extraer core.** `core/renderer.ts` (stage+luz), `core/camera.ts` (IsoCamera),
@@ -134,10 +134,13 @@ repetido, arbolado automático en márgenes de carretera (rasgo de identidad).
   boundingSphere) + `core/debugHud.ts` (F3): fps, draw calls, triángulos, chunks
   visibles, celda bajo cursor. Verificado: zoom-in baja chunks vis 10→7 y draw calls
   168→118 (culling activo), 60 fps.
-- [ ] **T1.8 Ciclo de luz.** Interpolación lenta del sol entre dos "horas doradas"
-  (mañana/tarde) ligada al reloj de juego. Las sombras siguen siendo largas SIEMPRE.
-  *Aceptación:* transición imperceptible frame a frame; screenshots en ambos extremos
-  pasan el checklist §4.
+- [x] **T1.8 Ciclo de luz.** `core/renderer.ts` `updateSun(sun, dayFraction)`:
+  el azimut del sol deriva lentamente (±24°) entre la hora dorada de la mañana y
+  la de la tarde, ligado al reloj de JUEGO (main.ts loop); se entibia en los
+  extremos (`palette.sunGolden`). Elevación FIJA → sombras largas SIEMPRE.
+  Verificado por screenshots mañana/tarde: dirección de sombra distinta, ambas
+  largas, calidez visible, una sola dirección de sol (checklist §4). **Con esto,
+  Fase 1 (T1.1–T1.8) queda COMPLETA.**
 
 ### Fase 2 — Construcción
 > Objetivo: el verbo del juego. Colocar cosas bonitas con validación del grid.

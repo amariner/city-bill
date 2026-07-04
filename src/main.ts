@@ -2,7 +2,7 @@
  * Punto de entrada: ensambla stage (renderer + luz), cámara isométrica jugable,
  * mundo (por chunks) y bucle. La lógica vive en core/ y world/; aquí se conecta.
  */
-import { createStage } from './core/renderer';
+import { createStage, updateSun } from './core/renderer';
 import { IsoCamera } from './core/camera';
 import { Input } from './core/input';
 import { CameraController } from './core/cameraController';
@@ -83,6 +83,7 @@ loop.onUpdate((dt) => {
       inspector.update(agentViews, n);
     }
     const t = simClient.gameTime;
+    updateSun(stage.sun, (t % DAY_GAME_SECONDS) / DAY_GAME_SECONDS); // ciclo de luz T1.8
     const day = Math.floor(t / DAY_GAME_SECONDS);
     const h = (t % DAY_GAME_SECONDS) / 3600;
     const hh = String(Math.floor(h)).padStart(2, '0');

@@ -49,3 +49,27 @@ export function createStage(): Stage {
 
   return { renderer, scene, sun, ambient, hemi };
 }
+
+// --- Ciclo de luz (T1.8) ------------------------------------------------------
+// El sol deriva LENTAMENTE su azimut a lo largo del día de juego, entre la hora
+// dorada de la mañana y la de la tarde, y se entibia en los extremos. La
+// ELEVACIÓN no cambia: las sombras siguen siendo largas SIEMPRE (regla de arte).
+// La derivada por frame es minúscula (un día = 10 min reales), imperceptible.
+const SUN_RADIUS = 108.2; // = hipotenusa horizontal del sol base (-90,·,60)
+const SUN_HEIGHT = 110; // altura fija → elevación fija → sombras largas fijas
+const SUN_BASE_AZ = Math.atan2(60, -90); // dirección base (la firma de siempre)
+const SUN_SWING = (24 * Math.PI) / 180; // ±24° de barrido a lo largo del día
+const _midday = new THREE.Color(PALETTE.sun);
+const _golden = new THREE.Color(PALETTE.sunGolden);
+
+/** Actualiza el sol según la fracción de día [0,1). Llamar cada frame con el
+ * reloj de JUEGO (no el real): así el ciclo va ligado a la sim, no a los fps. */
+export function updateSun(sun: THREE.DirectionalLight, dayFraction: number): void {
+  const swing = Math.sin(dayFraction * Math.PI * 2); // periódico: sin saltos a medianoche
+  const az = SUN_BASE_AZ + swing * SUN_SWING;
+  sun.position.set(Math.cos(az) * SUN_RADIUS, SUN_HEIGHT, Math.sin(az) * SUN_RADIUS);
+  // Calidez en los extremos del barrido (mañana/tarde doradas), neutra a mediodía.
+  const warmth = Math.abs(swing);
+  sun.color.copy(_midday).lerp(_golden, warmth);
+  sun.intensity = 2.6 - 0.45 * warmth; // la hora dorada, algo más suave
+}

@@ -64,5 +64,6 @@ export const PALETTE = {
 
   // Luces
   sun: 0xfff2dd,
+  sunGolden: 0xffd9a6, // hora dorada (mañana/tarde) — T1.8, más cálido
   ambient: 0xcfd8e8,
 } as const;
