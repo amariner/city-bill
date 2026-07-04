@@ -12,6 +12,7 @@ import { Simulation } from './simulation';
 import { TICK_GAME_S, DAY_GAME_SECONDS } from './clock';
 import { FOOD_PRICE } from './economy';
 import { weatherAt } from './weather';
+import { deathChance } from './lifecycle';
 
 let passed = 0;
 let failed = 0;
@@ -122,6 +123,20 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
   check('vida: la sociedad sobrevive', cs.length >= 5, `→ ${cs.length}`);
   const kidsWorking = cs.filter((c) => c.age < 18 && c.work).length;
   check('vida: los niños no trabajan', kidsWorking === 0, `→ ${kidsWorking}`);
+}
+
+// Acoplamiento salud→mortalidad (carencia observada en el ciclo 5 de
+// RESEARCH.md: un anciano con salud 0.1 moría con la misma probabilidad que
+// uno con salud 0.9). deathChance debe SUBIR cuando la salud baja, quedarse
+// en 0 antes de OLD_AGE (la edad sigue siendo la puerta) y no salirse de
+// [0, 0.5] (el techo ya calibrado en el ciclo de vida).
+{
+  const sano = deathChance(80, 1);
+  const medio = deathChance(80, 0.5);
+  const enfermo = deathChance(80, 0);
+  check('salud→mortalidad: salud baja sube el riesgo', enfermo > medio && medio > sano, `→ ${sano.toFixed(3)} < ${medio.toFixed(3)} < ${enfermo.toFixed(3)}`);
+  check('salud→mortalidad: sin vejez, la salud no mata', deathChance(50, 0) === 0);
+  check('salud→mortalidad: nunca fuera de [0, 0.5]', [sano, medio, enfermo, deathChance(120, 0)].every((p) => p >= 0 && p <= 0.5));
 }
 
 // Lógica de educación: con niños, la ciudad construye escuela, los niños

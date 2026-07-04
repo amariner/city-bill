@@ -15,10 +15,19 @@ import { Rng } from '../rng';
 export const ADULT_AGE = 18;
 /** Edad desde la que la muerte empieza a rondar (y la salud, ciclo 5, decae más). */
 export const OLD_AGE = 72;
-/** Prob. de muerte por año una vez mayor (rampa suave). */
-function deathChance(age: number): number {
+/**
+ * Prob. de muerte por año una vez mayor (rampa suave por edad), modulada por
+ * `health` [0,1] (ciclo 5 de RESEARCH.md, acoplamiento pendiente desde
+ * entonces): un anciano sano (salud 1) aguanta la mitad de riesgo que la
+ * rampa base; uno desatendido (salud 0) lo eleva un 50%. Neutro en 0.5 (el
+ * valor típico de un adulto sin crisis) para no desestabilizar la curva ya
+ * calibrada. La edad sigue siendo la puerta: sin ella, la salud no mata.
+ */
+export function deathChance(age: number, health: number): number {
   if (age < OLD_AGE) return 0;
-  return Math.min(0.5, (age - OLD_AGE) / 25);
+  const base = Math.min(0.5, (age - OLD_AGE) / 25);
+  const healthFactor = 1 + (0.5 - health);
+  return Math.min(0.5, base * healthFactor);
 }
 
 /** Afinidad mínima para emparejarse. */
@@ -43,7 +52,7 @@ export function lifeYear(citizens: Map<number, Citizen>, rng: Rng): LifeEvents {
 
   for (const c of citizens.values()) {
     c.age += 1;
-    if (rng.next() < deathChance(c.age)) out.deaths.push(c);
+    if (rng.next() < deathChance(c.age, c.health)) out.deaths.push(c);
   }
   const dead = new Set(out.deaths.map((d) => d.id));
 
