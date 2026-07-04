@@ -10,7 +10,7 @@
 import { seedWorld, seedFarm } from '../world/seed';
 import { Simulation } from './simulation';
 import { TICK_GAME_S, DAY_GAME_SECONDS } from './clock';
-import { FOOD_PRICE, Economy, GOODS_COMFORT_FLOOR, GOODS_MAX_SPEND } from './economy';
+import { FOOD_PRICE, Economy, GOODS_COMFORT_FLOOR, GOODS_MAX_SPEND, LIFESTYLE_COMFORT } from './economy';
 import { weatherAt, seasonalWarmth, seasonalFestivalName } from './weather';
 import { deathChance, lifeYear, OLD_AGE, ADULT_AGE } from './lifecycle';
 import { CLINIC_RECOVERY_PER_HOUR } from './health';
@@ -1039,6 +1039,53 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
   check('bienes: el pueblo consume bienes (emerge el segundo mercado)', sim.economy.goodsSold > 0, `→ ${sim.economy.goodsSold.toFixed(0)}`);
   check('bienes: el sumidero de importación drena parte (equilibra la nómina)', sim.economy.goodsImported > 0, `→ ${sim.economy.goodsImported.toFixed(0)}`);
   check('bienes: la sociedad sigue comiendo (el capricho no le quita el pan)', avgFood > 0.25, `→ ${avgFood.toFixed(2)}`);
+}
+
+// Ciclo 32 RESEARCH.md — CIERRE MONETARIO (economía): la nómina ACUÑA dinero, así
+// que sin sumidero el ahorro trepaba sin fin (hogares infinitamente ricos) y el
+// tesoro atesoraba. Dos frenos realistas: (1) el COSTE DE LA VIDA escala con la
+// riqueza (lifestyle inflation) y drena el ahorro excedente — el sumidero que
+// equilibra la acuñación; (2) el tesoro REPARTE su superávit (dividendo/obra
+// pública) en vez de piramidarlo. Resultado: la riqueza per cápita se ESTABILIZA.
+{
+  // (a) Puro — coste de la vida: escala con la riqueza, respeta el colchón.
+  const e = new Economy();
+  e.wallets.set('colchon', LIFESTYLE_COMFORT); // justo en el colchón
+  e.wallets.set('medio', 300);
+  e.wallets.set('rico', 3000);
+  const tre0 = e.treasury;
+  const lPobre = e.spendLifestyle('colchon');
+  const lMedio = e.spendLifestyle('medio');
+  const lRico = e.spendLifestyle('rico');
+  check('coste de vida: en el colchón no drena (protege al que no tiene de sobra)', lPobre === 0, `→ ${lPobre}`);
+  check('coste de vida: el rico gasta MÁS en vivir (lifestyle inflation)', lRico > lMedio, `→ ${lRico.toFixed(0)} vs ${lMedio.toFixed(0)}`);
+  check('coste de vida: nunca deja al hogar bajo el colchón', e.walletOf('rico') >= LIFESTYLE_COMFORT - 1e-9);
+  // Conservación: lo drenado = lo que queda en el tesoro + lo que sale del pueblo.
+  const drained = lMedio + lRico;
+  check('coste de vida: el dinero se CONSERVA (tesoro + sumidero externo)', Math.abs((e.treasury - tre0) + e.lifestyleLeft - drained) < 1e-9);
+
+  // (b) Puro — dividendo: guarda la reserva y reparte el superávit; conserva.
+  const g = new Economy();
+  g.treasury = 100;
+  check('dividendo: por debajo de la reserva, el tesoro no reparte', g.payPublicDividend(['a', 'b'], 1) === 0);
+  g.treasury = 10000;
+  const before = g.treasury;
+  const shared = g.payPublicDividend(['a', 'b'], 10); // reserva 300×10=3000
+  check('dividendo: reparte el superávit sobre la reserva', shared > 0, `→ ${shared.toFixed(0)}`);
+  check('dividendo: el tesoro baja EXACTAMENTE lo repartido (conserva)', Math.abs((before - g.treasury) - shared) < 1e-9);
+  check('dividendo: el dinero público vuelve a los hogares', g.walletOf('a') > 0 && g.walletOf('b') > 0);
+
+  // (c) Integración: la riqueza per cápita se ESTABILIZA (no trepa a miles como
+  //     sin cierre) y la sociedad sobrevive; ambos frenos actúan de verdad.
+  const sim = new Simulation(seedWorld(), 42);
+  for (let t = 0; t < TICKS_PER_DAY * 50; t++) sim.step();
+  const cs = [...sim.citizens.values()];
+  const avgSav = [...sim.economy.wallets.values()].reduce((s, w) => s + w, 0) / cs.length;
+  const avgFood = cs.reduce((s, c) => s + c.needs.food, 0) / cs.length;
+  check('cierre: el ahorro medio se ESTABILIZA (no trepa sin fin)', avgSav < 1800, `→ ${avgSav.toFixed(0)} (sin cierre pasaba de 2000 y subiendo)`);
+  check('cierre: el coste de la vida drena el excedente (sumidero)', sim.economy.lifestyleSpent > 0, `→ ${sim.economy.lifestyleSpent.toFixed(0)}`);
+  check('cierre: el tesoro reparte su superávit (no atesora sin fin)', sim.economy.dividendPaid > 0, `→ ${sim.economy.dividendPaid.toFixed(0)}`);
+  check('cierre: la sociedad sobrevive (sigue comiendo)', avgFood > 0.25, `→ ${avgFood.toFixed(2)}`);
 }
 
 // Determinismo: mismo snapshot final con la misma semilla.

@@ -877,3 +877,30 @@ una simulación, y los tratamos como tales:
   sin fin. (b) que los bienes HAGAN algo (comfort/estatus — consumo ostentoso que sube
   prestigio, acopla N2→N4) en vez de solo drenar. (c) producir los bienes DENTRO
   (artesanos/taller) para que el dinero se quede en el pueblo en vez de importarse.
+- 2026-07-04 · **Ciclo 32: CIERRE MONETARIO (el ahorro deja de trepar sin fin)** ·
+  Ataca la carencia (a) —la grande— del ciclo 31. Diagnóstico: la nómina ACUÑA dinero
+  (`payWage` no sale de una caja finita), así que sin sumideros que escalen con el
+  ingreso el ahorro medio trepaba sin techo (602→1782→2333 en seed 42, hogares
+  infinitamente ricos, irreal) y el tesoro atesoraba (24k→147k). Dos frenos realistas,
+  del lado del GASTO (evito reestructurar la nómina, que sería un cambio enorme y con
+  riesgo de cascada): (1) COSTE DE LA VIDA que escala con la riqueza — `spendLifestyle`
+  drena el 14% del ahorro EXCEDENTE sobre un colchón de 90 (lifestyle inflation: quien
+  más tiene, más gasta en servicios/ocio/mantenimiento); parte queda en el tesoro
+  (servicios locales) y el resto SALE del pueblo (el sumidero que equilibra la
+  acuñación). (2) el tesoro no atesora: `payPublicDividend` guarda una reserva prudente
+  (300/hab.) y reparte el 25%/día del superávit (obra pública/dividendo) → el dinero
+  público circula de vuelta. Verificado: el ahorro medio se ESTABILIZA en meseta
+  (~750, oscilando, no los miles crecientes de antes) y el tesoro se frena (147k→37k),
+  ambos protegiendo un colchón (nadie se arruina; la comida se mantiene 0.32–0.37). El
+  crecimiento sigue acotado (semillas 42/7/500 a día 40 dentro del umbral anti-
+  explosión). Conservación verificada en unit (lo drenado = tesoro + sumidero externo;
+  el dividendo baja el tesoro justo lo repartido). 239/239 tests verdes.
+  MATIZ HONESTO: la masa monetaria TOTAL aún crece con el pueblo (la acuñación de la
+  nómina supera a los sumideros), pero eso es realista (una economía en crecimiento
+  tiene más dinero); lo que importaba —la riqueza PER CÁPITA acotada y el tesoro sin
+  piramidar— sí se logra. El cierre TOTAL (nómina desde caja finita: tiendas pagan de
+  su till, el sector público del tesoro) queda como cambio mayor para un ciclo dedicado.
+  Carencias observadas para próximos ciclos: (a) cierre monetario TOTAL (nómina finita)
+  — el gran pendiente estructural. (b) que los bienes/riqueza HAGAN algo (estatus/
+  comfort, N2→N4). (c) producción de bienes DENTRO (artesanos). (d) la vacuna (ciclo 25)
+  y atar el techo de población K a la base económica (ciclo 30) para tender a §5.

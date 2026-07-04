@@ -57,6 +57,27 @@ export const GOODS_MAX_SPEND = 30;
  * importación del bien y sale del pueblo — sumidero que equilibra la nómina). */
 export const GOODS_SALES_TAX = 0.15;
 
+// --- Lógica de coste de la vida (ciclo 32): el cierre monetario, del lado del gasto
+// La nómina ACUÑA dinero (payWage), así que sin un sumidero que escale con el
+// ingreso el ahorro trepa sin fin (los hogares se hacen infinitamente ricos —
+// irreal). El coste de la vida escala con la RIQUEZA (lifestyle inflation, muy
+// real: quien más tiene, más gasta en servicios, ocio y mantenimiento). Drena una
+// fracción del ahorro EXCEDENTE cada día → el ahorro se ESTABILIZA en una meseta
+// (equilibrio: ingreso = gasto). Parte va al tesoro (servicios locales) y el resto
+// SALE del pueblo (ocio/servicios de fuera) — el sumidero que equilibra la acuñación.
+/** Colchón de ahorro por debajo del cual no hay coste de vida (se protege al pobre). */
+export const LIFESTYLE_COMFORT = 90;
+/** Fracción del ahorro EXCEDENTE (sobre el colchón) que se gasta en vivir, al día. */
+export const LIFESTYLE_DRAIN = 0.14;
+/** Parte del coste de vida que queda en el pueblo (tesoro); el resto sale fuera. */
+export const LIFESTYLE_LOCAL_SHARE = 0.3;
+/** El tesoro no ATESORA sin fin (ciclo 32): guarda una reserva prudente por
+ * habitante y GASTA el superávit en la ciudadanía (obra pública / dividendo) →
+ * el dinero público circula de vuelta en vez de piramidarse. Reserva por cabeza: */
+export const TREASURY_RESERVE_PER_CAPITA = 300;
+/** Fracción del superávit del tesoro que se reparte cada día (flujo suave). */
+export const DIVIDEND_RATE = 0.25;
+
 // --- Lógica de gobierno (ciclo 3): impuestos y pensiones ----------------------
 /** Parte del salario que va al tesoro municipal. */
 export const TAX_RATE = 0.2;
@@ -113,6 +134,12 @@ export class Economy {
   goodsSold = 0;
   /** Parte de ese gasto que salió del pueblo (importaciones — sumidero). */
   goodsImported = 0;
+  /** Coste de vida total drenado (ciclo 32 — métrica tests/crónica). */
+  lifestyleSpent = 0;
+  /** Parte del coste de vida que salió del pueblo (sumidero que equilibra la nómina). */
+  lifestyleLeft = 0;
+  /** Superavit del tesoro repartido a la ciudadania (ciclo 32 - metrica). */
+  dividendPaid = 0;
 
   /** Nómina: el trabajo mete dinero en el hogar del trabajador, menos la
    * parte que va al tesoro municipal (impuesto sobre la renta, lógica de
@@ -279,6 +306,42 @@ export class Economy {
     this.goodsImported += spent - tax; // sale del pueblo (importación) — sumidero
     this.goodsSold += spent;
     return spent;
+  }
+
+  /** Coste de la vida (ciclo 32): un hogar gasta en vivir (servicios, ocio,
+   * mantenimiento) una fracción de su ahorro EXCEDENTE — cuanto más tiene, más
+   * gasta (lifestyle inflation). Es el SUMIDERO que faltaba para cerrar la
+   * economía: sin él el ahorro trepa sin fin porque la nómina acuña dinero. Parte
+   * queda en el pueblo (tesoro, servicios locales) y el resto SALE (ocio de
+   * fuera), equilibrando la acuñación. Protege un colchón. Devuelve lo gastado. */
+  spendLifestyle(homeKey: string): number {
+    const excess = this.walletOf(homeKey) - LIFESTYLE_COMFORT;
+    if (excess <= 0) return 0;
+    const spent = this.spend(homeKey, excess * LIFESTYLE_DRAIN);
+    if (spent <= 0) return 0;
+    const local = spent * LIFESTYLE_LOCAL_SHARE;
+    this.treasury += local;
+    this.taxesCollected += local;
+    this.lifestyleLeft += spent - local; // sale del pueblo — sumidero
+    this.lifestyleSpent += spent;
+    return spent;
+  }
+
+  /** Dividendo público (ciclo 32): el tesoro guarda una reserva prudente (por
+   * habitante) y REPARTE parte del superávit entre los hogares (obra pública que
+   * revierte, dividendo ciudadano) — así el dinero público CIRCULA de vuelta en
+   * vez de piramidarse en las arcas. Flujo suave (una fracción al día). Devuelve
+   * lo repartido. Determinista (reparto por igual, orden no importa). */
+  payPublicDividend(homeKeys: string[], population: number): number {
+    const reserve = TREASURY_RESERVE_PER_CAPITA * population;
+    const surplus = this.treasury - reserve;
+    if (surplus <= 0 || homeKeys.length === 0) return 0;
+    const shared = surplus * DIVIDEND_RATE;
+    const per = shared / homeKeys.length;
+    for (const k of homeKeys) this.wallets.set(k, (this.wallets.get(k) ?? 0) + per);
+    this.treasury -= shared;
+    this.dividendPaid += shared;
+    return shared;
   }
 
   tillOf(shopKey: string): number {

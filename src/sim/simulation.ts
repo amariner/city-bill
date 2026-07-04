@@ -327,7 +327,9 @@ export class Simulation {
       this.stepLife();
       this.economy.endOfDay();
       this.chargeRent(); // ciclo 29: la vivienda cuesta (antes de pensiones: la red cubre a quien no llega)
+      this.chargeLifestyle(); // ciclo 32: el coste de la vida escala con la riqueza (drena el ahorro excedente)
       this.payPensions();
+      this.economy.payPublicDividend([...this.households.keys()], this.citizens.size); // ciclo 32: el tesoro no atesora sin fin — reparte su superávit
       this.stepOutbreak(); // ciclo 25: en invierno, algún resfriado prende y se propaga
       this.stepEmigration(); // ciclo 14: tras la red de pensiones (última bala)
       this.economy.investInHomes(this.households.keys()); // estatus, ciclo 9
@@ -471,6 +473,13 @@ export class Simulation {
       const rent = RENT_PER_DAY * families * (1 + RENT_TIER_FACTOR * (b.data.tier ?? 0));
       this.economy.treasury += this.economy.spend(k, rent);
     }
+  }
+
+  /** Coste de la vida (ciclo 32): cada hogar gasta en vivir una fracción de su
+   * ahorro excedente — el sumidero que faltaba para que el ahorro no trepe sin
+   * fin (la nómina acuña dinero). Escala con la riqueza (lifestyle inflation). */
+  private chargeLifestyle(): void {
+    for (const k of this.households.keys()) this.economy.spendLifestyle(k);
   }
 
   /** Contagio (ciclo 25): en el frío del invierno, con cierta probabilidad
