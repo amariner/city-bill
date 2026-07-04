@@ -76,11 +76,15 @@ export function griefDecay(grief: number, hours: number): number {
 /** Cuántos adultos llegan a una vivienda nueva (inmigración): 1-3, con un
  * barrio de posibles (prestigio medio [0,1] de la ciudad) atrayendo
  * familias más completas — acoplamiento prestigio→inmigración (RESEARCH.md,
- * carencia anotada en los ciclos 9/10). En `avgPrestige=0` es exactamente
- * la curva original (1-3, sin sesgo). Exportada (pura) para testear sin
- * levantar una Simulation entera. */
-export function familySize(rng: Rng, avgPrestige: number): number {
-  return 1 + Math.floor(rng.next() * (2.4 + avgPrestige * 0.6));
+ * carencia anotada en los ciclos 9/10) — y un pueblo de luto (duelo medio
+ * [0,1]) atrayendo familias más cautas, en sentido contrario — acoplamiento
+ * duelo→inmigración (ciclo 11). En `avgPrestige=avgGrief=0` es exactamente
+ * la curva original (1-3, sin sesgo). El rango nunca baja de 0.6 (mínimo
+ * garantizado: 1 adulto siempre, ni el peor duelo deja una vivienda
+ * vacía). Exportada (pura) para testear sin levantar una Simulation entera. */
+export function familySize(rng: Rng, avgPrestige: number, avgGrief = 0): number {
+  const range = Math.max(0.6, 2.4 + avgPrestige * 0.6 - avgGrief * 0.6);
+  return 1 + Math.floor(rng.next() * range);
 }
 
 // --- Lógica de estatus y propiedad (ciclo 9) ----------------------------------
@@ -152,8 +156,9 @@ export class Simulation {
     this.pantry.set(k, (this.pantry.get(k) ?? 0) + 3 * count);
     this.economy.wallets.set(k, (this.economy.wallets.get(k) ?? 0) + STARTING_MONEY * count);
     const prestige = this.avgPrestige();
+    const grief = this.avgGrief();
     for (let h = 0; h < count; h++) {
-      const adults = familySize(this.rng, prestige);
+      const adults = familySize(this.rng, prestige, grief);
       const family: Citizen[] = [];
       for (let a = 0; a < adults; a++) family.push(this.spawnCitizen(ax, az, buildingId));
       for (let i = 0; i < family.length; i++)
@@ -165,6 +170,16 @@ export class Simulation {
     if (this.citizens.size === 0) return 1;
     let sum = 0;
     for (const c of this.citizens.values()) sum += c.health;
+    return sum / this.citizens.size;
+  }
+
+  /** Duelo medio de la ciudad AHORA (0 si nadie está de luto). Base del
+   * acoplamiento duelo→inmigración (ciclo 11): un pueblo que ha sufrido
+   * muertes recientes es menos goloso para quien se plantea mudarse. */
+  private avgGrief(): number {
+    if (this.citizens.size === 0) return 0;
+    let sum = 0;
+    for (const c of this.citizens.values()) sum += c.grief;
     return sum / this.citizens.size;
   }
 

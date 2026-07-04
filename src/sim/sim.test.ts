@@ -411,6 +411,28 @@ check(
   check('prestigio→inmigración: más prestigio atrae familias más grandes', totalFull > totalNone, `→ media ${(totalNone / N).toFixed(2)} vs ${(totalFull / N).toFixed(2)}`);
 }
 
+// Acoplamiento duelo→inmigración (ciclo 11): un pueblo de luto debe atraer
+// familias más cautas (más pequeñas) que uno sin duelo, sin bajar nunca de
+// 1 adulto (ni el peor duelo deja una vivienda vacía). Mismo par de
+// rng.next() para las dos comparaciones — el único grado de libertad es el
+// duelo medio.
+{
+  const rng1 = createRng(11);
+  const rng2 = createRng(11);
+  let totalNone = 0;
+  let totalGrieving = 0;
+  let everBelowOne = false;
+  const N = 500;
+  for (let i = 0; i < N; i++) {
+    totalNone += familySize(rng1, 0, 0);
+    const withGrief = familySize(rng2, 0, 1);
+    if (withGrief < 1) everBelowOne = true;
+    totalGrieving += withGrief;
+  }
+  check('duelo→inmigración: un pueblo de luto atrae familias más pequeñas', totalGrieving < totalNone, `→ media ${(totalNone / N).toFixed(2)} vs ${(totalGrieving / N).toFixed(2)}`);
+  check('duelo→inmigración: nunca deja una vivienda sin nadie', !everBelowOne);
+}
+
 // T4.4 (modo autónomo) — cuando no hay parcela servible junto a una vía
 // existente, la ciudad se abre un ramal nuevo antes de rendirse. Grid de
 // prueba: una vía horizontal larga sobre un campo vacío.

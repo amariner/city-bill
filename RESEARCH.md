@@ -432,3 +432,13 @@ una simulación, y los tratamos como tales:
   se ve distinto a uno que no); (c) sin luto colectivo — una fiesta caída
   justo tras una muerte reciente no se atenúa, aunque en la vida real un
   pueblo de luto no celebraría igual.
+- 2026-07-04 · **Duelo→inmigración** (cierra la carencia (b) de arriba, la
+  misma sesión): `familySize(rng, avgPrestige, avgGrief)` — un pueblo de
+  luto atrae familias más cautas (más pequeñas), en sentido EXACTAMENTE
+  contrario al prestigio (mismo peso, 0.6, con signo cambiado) sobre el
+  mismo rango — simetría deliberada: la misma función que hace más goloso
+  un barrio próspero hace más disuasorio uno que ha sufrido muertes
+  recientes. El rango nunca baja de 0.6 (mínimo garantizado: 1 adulto
+  siempre, ni el peor duelo colectivo deja una vivienda vacía). En
+  `avgPrestige=avgGrief=0` sigue siendo exactamente la curva original.
+  139/139 tests. Quedan (a) y (c) de la entrada anterior.
