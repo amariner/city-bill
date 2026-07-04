@@ -15,6 +15,7 @@ import { SimClient, AgentView } from './sim/client';
 import { CitizenView } from './world/render/citizens';
 import { DAY_GAME_SECONDS } from './sim/clock';
 import { seasonalWarmth } from './sim/weather';
+import { updateTerrainSeason } from './world/render/terrain';
 import { Speed } from './sim/protocol';
 import { CitizenInspector } from './ui/inspector';
 import { Chronicle } from './ui/chronicle';
@@ -86,7 +87,9 @@ loop.onUpdate((dt) => {
     const t = simClient.gameTime;
     updateSun(stage.sun, (t % DAY_GAME_SECONDS) / DAY_GAME_SECONDS); // ciclo de luz T1.8
     const day = Math.floor(t / DAY_GAME_SECONDS);
-    updateSeason(stage, seasonalWarmth(day)); // tinte estacional T5.1
+    const warmth = seasonalWarmth(day);
+    updateSeason(stage, warmth); // tinte estacional de luz/cielo (T5.1 paso 1)
+    updateTerrainSeason(warmth); // nieve del terreno en invierno (T5.1 paso 2)
     const h = (t % DAY_GAME_SECONDS) / 3600;
     const hh = String(Math.floor(h)).padStart(2, '0');
     const mm = String(Math.floor((h % 1) * 60)).padStart(2, '0');

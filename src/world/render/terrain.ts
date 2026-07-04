@@ -69,13 +69,28 @@ function emitCell(buf: QuadBuffers, cx: number, cz: number, cell: Cell, c: THREE
   }
 }
 
+// Material ÚNICO compartido por todos los chunks de terreno: así el tinte
+// estacional (T5.1 paso 2) se aplica una sola vez para todo el suelo.
+export const terrainMaterial = new THREE.MeshLambertMaterial({ vertexColors: true });
+
+const _snow = new THREE.Color(PALETTE.snow);
+/**
+ * Nieve por estación (T5.1 paso 2): en el frío del invierno el suelo se cubre de
+ * blanco. Se hace con EMISSIVE (aditivo → ilumina hacia el blanco; un multiply
+ * solo oscurecería), proporcional a la crudeza invernal. `warmth` ∈ [-1,1].
+ */
+export function updateTerrainSeason(warmth: number): void {
+  const winter = Math.max(0, -warmth); // 0 (templado) … 1 (pleno invierno)
+  terrainMaterial.emissive.copy(_snow).multiplyScalar(0.42 * winter);
+}
+
 function finish(buf: QuadBuffers): THREE.Mesh {
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(buf.positions, 3));
   geo.setAttribute('normal', new THREE.Float32BufferAttribute(buf.normals, 3));
   geo.setAttribute('color', new THREE.Float32BufferAttribute(buf.colors, 3));
   geo.computeBoundingSphere();
-  const mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true }));
+  const mesh = new THREE.Mesh(geo, terrainMaterial);
   mesh.receiveShadow = true;
   mesh.name = 'terrain';
   return mesh;

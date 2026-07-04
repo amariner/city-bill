@@ -73,4 +73,5 @@ export const PALETTE = {
   skySummer: 0xe6dcc0, // cielo estival, cálido y dorado
   ambientWinter: 0xc4d2e6, // relleno frío azulado (nieve, sombra fría)
   ambientSummer: 0xdcd8c8, // relleno cálido de verano
+  snow: 0xeef2f7, // manto de nieve del terreno en invierno (emissive)
 } as const;
