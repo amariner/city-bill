@@ -663,3 +663,18 @@ una simulación, y los tratamos como tales:
   Carencia observada: falta la HISTORIA (hitos: nació el año 3, se casó el 21) —
   un diario de vida por persona pediría acumular sus eventos por id (sistema
   aparte); hoy el inspector es una foto del presente, no un relato.
+- 2026-07-04 · **Ciclo 24: cosecha abundante (festival↔alimento↔estación)** ·
+  Cierra la carencia del ciclo 22 (la fiesta estacional era solo nombre). La
+  fiesta de la cosecha (otoño) se narra "abundante" si el granero rebosa
+  (>40) el día que cae — un acoplamiento de tres lógicas ya vivas (festival 10 +
+  estaciones 6 + alimento 1), sin guion: depende del estado real del granero.
+  Testeado (día 60 = fiesta de otoño, granero forzado lleno → nombre abundante).
+  182/182 tests.
+  **Cierre de sesión (ciclos 11-24, Opus):** 14 ciclos de lógica (uno revertido
+  con lección) que profundizan lo existente hasta un tejido social/cultural muy
+  rico (mortalidad, migración en ambos sentidos, duelo completo con consuelo y
+  vínculo, memoria de ciudad y de personas, cultura estacional) + 4 features de
+  render verificadas por screenshot (coche T3.9, luz T1.8→Fase 1, estaciones
+  T5.1 con nieve) + semilla persistida (T2.6 parcial). El mayor salto pendiente
+  sigue siendo domar el crecimiento para abrir T4.4 (trazado autónomo de vías) —
+  merece una sesión enfocada, no la cola de esta.

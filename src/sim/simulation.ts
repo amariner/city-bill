@@ -54,6 +54,9 @@ const CAR_CELLS_PER_TICK_OFFROAD = WALK_CELLS_PER_TICK;
 /** Bonus de 'fun' por hora en casa, a prestigio máximo (se escala por él). */
 const COMFORT_FUN_PER_HOUR = 0.15;
 
+/** Granero por encima del cual la fiesta de la cosecha es "abundante" (ciclo 24). */
+const BOUNTIFUL_GRANARY = 40;
+
 export interface SimEvent {
   name: 'citizenBorn' | 'citizenLeft' | 'jobTaken' | 'chatStarted' | 'cityGrew' | 'tierUnlocked' | 'coupleFormed' | 'festivalDay';
   data: Record<string, unknown>;
@@ -312,7 +315,11 @@ export class Simulation {
       this.economy.investInHomes(this.households.keys()); // estatus, ciclo 9
       this.hireAndAcquaint();
       if (isFestivalDay(this.clock.day)) {
-        this.events.push({ name: 'festivalDay', data: { day: this.clock.day, name: seasonalFestivalName(this.clock.day) } });
+        // Cosecha abundante (ciclo 24): la fiesta de otoño se celebra distinta si
+        // el granero rebosa — acopla festival↔alimento↔estación, sin guion.
+        let festName = seasonalFestivalName(this.clock.day);
+        if (festName === 'fiesta de la cosecha' && this.economy.granary > BOUNTIFUL_GRANARY) festName += ' abundante';
+        this.events.push({ name: 'festivalDay', data: { day: this.clock.day, name: festName } });
       }
       const pop = this.citizens.size;
       const unlocked: Tier = pop >= 200 ? 4 : pop >= 80 ? 3 : pop >= 25 ? 2 : 1;

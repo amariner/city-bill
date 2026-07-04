@@ -768,6 +768,28 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
   check('persona: la etapa concuerda con la edad', sim.describe(anyId)!.age < 18 ? info.lifeStage === 'niño/a' : true);
 }
 
+// Ciclo 24 RESEARCH.md — COSECHA ABUNDANTE (festival↔alimento↔estación): la
+// fiesta de otoño se celebra distinta si el granero rebosa. Cierra la carencia
+// del ciclo 22 (la fiesta estacional era solo un nombre).
+{
+  // Día 60 es fiesta (60 % 15 = 0) Y otoño (días 60-79): forzamos granero lleno.
+  const sim = new Simulation(seedWorld(), 42) as unknown as {
+    economy: { granary: number };
+    clock: { day: number };
+    step: () => void;
+    takeEvents: () => Array<{ name: string; data: Record<string, unknown> }>;
+  };
+  let harvestName = '';
+  for (let t = 0; t < TICKS_PER_DAY * 61; t++) {
+    sim.economy.granary = 100; // granero rebosante todo el tiempo
+    sim.step();
+    for (const e of sim.takeEvents()) {
+      if (e.name === 'festivalDay' && typeof e.data.name === 'string' && e.data.name.includes('cosecha')) harvestName = e.data.name;
+    }
+  }
+  check('cosecha: con el granero lleno, la fiesta de otoño es abundante', harvestName.includes('abundante'), `→ "${harvestName}"`);
+}
+
 // Determinismo: mismo snapshot final con la misma semilla.
 const a = runDays(7, 1).sim.snapshot();
 const b = runDays(7, 1).sim.snapshot();
