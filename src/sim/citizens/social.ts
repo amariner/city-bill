@@ -8,6 +8,7 @@ import { Citizen } from './citizen';
 import { restore } from './needs';
 import { TICK_GAME_S } from '../clock';
 import { Rng } from '../../rng';
+import { consoleGriefBy } from '../grief';
 
 /** Distancia máx. (celdas) para pararse a charlar. */
 const CHAT_RANGE = 3;
@@ -107,6 +108,9 @@ export class SocialSystem {
       const b = citizens.get(chat.b);
       if (a) restore(a.needs, 'social', CHAT_RESTORE_PER_HOUR * hours);
       if (b) restore(b.needs, 'social', CHAT_RESTORE_PER_HOUR * hours);
+      // Consuelo cara a cara (ciclo 19): escala con la intimidad y el duelo
+      // compartido — quien charla contigo te alivia la pena según quién es.
+      if (a && b) { consoleGriefBy(a, b, hours); consoleGriefBy(b, a, hours); }
       if (chat.remaining <= 0 || !a || !b) {
         ended.push(chat);
         if (a && b) {

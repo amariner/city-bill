@@ -270,7 +270,8 @@ export class Simulation {
       }
       if (this.social.isChatting(c.id)) {
         c.activity = 'chat';
-        consoleGrief(c, hours); // consuelo (ciclo 17): la charla alivia el duelo
+        // El consuelo de la charla lo aplica social.advance() escalado por
+        // intimidad y duelo compartido (ciclo 19), que conoce al interlocutor.
         continue; // parado charlando; social.ts le restaura
       }
       this.stepCitizen(c, ctx);

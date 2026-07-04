@@ -48,10 +48,24 @@ export function griefTick(c: Citizen, hours: number): void {
   c.grief = Math.max(0, c.grief - GRIEF_RECOVERY_PER_HOUR * hours);
 }
 
-/** Consuelo (ciclo 17): estar en compañía (charla/visita/club/fiesta) alivia el
- * duelo más deprisa que el paso del tiempo a solas. Se llama ADEMÁS del
- * `griefTick` cuando el ciudadano está acompañado. */
+/** Consuelo (ciclo 17): estar en compañía (visita/club/fiesta) alivia el duelo
+ * más deprisa que el paso del tiempo a solas. Se llama ADEMÁS del `griefTick`
+ * cuando el ciudadano está acompañado, sin saber de quién (actividad grupal). */
 export function consoleGrief(c: Citizen, hours: number): void {
   if (c.grief <= 0) return;
   c.grief = Math.max(0, c.grief - GRIEF_CONSOLE_PER_HOUR * hours);
+}
+
+/** Bonus de consuelo cuando el que acompaña TAMBIÉN pena (duelo compartido). */
+const SHARED_GRIEF_BONUS = 1.5;
+
+/** Consuelo de una charla CARA A CARA (ciclo 19): no consuela igual cualquiera.
+ * Un ÍNTIMO (afinidad alta) alivia más que un conocido de vista; y quien también
+ * está de duelo, aún más — nadie entiende una pérdida como otro doliente. */
+export function consoleGriefBy(c: Citizen, other: Citizen, hours: number): void {
+  if (c.grief <= 0) return;
+  const affinity = c.friends.get(other.id) ?? 0;
+  const intimacy = 0.4 + 0.6 * Math.min(1, Math.max(0, affinity)); // 0.4 (conocido) … 1.0 (íntimo)
+  const shared = other.grief > 0 ? SHARED_GRIEF_BONUS : 1;
+  c.grief = Math.max(0, c.grief - GRIEF_CONSOLE_PER_HOUR * intimacy * shared * hours);
 }

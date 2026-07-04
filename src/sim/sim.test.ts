@@ -14,7 +14,7 @@ import { FOOD_PRICE } from './economy';
 import { weatherAt } from './weather';
 import { deathChance, lifeYear, OLD_AGE, ADULT_AGE } from './lifecycle';
 import { CLINIC_RECOVERY_PER_HOUR } from './health';
-import { bereave, griefTick, consoleGrief, GRIEF_PARTNER } from './grief';
+import { bereave, griefTick, consoleGrief, consoleGriefBy, GRIEF_PARTNER } from './grief';
 import { chronicleText } from '../ui/chronicle';
 import { townAttractiveness, householdHardship, updateEmigrationPressure, EMIGRATE_PRESSURE_LIMIT } from '../world/growth';
 import { ACTIVITY_BY_KIND, SimContext } from './citizens/activities';
@@ -641,6 +641,40 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
     }
     check('crónica: emergen despedidas con viudez (el duelo tiene rostro)', widowings > 0, `→ ${widowings} viudeces narradas`);
   }
+}
+
+// Ciclo 19 RESEARCH.md — DUELO COMPARTIDO (consuelo por intimidad): cierra la
+// carencia (a) del ciclo 17. No consuela igual cualquiera: un íntimo alivia más
+// que un conocido de vista, y quien también pena, aún más.
+{
+  const person = (id: number, grief: number, friends: [number, number][] = []): Citizen => ({
+    id, name: `P${id}`, age: 40,
+    personality: { sociable: 0.5, trabajador: 0.5, hogareño: 0.5 },
+    needs: { energy: 1, food: 1, social: 1, fun: 1, purpose: 1 },
+    home: { ax: 0, az: 0, buildingId: 'house' }, work: null,
+    x: 0, z: 0, heading: 0, phase: { kind: 'deciding' }, activity: 'none',
+    partnerId: null, education: 0, health: 1, grief, friends: new Map(friends), lastChatTick: -1, inside: false,
+  });
+  // Un íntimo (afinidad 0.9) consuela más que un desconocido de vista (0.05).
+  const byIntimate = person(1, 0.8, [[2, 0.9]]);
+  const byStranger = person(1, 0.8, [[3, 0.05]]);
+  const intimate = person(2, 0);
+  const stranger = person(3, 0);
+  consoleGriefBy(byIntimate, intimate, 1);
+  consoleGriefBy(byStranger, stranger, 1);
+  check('duelo compartido: un íntimo consuela más que un conocido de vista', byIntimate.grief < byStranger.grief, `→ ${byIntimate.grief.toFixed(3)} vs ${byStranger.grief.toFixed(3)}`);
+
+  // Quien TAMBIÉN pena consuela más que un amigo sereno (misma afinidad).
+  const withGriever = person(1, 0.8, [[2, 0.6]]);
+  const withSerene = person(1, 0.8, [[2, 0.6]]);
+  consoleGriefBy(withGriever, person(2, 0.7), 1); // el otro también está de duelo
+  consoleGriefBy(withSerene, person(2, 0), 1); // el otro está sereno
+  check('duelo compartido: otro doliente consuela más que un amigo sereno', withGriever.grief < withSerene.grief, `→ ${withGriever.grief.toFixed(3)} vs ${withSerene.grief.toFixed(3)}`);
+
+  // No consuela a quien no pena (sin efecto si grief=0).
+  const serene = person(1, 0, [[2, 0.9]]);
+  consoleGriefBy(serene, person(2, 0.8), 1);
+  check('duelo compartido: a quien no pena, no hay nada que consolar', serene.grief === 0);
 }
 
 // Determinismo: mismo snapshot final con la misma semilla.

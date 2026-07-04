@@ -592,3 +592,18 @@ una simulación, y los tratamos como tales:
   RESUMIRSE por año (RESEARCH §5 lo pedía: "año 12: 3 nacimientos, llegó la
   escuela") — compactación afectiva pendiente; (c) sigue en pie la disyuntiva
   del ciclo 17: subir a N4/N5 (legado/vocación) o domar el crecimiento.
+- 2026-07-04 · **Ciclo 19: duelo compartido (consuelo por intimidad)** · Cierra
+  la carencia (a) del ciclo 17 ("el consuelo no distingue de QUIÉN viene").
+  Modelo: no todos consuelan igual — un ÍNTIMO alivia más que un conocido de
+  vista, y quien TAMBIÉN pena, aún más (nadie entiende una pérdida como otro
+  doliente). Traducción: el consuelo de la charla se mueve de un flat en
+  simulation.ts a `consoleGriefBy(c, other)` en `social.advance()` (que ya
+  conocía a ambos interlocutores), escalado por intimidad (0.4 conocido … 1.0
+  íntimo, vía afinidad) y un bonus ×1.5 si el otro también está de duelo. El
+  consuelo de las actividades de grupo (visita/club/fiesta) sigue siendo flat
+  (no hay un interlocutor único). Verificado: un íntimo consuela más que un
+  desconocido; un codoliente más que un amigo sereno. 159/159 tests.
+  Carencias observadas: (a) el duelo compartido podría CREAR vínculo (dos que se
+  consuelan estrechan afinidad más rápido — el luto une); (b) siguen las
+  disyuntivas del ciclo 18 (memoria de vida / año resumido) y del 17 (N4/N5 vs
+  domar crecimiento).
