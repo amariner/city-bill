@@ -31,6 +31,7 @@ export const LOGICS: LogicEntry[] = [
   { id: 'life', name: 'vida (generaciones)', level: 3, files: ['sim/lifecycle.ts'], couples: ['social', 'growth', 'health', 'grief'] },
   { id: 'grief', name: 'duelo (la sombra del vínculo)', level: 3, files: ['sim/grief.ts'], couples: ['life', 'social', 'needs'] },
   { id: 'growth', name: 'ciudad autónoma (demanda→construcción + emigración)', level: 2, files: ['world/growth.ts', 'sim/simulation.ts'], couples: ['jobs', 'life', 'food', 'status', 'money'] },
+  { id: 'carrying-capacity', name: 'capacidad de carga (crecimiento logístico, no exponencial)', level: 2, files: ['world/growth.ts', 'sim/lifecycle.ts', 'sim/simulation.ts'], couples: ['growth', 'life'] },
   { id: 'government', name: 'gobierno (impuestos, pensiones, salud pública)', level: 2, files: ['economy.ts', 'simulation.ts'], couples: ['money', 'life', 'contagion'] },
   { id: 'circular-economy', name: 'economía circular (mayorista + caja de tienda)', level: 2, files: ['economy.ts'], couples: ['money', 'food', 'government'] },
   { id: 'rent', name: 'alquiler (la vivienda cuesta → drena el ahorro ocioso y circula)', level: 2, files: ['economy.ts', 'sim/simulation.ts'], couples: ['money', 'government', 'status'] },

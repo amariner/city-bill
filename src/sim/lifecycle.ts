@@ -56,8 +56,14 @@ export interface LifeEvents {
  * Un año de vida para todos. NO muta población (nacer/morir): devuelve los
  * hechos y el orquestador los aplica (spawn/despawn tocan índices que esta
  * lógica no debe conocer).
+ *
+ * `fertility` [0,1] modula la natalidad (ciclo 30, capacidad de carga): un
+ * pueblo cerca de su techo tiene menos hijos (coste de la vida, vivienda cara,
+ * transición demográfica real). NO cambia cuántas TIRADAS de RNG se consumen
+ * (una por pareja fértil, siempre) — solo el umbral —, así que amortiguar la
+ * natalidad no baraja el flujo determinista: el efecto es SEÑAL, no ruido.
  */
-export function lifeYear(citizens: Map<number, Citizen>, rng: Rng): LifeEvents {
+export function lifeYear(citizens: Map<number, Citizen>, rng: Rng, fertility = 1): LifeEvents {
   const out: LifeEvents = { deaths: [], births: [], couples: [] };
 
   for (const c of citizens.values()) {
@@ -103,7 +109,7 @@ export function lifeYear(citizens: Map<number, Citizen>, rng: Rng): LifeEvents {
     seen.add(c.id);
     seen.add(p.id);
     if (Math.min(c.age, p.age) >= FERTILE_MAX) continue;
-    if (rng.next() < BIRTH_CHANCE) out.births.push({ home: { ...c.home }, parents: [c, p] });
+    if (rng.next() < BIRTH_CHANCE * fertility) out.births.push({ home: { ...c.home }, parents: [c, p] });
   }
 
   return out;

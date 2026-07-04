@@ -815,3 +815,36 @@ una simulación, y los tratamos como tales:
   CARGA (el crecimiento se frena al llenarse el pueblo: techo de vivienda/empleo) sería
   a la vez ganancia de realismo y de velocidad — el siguiente paso natural. (b)
   VARIEDAD de bienes más allá del alimento (bienes duraderos, ocio de pago).
+- 2026-07-04 · **Ciclo 30: CAPACIDAD DE CARGA (crecimiento logístico, no caótico)** ·
+  Cierra la carencia (a) del ciclo 29 — la más urgente. OBSERVACIÓN dura al medir: el
+  crecimiento no solo explotaba (retroalimentación positiva sin freno: casa→familia→
+  empleo→prosperidad→más casas), sino que era CAÓTICO — misma sim a día 40, la
+  población iba de 22 a 353 hab. SEGÚN LA SEMILLA (×16). Una ciudad cuyo tamaño
+  depende 16× del azar invisible no es realista ni medible.
+  PRIMER INTENTO FALLIDO (lección valiosa, en la línea del ciclo 15): un damper que
+  gateaba la inmigración con `rng.next() < K/(K+pop)`. Pero AÑADIR una tirada de RNG
+  en la ruta de crecimiento BARAJA todo el flujo determinista: el resultado fue RUIDO,
+  no señal — con cuarentena on la pop saltó a 1318 (¡peor!), con off cayó a 238. En un
+  sistema caótico, una intervención que consume RNG espurio solo te muda a OTRA
+  trayectoria caótica. Revertido.
+  MODELO QUE FUNCIONA — negativa DETERMINISTA y fuerte, denso-dependiente (como la
+  demografía real): (a) la inmigración (única puerta de población forastera) se CORTA
+  por encima del techo `CARRYING_CAPACITY=120` (en `computeDemand`, puro); (b) la
+  NATALIDAD se satura: `fertilityFactor=1−pop/K` escala `BIRTH_CHANCE` en `lifeYear`
+  —coste de la vida, vivienda cara, transición demográfica—. Clave para NO caer en el
+  ruido: escalar el umbral NO cambia cuántas tiradas de RNG se consumen (una por pareja
+  fértil, siempre), así que el efecto es SEÑAL, no baraje. Verificado sobre 8 semillas
+  (lo que el caos exige — una sola no vale): la varianza a día 40 se DESPLOMÓ de
+  [22–353] (media 171) a [16–84] (media 53); a día 90 TODAS las semillas caen en
+  [52–92] (antes 355 en seed 42). Meseta logística estable y CONSISTENTE, con leve
+  sobreimpulso transitorio realista (seed 7 roza 137 hacia día 50 y baja a 67) — el
+  boom-bust de una población que rebasa su techo. Bonus enorme: con la población
+  acotada, la epidemia emerge pronto sobre un pueblo pequeño → re-afiné los tests de
+  contagio (ciclo 25 mide la OLEADA CRUDA con cuarentena off, su sentido pre-ciclo-26,
+  90→50 días; ciclo 26 A/B 70→50), y la suite pasó de ~293 s a 95 s. 219/219.
+  Carencias observadas para próximos ciclos: (a) K es FIJO (un pueblo de ~80-90); para
+  tender al sueño de §5 (10.000) habrá que ATARLO A LA BASE ECONÓMICA (empleos/
+  servicios/tiers) — la ciudad crece su techo a medida que su infraestructura lo
+  sostiene, no de golpe. (b) el sobreimpulso podría suavizarse (taper de inmigración
+  gradual, no corte duro) para un boom-bust menos brusco. (c) sigue pendiente la
+  VARIEDAD de bienes (carencia (b) del ciclo 29) y la vacuna (ciclo 25).

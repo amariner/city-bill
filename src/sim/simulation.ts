@@ -25,7 +25,7 @@ import { AgentState, ActivityKind, activityId, AGENT_STRIDE, TravelModeCode } fr
 import {
   computeDemand, itemForDemand, findParcel, townCenter, townAttractiveness,
   householdHardship, updateEmigrationPressure, EMIGRATE_POP_FLOOR, EMIGRATE_PRESSURE_LIMIT,
-  extendRoad, GrowthPlacement,
+  extendRoad, GrowthPlacement, CARRYING_CAPACITY, fertilityFactor,
 } from '../world/growth';
 import { lifeYear, ADULT_AGE, OLD_AGE } from './lifecycle';
 import { STARTING_MONEY, SHOP_TREAT_PRICE, PENSION_PER_DAY, RENT_PER_DAY, RENT_TIER_FACTOR } from './economy';
@@ -369,7 +369,10 @@ export class Simulation {
 
   /** Un año por día de juego: envejecer, emparejar, nacer, morir. */
   private stepLife(): void {
-    const life = lifeYear(this.citizens, this.rng);
+    // Natalidad denso-dependiente (ciclo 30): cerca del techo se tienen menos
+    // hijos — el freno vegetativo que, junto al corte de inmigración, aplana el
+    // crecimiento en meseta estable en vez de una exponencial caótica.
+    const life = lifeYear(this.citizens, this.rng, fertilityFactor(this.citizens.size));
     for (const d of life.deaths) {
       const partner = d.partnerId !== null ? this.citizens.get(d.partnerId) : undefined;
       if (partner) partner.partnerId = null;
@@ -534,6 +537,8 @@ export class Simulation {
       studentSlots: this.index.buildings.reduce((n, b) => n + (b.data.students ?? 0), 0),
       avgHealth: this.avgHealth(),
       hasClinic: this.index.buildings.some((b) => b.id === 'clinic'),
+      totalPopulation: this.citizens.size,
+      carryingCapacity: CARRYING_CAPACITY,
     });
     if (!demand) return;
 

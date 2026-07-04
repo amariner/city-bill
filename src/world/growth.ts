@@ -39,6 +39,11 @@ export interface DemandInput {
   /** Salud media de la población y si ya existe consultorio (ciclo 5). */
   avgHealth: number;
   hasClinic: boolean;
+  /** Población TOTAL (no solo adultos) y su techo (ciclo 30): por encima del
+   * techo el pueblo ya no atrae forasteros (la inmigración se corta; el
+   * crecimiento vegetativo sigue hasta que la natalidad se satura). */
+  totalPopulation: number;
+  carryingCapacity: number;
 }
 
 export type DemandKind = 'residential' | 'commerce' | 'work' | 'school' | 'clinic' | null;
@@ -60,7 +65,9 @@ export function computeDemand(d: DemandInput): DemandKind {
   // Paro alto, o parados sin ninguna vacante → un lugar de trabajo.
   if (unemployment > 0.35 || (openJobs <= 0 && unemployment >= 0.15)) return 'work';
   // Gente queriendo venir (hay trabajo, o la ciudad va bien) y sin casas → vivienda.
-  if (d.freeHousing <= 0 && (openJobs >= 1 || unemployment < 0.1)) return 'residential';
+  // Freno denso-dependiente (ciclo 30): por encima del techo el pueblo ya no
+  // tira de forasteros — deja de construir vivienda de inmigración y se aplana.
+  if (d.freeHousing <= 0 && d.totalPopulation < d.carryingCapacity && (openJobs >= 1 || unemployment < 0.1)) return 'residential';
   // Tiendas saturadas (prosperidad alta sostenida) o pueblo sin tienda.
   if (d.shops === 0 && d.population >= 8) return 'commerce';
   if (d.shops > 0 && d.avgProsperity > 0.75 && d.population / d.shops > 14) return 'commerce';
@@ -104,6 +111,28 @@ export function townAttractiveness(a: {
 }): number {
   const raw = 0.45 + 0.2 * a.employment + 0.15 * a.avgHealth + 0.1 * a.avgFood + 0.35 * a.avgPrestige;
   return Math.min(1, Math.max(0.5, raw));
+}
+
+// --- Capacidad de carga (ciclo 30 — crecimiento logístico, no exponencial) ----
+// Sin esto el pueblo crecía en RETROALIMENTACIÓN POSITIVA sin freno (casa nueva →
+// familia → empleo → prosperidad → más casas…): explotaba, y de forma CAÓTICA
+// (misma sim, día 40: de 22 a 353 hab. según la semilla — 16×). En la realidad
+// el crecimiento tiene freno DENSO-DEPENDIENTE: al llenarse el pueblo la
+// oportunidad por cabeza se satura, el suelo escasea y tanto la INMIGRACIÓN como
+// la NATALIDAD (coste de la vida, vivienda cara — transición demográfica) caen.
+// Modelado como negativa fuerte hacia una capacidad de carga K: el resultado es
+// una S logística estable y CONSISTENTE entre semillas, no una exponencial que
+// revienta. K es fijo de momento (un pueblo); un ciclo futuro lo atará a la BASE
+// ECONÓMICA (empleos/servicios) para que la ciudad pueda tender a §5 (10.000) a
+// medida que su infraestructura crece — no de golpe.
+/** Techo poblacional hacia el que se estabiliza el pueblo (media saturación de
+ * la natalidad e inmigración cortada por encima). */
+export const CARRYING_CAPACITY = 120;
+
+/** Factor de natalidad por saturación [0,1]: 1 con el pueblo vacío, baja lineal
+ * y llega a 0 en K (la vida se encarece, se tienen menos hijos). Pura. */
+export function fertilityFactor(population: number, capacity = CARRYING_CAPACITY): number {
+  return Math.max(0, Math.min(1, 1 - population / capacity));
 }
 
 // --- Emigración digna (ciclo 14 — cierra T4.3, honra RESEARCH.md §6.2) --------

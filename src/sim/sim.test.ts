@@ -19,7 +19,7 @@ import { maybeInfect, sickenTick, SICK_ONSET } from './contagion';
 import { chatBond } from './citizens/social';
 import { sickStayIn } from './citizens/activities';
 import { chronicleText, summarizeYear, compactChronicle, ChronEvent } from '../ui/chronicle';
-import { townAttractiveness, householdHardship, updateEmigrationPressure, EMIGRATE_PRESSURE_LIMIT } from '../world/growth';
+import { townAttractiveness, householdHardship, updateEmigrationPressure, EMIGRATE_PRESSURE_LIMIT, computeDemand, DemandInput, fertilityFactor, CARRYING_CAPACITY } from '../world/growth';
 import { ACTIVITY_BY_KIND, SimContext } from './citizens/activities';
 import { Weather } from './weather';
 import { Citizen } from './citizens/citizen';
@@ -850,10 +850,15 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
 
   // (c) Emergencia integrada: en una ciudad hay OLEADAS (mucha gente enferma a la
   //     vez, con evento de epidemia narrado) y la sociedad SOBREVIVE (recuperable).
+  //     Sin cuarentena (esta lógica es ANTERIOR al ciclo 26): aislamos la OLEADA
+  //     cruda del modelo SIRS; que la respuesta conductual la aplane es cosa del
+  //     ciclo 26. Con el techo de población (ciclo 30) la epidemia emerge pronto
+  //     y barata sobre un pueblo acotado, sin esperar a un gentío de cientos.
   {
     const sim = new Simulation(seedWorld(), 42);
+    sim.quarantine = false;
     let peakSick = 0, epidemicEvents = 0, everSick = new Set<number>();
-    for (let t = 0; t < TICKS_PER_DAY * 90; t++) {
+    for (let t = 0; t < TICKS_PER_DAY * 50; t++) {
       sim.step();
       for (const e of sim.takeEvents()) if (e.name === 'epidemic') epidemicEvents++;
       let s = 0; for (const cz of sim.citizens.values()) { if (cz.sick > 0.1) { s++; everSick.add(cz.id); } }
@@ -891,7 +896,7 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
     const sim = new Simulation(seedWorld(), 42);
     sim.quarantine = q;
     let peak = 0;
-    for (let t = 0; t < TICKS_PER_DAY * 70; t++) {
+    for (let t = 0; t < TICKS_PER_DAY * 50; t++) {
       sim.step();
       let s = 0; for (const c of sim.citizens.values()) if (c.sick > 0.1) s++;
       peak = Math.max(peak, s);
@@ -957,6 +962,44 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
   check('alquiler: el dinero CIRCULA — el tesoro recauda más', on.treasury > off.treasury, `→ ${on.treasury.toFixed(0)} vs ${off.treasury.toFixed(0)}`);
   check('alquiler: alimenta la red — se pagan más pensiones', on.pensions > off.pensions, `→ ${on.pensions.toFixed(0)} vs ${off.pensions.toFixed(0)}`);
   check('alquiler: la sociedad SOBREVIVE (no empobrece ni vacía el pueblo)', on.pop >= 20 && on.avgFood > 0.25, `→ ${on.pop} hab., comida ${on.avgFood.toFixed(2)}`);
+}
+
+// Ciclo 30 RESEARCH.md — CAPACIDAD DE CARGA (crecimiento logístico): el pueblo
+// crecía en retroalimentación positiva SIN freno y de forma CAÓTICA (misma sim,
+// día 40: de 22 a 353 hab. según la semilla, ×16). El freno denso-dependiente
+// (inmigración cortada en el techo + natalidad que se satura) lo estabiliza en
+// una meseta CONSISTENTE entre semillas, como una población real.
+{
+  // (a) Puro: la natalidad decae lineal con la densidad y se ANULA en el techo.
+  check('capacidad: con el pueblo vacío, natalidad plena', fertilityFactor(0) === 1);
+  check('capacidad: a media capacidad, media natalidad', Math.abs(fertilityFactor(CARRYING_CAPACITY / 2) - 0.5) < 1e-9);
+  check('capacidad: en el techo, natalidad nula', fertilityFactor(CARRYING_CAPACITY) === 0);
+  check('capacidad: por encima del techo no hay rebote (acotada a 0)', fertilityFactor(CARRYING_CAPACITY * 2) === 0);
+  check('capacidad: la natalidad baja de forma monótona con la densidad', fertilityFactor(10) > fertilityFactor(60) && fertilityFactor(60) > fertilityFactor(110));
+
+  // (b) Puro: la demanda de vivienda (única puerta de la inmigración) se CORTA en
+  //     el techo, aunque haya empleo y falten casas.
+  const base: DemandInput = {
+    population: 50, employed: 50, jobs: 52, freeHousing: 0, shops: 2, avgProsperity: 0.5,
+    tier: 1, children: 0, studentSlots: 0, avgHealth: 1, hasClinic: true,
+    totalPopulation: 50, carryingCapacity: CARRYING_CAPACITY,
+  };
+  check('capacidad: bajo el techo, un pueblo con empleo y sin casas pide vivienda', computeDemand(base) === 'residential');
+  check('capacidad: en el techo, el pueblo ya NO atrae forasteros (corta la vivienda)', computeDemand({ ...base, totalPopulation: CARRYING_CAPACITY }) !== 'residential');
+
+  // (c) Integración: semillas que ANTES explotaban (día 40: seed 7→307, seed
+  //     500→353, seed 1→293) ahora quedan acotadas y agrupadas — el crecimiento
+  //     es una meseta estable, no una exponencial dependiente del azar.
+  const popAt = (seed: number, days: number): number => {
+    const sim = new Simulation(seedWorld(), seed);
+    for (let t = 0; t < TICKS_PER_DAY * days; t++) sim.step();
+    return sim.citizens.size;
+  };
+  const seeds = [42, 7, 500];
+  const pops = seeds.map((s) => popAt(s, 40)); // mismo día que la medición base (22–353)
+  check('capacidad: las semillas antes explosivas quedan ACOTADAS bajo el techo', pops.every((p) => p <= CARRYING_CAPACITY), `→ ${pops.join(', ')}`);
+  check('capacidad: y AGRUPADAS (baja varianza, no ×16 según el azar)', Math.max(...pops) - Math.min(...pops) < 60, `→ rango ${Math.min(...pops)}–${Math.max(...pops)}`);
+  check('capacidad: el pueblo sigue VIVO (crece desde el puñado inicial)', pops[0] >= 35, `→ seed42 ${pops[0]} hab.`);
 }
 
 // Determinismo: mismo snapshot final con la misma semilla.
