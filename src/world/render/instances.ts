@@ -5,7 +5,7 @@
  * Toda la vegetación cuesta ~4 draw calls, escale a miles de árboles.
  */
 import * as THREE from 'three';
-import { PALETTE } from '../../palette';
+import { PALETTE, SEASON_PALETTES, Season } from '../../palette';
 import { createRng } from '../../rng';
 import { Grid, Chunk, CELL_SIZE, Cell } from '../grid';
 import { mat } from '../../props';
@@ -87,17 +87,18 @@ function collect(cell: Cell, key: number, blobs: TreeInstance[], cypresses: Tree
   else blobs.push(inst);
 }
 
-function assemble(blobs: TreeInstance[], cypresses: TreeInstance[]): THREE.Group {
+function assemble(blobs: TreeInstance[], cypresses: TreeInstance[], season: Season): THREE.Group {
   const geo = makeGeometries();
   const group = new THREE.Group();
   group.name = 'vegetation';
   const base = new THREE.Color();
+  const seasonColors = SEASON_PALETTES[season];
 
   if (blobs.length) {
     group.add(trunkMesh(geo.trunk, blobs));
     group.add(
       crownMesh(geo.blobCrown, blobs, (t, rand) => {
-        base.set(t.alt ? PALETTE.treeBlobAlt : PALETTE.treeBlob);
+        base.set(t.alt ? seasonColors.treeBlobAlt : seasonColors.treeBlob);
         return base.clone().multiplyScalar(0.9 + rand() * 0.2);
       }),
     );
@@ -116,18 +117,18 @@ function assemble(blobs: TreeInstance[], cypresses: TreeInstance[]): THREE.Group
 }
 
 /** Vegetación de todo el grid. */
-export function buildVegetation(grid: Grid): THREE.Group {
+export function buildVegetation(grid: Grid, season: Season = 'verano'): THREE.Group {
   const blobs: TreeInstance[] = [];
   const cypresses: TreeInstance[] = [];
   grid.forEachChunk((chunk) => chunk.cells.forEach((cell, key) => collect(cell, key, blobs, cypresses)));
-  return assemble(blobs, cypresses);
+  return assemble(blobs, cypresses, season);
 }
 
 /** Vegetación de un solo chunk (o null si no tiene árboles). */
-export function buildVegetationForChunk(chunk: Chunk): THREE.Group | null {
+export function buildVegetationForChunk(chunk: Chunk, season: Season = 'verano'): THREE.Group | null {
   const blobs: TreeInstance[] = [];
   const cypresses: TreeInstance[] = [];
   chunk.cells.forEach((cell, key) => collect(cell, key, blobs, cypresses));
   if (blobs.length === 0 && cypresses.length === 0) return null;
-  return assemble(blobs, cypresses);
+  return assemble(blobs, cypresses, season);
 }

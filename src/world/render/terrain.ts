@@ -5,7 +5,7 @@
  * los chunks fuera de cámara. El render LEE el grid; nunca lo modifica.
  */
 import * as THREE from 'three';
-import { PALETTE } from '../../palette';
+import { PALETTE, SEASON_PALETTES, Season } from '../../palette';
 import { createRng } from '../../rng';
 import { Grid, Chunk, Terrain, CELL_SIZE, Cell } from '../grid';
 
@@ -18,12 +18,13 @@ const LAYER_Y: Record<Terrain, number> = {
   road: 0.11,
 };
 
-function baseColor(terrain: Terrain, rng: ReturnType<typeof createRng>): number {
+function baseColor(terrain: Terrain, rng: ReturnType<typeof createRng>, season: Season): number {
+  const sp = SEASON_PALETTES[season];
   switch (terrain) {
     case 'field':
-      return rng.pick(PALETTE.fields);
+      return rng.pick(sp.fields);
     case 'grass':
-      return rng.pick(PALETTE.grassPatches);
+      return rng.pick(sp.grassPatches);
     case 'water':
       return PALETTE.pond;
     case 'path':
@@ -31,7 +32,7 @@ function baseColor(terrain: Terrain, rng: ReturnType<typeof createRng>): number 
     case 'road':
       return PALETTE.road;
     default:
-      return PALETTE.groundBase;
+      return sp.groundBase;
   }
 }
 
@@ -45,18 +46,18 @@ function cellFromKey(key: number): [number, number] {
   return [Math.floor(key / 65536) - 32768, (key % 65536) - 32768];
 }
 
-function emitCell(buf: QuadBuffers, cx: number, cz: number, cell: Cell, c: THREE.Color, cultivation: number): void {
+function emitCell(buf: QuadBuffers, cx: number, cz: number, cell: Cell, c: THREE.Color, cultivation: number, season: Season): void {
   if (cell.terrain === 'none') return;
 
   // Color base por región (parches grandes) + jitter fino por celda.
   const shift = cell.terrain === 'field' ? 4 : cell.terrain === 'grass' ? 2 : 8;
   const regionRng = createRng(((cx >> shift) * 73856093) ^ ((cz >> shift) * 19349663));
-  c.set(baseColor(cell.terrain, regionRng));
+  c.set(baseColor(cell.terrain, regionRng, season));
   if (cell.terrain === 'field' && cultivation > 0) {
     // Faena reciente (economy.cultivation): el barbecho vira a tonos de
     // cultivo, con franjas por fila (surcos) que se marcan más cuanto más
     // trabajado está el campo — cero horario fijo, solo el nivel agregado.
-    const worked = new THREE.Color(regionRng.pick(PALETTE.fieldsCultivated));
+    const worked = new THREE.Color(regionRng.pick(SEASON_PALETTES[season].fieldsCultivated));
     c.lerp(worked, cultivation);
     if (((cz % 2) + 2) % 2 === 1) c.multiplyScalar(1 - cultivation * 0.12);
   }
@@ -90,26 +91,27 @@ function finish(buf: QuadBuffers): THREE.Mesh {
 }
 
 /** Malla de terreno de un solo chunk (o null si no tiene terreno). `cultivation`
- * [0,1]: cuánta faena agrícola reciente hay en la ciudad (economy.cultivation). */
-export function buildTerrainMeshForChunk(chunk: Chunk, cultivation = 0): THREE.Mesh | null {
+ * [0,1]: cuánta faena agrícola reciente hay en la ciudad (economy.cultivation).
+ * `season` (T5.1): qué paleta de terreno usar. */
+export function buildTerrainMeshForChunk(chunk: Chunk, cultivation = 0, season: Season = 'verano'): THREE.Mesh | null {
   const buf: QuadBuffers = { positions: [], normals: [], colors: [] };
   const c = new THREE.Color();
   chunk.cells.forEach((cell, key) => {
     const [cx, cz] = cellFromKey(key);
-    emitCell(buf, cx, cz, cell, c, cultivation);
+    emitCell(buf, cx, cz, cell, c, cultivation, season);
   });
   if (buf.positions.length === 0) return null;
   return finish(buf);
 }
 
 /** Malla de terreno de todo el grid (una sola geometría). */
-export function buildTerrainMesh(grid: Grid, cultivation = 0): THREE.Mesh {
+export function buildTerrainMesh(grid: Grid, cultivation = 0, season: Season = 'verano'): THREE.Mesh {
   const buf: QuadBuffers = { positions: [], normals: [], colors: [] };
   const c = new THREE.Color();
   grid.forEachChunk((chunk) => {
     chunk.cells.forEach((cell, key) => {
       const [cx, cz] = cellFromKey(key);
-      emitCell(buf, cx, cz, cell, c, cultivation);
+      emitCell(buf, cx, cz, cell, c, cultivation, season);
     });
   });
   return finish(buf);

@@ -239,9 +239,14 @@ repetido, arbolado automático en márgenes de carretera (rasgo de identidad).
   ladrillo, fábrica, tren) — ver CATALOG.md.
 
 ### Fase 5 — Atmósfera y juice
-- [ ] **T5.1 Estaciones.** 4 variantes de paleta intercambiables con crossfade lento
-  (invierno = nieve estilo Zlín: cubiertas blancas, campos claros). La paleta estacional
-  vive también en `palette.ts`.
+- [~] **T5.1 Estaciones.** Hechas las 4 variantes de paleta en `palette.ts`
+  (`SEASON_PALETTES`: terreno + vegetación; invierno = campos claros/pálidos,
+  ver bitácora). `sim/weather.ts` ya calculaba la estación desde el ciclo 6 —
+  esto le da su reflejo visual, carencia anotada varias veces. Falta el
+  CROSSFADE lento (hoy el cambio de estación es un corte discreto al
+  reconstruir los chunks, como `cultivation`/`festivalActive`) y las
+  cubiertas blancas de nieve en los edificios (no tocado: exigiría cambiar
+  todos los builders de `props.ts`).
 - [ ] **T5.2 Tren.** Vía + estación + tren con 3-5 vagones en circuito, humo de la
   locomotora con sprites de esferas.
 - [ ] **T5.3 Sonido generativo.** Web Audio: viento, pájaros, campana lejana, murmullo
@@ -283,6 +288,39 @@ aprieta, T3.8-T3.10 y la Fase 4 valen más que cualquier cosa de la Fase 5.
 
 ## 6. Diario del agente (rellenar al trabajar)
 > Anota aquí: fecha, tarea, decisiones no obvias, deuda técnica, conflictos con §1.
+
+- 2026-07-04 (misma sesión Sonnet, continuación) — T5.1 (paleta estacional).
+  `sim/weather.ts` calculaba estación desde el ciclo 6 sin reflejo visual
+  (anotado como carencia en varias entradas de la bitácora de RESEARCH.md).
+  `palette.ts` gana `SEASON_PALETTES` (terreno + vegetación por estación,
+  todo dentro de las mismas familias de color, ningún hex nuevo fuera de
+  ahí); `render/terrain.ts` y `render/instances.ts` reciben `season` como
+  parámetro, `WorldView.setSeason()` repinta todo el mapa al cambiar (mismo
+  patrón de "reconstruir chunks al cambiar de estado" que `cultivation` y
+  `festivalActive`). `main.ts` calcula la estación en el propio hilo
+  principal con `weatherAt(seed, day)` (pura, sin THREE) — igual que ya
+  hacía con `isFestivalDay`, cero mensaje nuevo del worker.
+  · `cypress` NO varía con la estación a propósito: es de hoja perenne, se
+    queda verde todo el año — el detalle que separa un ciprés de un árbol
+    de hoja caduca en la vida real.
+  · El juego ahora ARRANCA en invierno (día 0 cae en `SEASONS[0]`), no en el
+    verano cálido de las capturas de referencia del checklist §4 — cambio
+    de identidad visual INTENCIONADO (es la variante que pedía T5.1
+    explícitamente: "campos claros"), verificado que sigue leyéndose como
+    patchwork con siluetas oscuras de árboles, solo que en tonos pálidos.
+  · Marcado `[~]`: falta el CROSSFADE lento entre estaciones (hoy es un
+    corte discreto al reconstruir chunks — la vertex-color horneada no se
+    presta a interpolar en shader sin más trabajo) y las cubiertas de nieve
+    en tejados (tocaría todos los builders de `props.ts`, fuera de alcance
+    de esta pasada). Verificado en preview: invierno se ve correctamente
+    (campos pálidos, hierba verde-grisácea distinguible junto a los
+    edificios); primavera/verano/otoño comparten el mismo código genérico
+    (tipado por `tsc`, sin rama especial por estación) — no se esperó en
+    vivo a que el reloj cruzara de estación (20 días de juego ≈ 25 min
+    reales a ×3): el riesgo de que solo LOS DATOS de las otras 3 paletas
+    tengan un error puntual es bajo y más barato de repasar a ojo (ya
+    revisados) que de esperar; queda como verificación en vivo pendiente
+    para una sesión con más margen de tiempo. 126/126 tests, `tsc` limpio.
 
 - 2026-07-04 (misma sesión Sonnet, continuación) — T4.4 (modo autónomo):
   mecanismo de ramales nuevos en `world/growth.ts`. Cuando `findParcel` no

@@ -10,6 +10,7 @@ import { catalogItem } from '../catalog';
 import { buildTerrainMeshForChunk } from './terrain';
 import { buildVegetationForChunk } from './instances';
 import { homeGarden, festivalDecor } from '../../props';
+import { Season } from '../../palette';
 
 function cellFromKey(key: number): [number, number] {
   return [Math.floor(key / 65536) - 32768, (key % 65536) - 32768];
@@ -33,6 +34,8 @@ export class WorldView {
   private cultivation = 0;
   /** Fiesta de barrio en curso (ciclo 10) — decora los edificios cívicos. */
   private festivalActive = false;
+  /** Estación actual (T5.1) — colorea terreno y vegetación. */
+  private season: Season = 'verano';
 
   constructor(private grid: Grid) {
     grid.forEachChunk((chunk) => {
@@ -90,6 +93,13 @@ export class WorldView {
     this.rebuildAllChunks();
   }
 
+  /** Cambia la estación (T5.1) y repinta terreno + vegetación de todo el mapa. */
+  setSeason(season: Season): void {
+    if (season === this.season) return;
+    this.season = season;
+    this.rebuildAllChunks();
+  }
+
   private rebuildAllChunks(): void {
     for (const chunk of [...this.byChunk.keys()]) {
       const [chx, chz] = chunk.split(',').map(Number);
@@ -101,10 +111,10 @@ export class WorldView {
     const group = new THREE.Group();
     group.name = `chunk_${chunk.chx}_${chunk.chz}`;
 
-    const terrain = buildTerrainMeshForChunk(chunk, this.cultivation);
+    const terrain = buildTerrainMeshForChunk(chunk, this.cultivation, this.season);
     if (terrain) group.add(terrain);
 
-    const veg = buildVegetationForChunk(chunk);
+    const veg = buildVegetationForChunk(chunk, this.season);
     if (veg) group.add(veg);
 
     // Edificios anclados en este chunk.

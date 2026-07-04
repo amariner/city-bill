@@ -15,6 +15,7 @@ import { SimClient, AgentView } from './sim/client';
 import { CitizenView } from './world/render/citizens';
 import { DAY_GAME_SECONDS } from './sim/clock';
 import { isFestivalDay } from './sim/citizens/activities';
+import { weatherAt } from './sim/weather';
 import { paintRoadExtension } from './world/growth';
 import { CHUNK } from './world/grid';
 import { Speed } from './sim/protocol';
@@ -22,6 +23,7 @@ import { CitizenInspector } from './ui/inspector';
 import { Chronicle } from './ui/chronicle';
 
 const sceneName = new URLSearchParams(window.location.search).get('scene');
+const WORLD_SEED = 20260703;
 
 const stage = createStage();
 
@@ -41,12 +43,12 @@ if (sceneName === 'buildings') {
   camera.setTarget(20, 20);
 
   // Simulación en worker (T3.1+). Velocidad con teclas 0-3.
-  simClient = new SimClient(20260703, worldGrid.serialize());
+  simClient = new SimClient(WORLD_SEED, worldGrid.serialize());
   citizenView = new CitizenView();
   stage.scene.add(citizenView.root);
   // Crecimiento autónomo (T4.2): el worker construye → replicamos en el
   // grid de render y refrescamos el chunk (misma colocación, mismo mundo).
-  chronicle = new Chronicle(20260703);
+  chronicle = new Chronicle(WORLD_SEED);
   simClient.onEvent = (name, data) => {
     chronicle?.onEvent(name, data);
     if (!data || !worldView) return;
@@ -114,6 +116,7 @@ loop.onUpdate((dt) => {
     hud.setStats({ agents: n, clock: `${hh}:${mm} día ${day} ×${simClient.speed}` });
     chronicle?.update(t, simClient.population, simClient.buildings);
     worldView?.setFestivalActive(isFestivalDay(day));
+    worldView?.setSeason(weatherAt(WORLD_SEED, day).season);
   }
   hud.update(dt);
 });

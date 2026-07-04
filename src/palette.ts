@@ -74,3 +74,63 @@ export const PALETTE = {
   sun: 0xfff2dd,
   ambient: 0xcfd8e8,
 } as const;
+
+/**
+ * Paleta estacional (T5.1): variantes de terreno y vegetación por estación
+ * (`sim/weather.ts` ya calcula la estación; esto le da su reflejo visual,
+ * carencia anotada desde el ciclo 6 de RESEARCH.md). El verano ES la
+ * paleta base de arriba (el juego se diseñó y verificó visualmente en
+ * verano) — las otras tres son variaciones sobre las mismas familias de
+ * color, nunca un hex nuevo fuera de aquí. `cypress` no varía: es de hoja
+ * perenne, se queda verde todo el año incluso en invierno.
+ */
+export type Season = 'primavera' | 'verano' | 'otoño' | 'invierno';
+
+export interface SeasonPalette {
+  groundBase: number;
+  fields: readonly number[];
+  fieldsCultivated: readonly number[];
+  grass: number;
+  grassPatches: readonly number[];
+  treeBlob: number;
+  treeBlobAlt: number;
+}
+
+export const SEASON_PALETTES: Record<Season, SeasonPalette> = {
+  verano: {
+    groundBase: PALETTE.groundBase,
+    fields: PALETTE.fields,
+    fieldsCultivated: PALETTE.fieldsCultivated,
+    grass: PALETTE.grass,
+    grassPatches: PALETTE.grassPatches,
+    treeBlob: PALETTE.treeBlob,
+    treeBlobAlt: PALETTE.treeBlobAlt,
+  },
+  primavera: {
+    groundBase: 0xdccdad,
+    fields: [0xd6cf9f, 0xccc794, 0xdcd4a8, 0xd0c99b, 0xd8d0a4],
+    fieldsCultivated: [0xa8c07f, 0x9db571, 0xb0c887, 0x9cb474, 0xa7c17e],
+    grass: 0x9cc17e,
+    grassPatches: [0x92b573, 0xa2c586, 0x8aab6b, 0x9bbc78],
+    treeBlob: 0x33472c,
+    treeBlobAlt: 0x3a4f32,
+  },
+  otoño: {
+    groundBase: 0xd6b992,
+    fields: [0xcf9f66, 0xc4935c, 0xd6ab74, 0xc99a63, 0xd0a26c],
+    fieldsCultivated: [0xb98a58, 0xae7f4f, 0xc19662, 0xa87c4c, 0xba8c56],
+    grass: 0xac8f52,
+    grassPatches: [0x9d8049, 0xb59a5c, 0x8f7442, 0xa68b50],
+    treeBlob: 0x7a4a2a,
+    treeBlobAlt: 0x8a5a2e,
+  },
+  invierno: {
+    groundBase: 0xe8e6df,
+    fields: [0xe3e1d8, 0xdcdad0, 0xeae8e1, 0xe0ded4, 0xe6e4dc],
+    fieldsCultivated: [0xcdd2c4, 0xc3c9b8, 0xd4d8c9, 0xc8ceba, 0xd0d5c5],
+    grass: 0xd6dccb,
+    grassPatches: [0xccd3bf, 0xdae0cd, 0xc3cab5, 0xd1d7c4],
+    treeBlob: 0x3c463c,
+    treeBlobAlt: 0x424c42,
+  },
+} as const;
