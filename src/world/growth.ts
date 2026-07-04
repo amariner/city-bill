@@ -87,6 +87,26 @@ export function itemForDemand(kind: Exclude<DemandKind, null>, tier: Tier): stri
 }
 
 /**
+ * Ciclo 12 — ATRACTIVIDAD migratoria [0.5,1] (acoplamiento prestigio→inmigración,
+ * avanza T4.3). Cuánta gente ATRAE la ciudad cuando abre una vivienda nueva:
+ * una ciudad próspera, sana, con empleo y buena FAMA (prestigio de sus hogares,
+ * ciclo 9) llena las casas; una que se las arregla mal las deja a medias, y la
+ * población deja de ser un caudal fijo para volverse consecuencia de la calidad
+ * de vida. Base alta a propósito: el prestigio se GANA con el tiempo (empieza en
+ * 0), así que no debe asfixiar el arranque — solo lo empuja hacia arriba cuando
+ * el pueblo ya prospera, y lo frena cuando va mal (paro, hambre, enfermedad).
+ */
+export function townAttractiveness(a: {
+  employment: number;
+  avgHealth: number;
+  avgFood: number;
+  avgPrestige: number;
+}): number {
+  const raw = 0.45 + 0.2 * a.employment + 0.15 * a.avgHealth + 0.1 * a.avgFood + 0.35 * a.avgPrestige;
+  return Math.min(1, Math.max(0.5, raw));
+}
+
+/**
  * T4.2 — Busca parcela: celda con footprint libre, RETRANQUEADA 1 celda de una
  * vía (road/path), fachada hacia ella, y lo más cerca posible del centro de
  * masa de lo ya construido. Devuelve null si no hay sitio servible.

@@ -22,7 +22,7 @@ import { chooseActivity } from './citizens/brain';
 import { ACTIVITY_BY_KIND, SimContext, activityLabel, EDU_PER_HOUR, CLINIC_FEE, isFestivalDay } from './citizens/activities';
 import { SocialSystem } from './citizens/social';
 import { AgentState, ActivityKind, activityId, AGENT_STRIDE, TravelModeCode } from './protocol';
-import { computeDemand, itemForDemand, findParcel, townCenter, GrowthPlacement } from '../world/growth';
+import { computeDemand, itemForDemand, findParcel, townCenter, townAttractiveness, GrowthPlacement } from '../world/growth';
 import { lifeYear } from './lifecycle';
 import { STARTING_MONEY, SHOP_TREAT_PRICE, PENSION_PER_DAY } from './economy';
 import { catalogData, Tier } from '../world/catalogData';
@@ -116,6 +116,22 @@ export class Simulation {
     let sum = 0;
     for (const c of this.citizens.values()) sum += c.health;
     return sum / this.citizens.size;
+  }
+
+  private avgFood(): number {
+    if (this.citizens.size === 0) return 1;
+    let sum = 0;
+    for (const c of this.citizens.values()) sum += c.needs.food;
+    return sum / this.citizens.size;
+  }
+
+  /** Fama media de los hogares (prestigio, ciclo 9). Alimenta la atractividad. */
+  private avgPrestige(): number {
+    const homes = this.index.ofRole('residential');
+    if (homes.length === 0) return 0;
+    let sum = 0;
+    for (const b of homes) sum += this.economy.prestigeOf(`${b.ax},${b.az}`);
+    return sum / homes.length;
   }
 
   /** Huecos de familia libres en todas las viviendas. */
@@ -371,7 +387,20 @@ export class Simulation {
     this.index.rebuild();
     this.economy.rebuild(this.index, this.citizens);
     if (it.role === 'residential') {
-      this.fillHome(p.cx, p.cz, p.id, it.capacity ?? 1); // inmigración
+      // Inmigración MODULADA por atractividad (ciclo 12): una ciudad próspera y
+      // con buena fama llena la vivienda; una que va mal la deja a medias. El
+      // efecto se nota sobre todo en los bloques (18-24 familias): un panelák
+      // en un pueblo con paro y hambre nace medio vacío, no lleno por decreto.
+      const s = this.economy.stats(this.citizens);
+      const attractiveness = townAttractiveness({
+        employment: s.adults > 0 ? s.employed / s.adults : 1,
+        avgHealth: this.avgHealth(),
+        avgFood: this.avgFood(),
+        avgPrestige: this.avgPrestige(),
+      });
+      const cap = it.capacity ?? 1;
+      const families = Math.max(1, Math.round(cap * attractiveness));
+      this.fillHome(p.cx, p.cz, p.id, families);
     }
     this.hireAndAcquaint();
     this.events.push({ name: 'cityGrew', data: { ...p } });

@@ -368,3 +368,33 @@ una simulación, y los tratamos como tales:
   "ciudad con clínica vive más que sin ella": candidato natural a ciclo 12
   junto con los otros dos acoplamientos pendientes (prestigio→inmigración,
   clima→coche).
+- 2026-07-04 · **Ciclo 12: prestigio→inmigración (PROFUNDIDAD, avanza T4.3)** ·
+  Cierra el acoplamiento que anotó el ciclo 9 ("el prestigio no influye aún en
+  growth") y hace avanzar T4.3 ("familias llegan si hay felicidad"). Modelo
+  (migración real en una frase): la gente se muda a donde hay prosperidad y
+  buena reputación, no a un pueblo con paro, hambre y enfermedad — la población
+  es una CONSECUENCIA de la calidad de vida, no un caudal fijo. Traducción al
+  motor: `townAttractiveness({employment, avgHealth, avgFood, avgPrestige})` →
+  [0.5,1]; al abrir una vivienda nueva, las familias que la ocupan escalan con
+  la atractividad (`round(capacidad × atractividad)`) en vez de llenarse por
+  decreto. Base alta (0.45) a propósito: el prestigio se GANA con el tiempo
+  (empieza en 0), así que un pueblo joven sano y con empleo aún llena casi de
+  lleno (0.90) — el arranque NO se asfixia, la lección del ciclo 5 (no romper
+  el crecimiento contenido) respetada. Emergió, y se VE en la ocupación de
+  viviendas, que antes era 100% por construcción y ahora VARÍA con la salud del
+  pueblo: en 60 días, seed 42 (próspero) llena al 81%, seed 7 (en apuros) se
+  queda al 44% — sus bloques nacen medio vacíos porque atraen menos gente. El
+  efecto es mayor en los paneláks (cap 18-24): un bloque en un pueblo con paro
+  puede nacer con 5-6 familias menos. Registrado el acoplamiento en el
+  manifiesto (`growth.couples` += `status`, `status.couples` += `growth`).
+  123/123 tests, sin colapso demográfico (seed 42 sigue creciendo a 201 hab.).
+  Carencias observadas para próximos ciclos: (a) las plazas VACÍAS de una casa
+  infra-ocupada no se rellenan si el pueblo mejora después — la inmigración solo
+  ocurre al COLOCAR, no hay "re-ocupación de vacantes" cuando sube la
+  atractividad; candidato a un ciclo de migración interna/re-ocupación; (b)
+  falta la mitad emigrante de T4.3 ("se van si no"): hoy un pueblo en apuros
+  atrae menos, pero NADIE se marcha andando por la carretera (la salida digna
+  que pide RESEARCH.md §6.2) — un buen ciclo 13 sería la EMIGRACIÓN por
+  infelicidad sostenida; (c) la atractividad es global a la ciudad, no por
+  BARRIO — con distritos, una calle de prestigio podría atraer mientras otra se
+  vacía (segregación emergente, delicado pero muy humano).

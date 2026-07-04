@@ -13,6 +13,7 @@ import { TICK_GAME_S, DAY_GAME_SECONDS } from './clock';
 import { FOOD_PRICE } from './economy';
 import { weatherAt } from './weather';
 import { deathChance, lifeYear, OLD_AGE } from './lifecycle';
+import { townAttractiveness } from '../world/growth';
 import { Citizen } from './citizens/citizen';
 import { createRng } from '../rng';
 
@@ -359,6 +360,27 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
     frailDeaths > robustDeaths,
     `→ frágiles ${frailDeaths} vs robustos ${robustDeaths} de 400`,
   );
+}
+
+// Ciclo 12 RESEARCH.md — acoplamiento prestigio→inmigración (avanza T4.3): la
+// población deja de ser un caudal fijo. Una ciudad próspera y con buena fama
+// atrae más familias a cada vivienda nueva; una que va mal las deja a medias.
+{
+  const prosperous = townAttractiveness({ employment: 1, avgHealth: 0.95, avgFood: 0.9, avgPrestige: 0.9 });
+  const struggling = townAttractiveness({ employment: 0.4, avgHealth: 0.6, avgFood: 0.4, avgPrestige: 0 });
+  const fresh = townAttractiveness({ employment: 1, avgHealth: 0.95, avgFood: 0.85, avgPrestige: 0 });
+
+  check('inmigración: una ciudad próspera atrae más que una en apuros', prosperous > struggling, `→ ${prosperous.toFixed(2)} vs ${struggling.toFixed(2)}`);
+  check('inmigración: la fama (prestigio) empuja la atractividad al alza', prosperous > fresh, `→ ${prosperous.toFixed(2)} vs ${fresh.toFixed(2)}`);
+  check('inmigración: atractividad acotada en [0.5,1]', struggling >= 0.5 && prosperous <= 1);
+  // Un pueblo recién fundado (prestigio 0 pero sano y con empleo) llena casi de
+  // lleno: el arranque no se asfixia (la carencia principal del diseño).
+  check('inmigración: el arranque no se asfixia (pueblo joven llena casi lleno)', fresh >= 0.85, `→ ${fresh.toFixed(2)}`);
+  // El efecto se VE en los bloques: un panelák (cap 18) nace medio vacío en un
+  // pueblo en apuros y lleno en uno próspero — inmigración como consecuencia.
+  const drawProsp = Math.max(1, Math.round(18 * prosperous));
+  const drawStrug = Math.max(1, Math.round(18 * struggling));
+  check('inmigración: un bloque atrae menos familias en un pueblo en apuros', drawStrug < drawProsp, `→ ${drawStrug} vs ${drawProsp} de 18`);
 }
 
 // Determinismo: mismo snapshot final con la misma semilla.
