@@ -15,7 +15,11 @@ import { CELL_SIZE } from '../grid';
 import { AgentView } from '../../sim/client';
 import { AgentState, TravelModeCode } from '../../sim/protocol';
 
-const MAX_AGENTS = 2048;
+// RESEARCH.md §5 fija 10.000 ciudadanos como objetivo de escala — el tope
+// tiene que cubrirlo con margen (T6.1: medido con ?stress=N en main.ts que
+// 2048 truncaba en silencio a partir de esa cifra, sin avisar ni degradar
+// visiblemente el recuento del HUD).
+const MAX_AGENTS = 12000;
 
 /** Convierte una geometría de THREE en no-indexada, coloreada y transformada. */
 function paintedPart(

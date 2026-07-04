@@ -128,6 +128,20 @@ completo, no solo ticks normales — la lección concreta de este hallazgo:
 **medir SOLO el camino caliente esconde bugs reales en el camino frío pero
 periódico** (una vez al día es "frío" en frecuencia, no en coste).
 
+**Lado RENDER, medido por separado** (mismo día, herramienta nueva
+`?stress=N` en `main.ts`: satura `CitizenView` con N agentes sintéticos sin
+sim ni worker, solo para aislar el coste puro de dibujar). Encontró un
+SEGUNDO límite real, de naturaleza muy distinta al de arriba (no era
+lento, truncaba en SILENCIO): `MAX_AGENTS=2048` en `render/citizens.ts`
+capaba el total de instancias (peatones+coches juntos) sin avisar ni
+degradar visiblemente el contador de agentes del HUD — pedir 10.000 y
+recibir 2.048 sin ningún error ni caída de fps es peor que ir lento,
+porque no se nota. Ampliado a 12.000. Medido en el preview real: **10.000
+agentes simultáneos (peatones + coches) a 60 fps, 105 draw calls** —
+exactamente el mismo presupuesto que con 10 agentes, gracias a que ya
+estaban instanciados desde T3.6/ciclo 8. El lado render nunca fue el
+problema; el límite estaba escondido en una constante, no en el diseño.
+
 | Recurso | Hoy (~10-100 hab.) | Límite previsto | Tecnología para superarlo |
 |---|---|---|---|
 | CPU del tick | objetos JS, O(pob.) | ~2.000 hab. | 1º **LOD de sim**: lejos de cámara, tick grueso (decidir 1/min, sin física de paso). 2º SoA: necesidades/posiciones en `Float32Array` planas (cache-friendly). 3º WASM solo si el perfil lo exige. |

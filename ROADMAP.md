@@ -266,16 +266,24 @@ repetido, arbolado automático en márgenes de carretera (rasgo de identidad).
 - [ ] **T5.5 Modo foto.** Ocultar UI, encuadres presets, export PNG 4K.
 
 ### Fase 6 — Lanzamiento
-- [~] **T6.1 Rendimiento final.** Perfilado con hasta 10.000 ciudadanos
-  sintéticos (`sim.test.ts`): encontrado y arreglado un O(n²) real en
-  `simulation.hireAndAcquaint()` (vecinos de vista) que solo aparecía en el
-  tick de cierre de día — hasta 1.1 s por tick a 3.000 hab. antes del
-  arreglo, 25 ms después; a 10.000 hab., 61-77 ms (dentro de un margen
-  razonable para un evento de una vez al día). Detalle completo y números
-  en RESEARCH.md §5. Queda perfilar el LADO RENDER a esa misma escala
-  (draw calls ya arreglado esta sesión para edificios, pero no verificado
-  aún con 5.000+ ciudadanos/coches simultáneos en pantalla) antes de
-  marcarlo `[x]` del todo.
+- [x] **T6.1 Rendimiento final.** Lado SIM: perfilado con hasta 10.000
+  ciudadanos sintéticos (`sim.test.ts`): encontrado y arreglado un O(n²)
+  real en `simulation.hireAndAcquaint()` (vecinos de vista) que solo
+  aparecía en el tick de cierre de día — hasta 1.1 s por tick a 3.000 hab.
+  antes del arreglo, 25 ms después; a 10.000 hab., 61-77 ms (dentro de un
+  margen razonable para un evento de una vez al día). Detalle completo y
+  números en RESEARCH.md §5.
+  Lado RENDER: nueva herramienta `?stress=N` (main.ts) satura
+  `CitizenView` con N agentes sintéticos (sin sim, sin worker) para medir
+  fps/draw calls a escala real — encontró un SEGUNDO límite real:
+  `MAX_AGENTS=2048` en `render/citizens.ts` truncaba en silencio (sin
+  avisar, sin degradar visiblemente el HUD) todo lo que pasara de esa
+  cifra. Ampliado a 12.000. Medido en el preview: **10.000 agentes
+  (peatones + coches) simultáneos a 60 fps, 105 draw calls** — el mismo
+  presupuesto que con 10 agentes, gracias a la instanciación ya existente.
+  Con esto, T6.1 está completo por los dos lados (sim y render) al
+  objetivo de 10.000 de RESEARCH.md §5. `?stress=N` se queda como
+  herramienta permanente de QA (mismo espíritu que `?scene=buildings`).
 - [ ] **T6.2 PWA + táctil.** Instalable, gestos de pan/zoom en tablet.
 - [ ] **T6.3 Onboarding.** 5 tooltips contextuales máximo. Nada de tutorial modal.
 - [ ] **T6.4 Build + deploy.** `npm run build` limpio, deploy estático (Vercel/Netlify),

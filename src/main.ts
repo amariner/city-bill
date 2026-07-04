@@ -20,9 +20,10 @@ import { isFestivalDay } from './sim/citizens/activities';
 import { weatherAt } from './sim/weather';
 import { paintRoadExtension } from './world/growth';
 import { CHUNK } from './world/grid';
-import { Speed } from './sim/protocol';
+import { Speed, AgentState, TravelModeCode } from './sim/protocol';
 import { CitizenInspector } from './ui/inspector';
 import { Chronicle } from './ui/chronicle';
+import { createRng } from './rng';
 
 const sceneName = new URLSearchParams(window.location.search).get('scene');
 // T4.4: escenario mínimo (una granja) para el test de aceptación estrella
@@ -30,6 +31,11 @@ const sceneName = new URLSearchParams(window.location.search).get('scene');
 // sigue teniendo prioridad, sin cambios). Ver world/seedFarm.ts.
 const scenarioName = new URLSearchParams(window.location.search).get('scenario');
 const WORLD_SEED = scenarioName === 'farm' ? 20260704 : 20260703;
+// T6.1: estrés de RENDER puro — ?stress=5000 satura CitizenView con N
+// agentes sintéticos (sin sim, sin worker) para medir fps/draw calls del
+// lado render a la escala que RESEARCH.md §5 ya validó por el lado sim.
+// Ninguna de las otras rutas (juego normal, granja, showcase) se toca.
+const stressCount = Number(new URLSearchParams(window.location.search).get('stress') ?? 0);
 
 const stage = createStage();
 
@@ -40,9 +46,30 @@ let worldView: ReturnType<typeof createWorldView> | null = null;
 let simClient: SimClient | null = null;
 let citizenView: CitizenView | null = null;
 let chronicle: Chronicle | null = null;
+let stressAgents: AgentView[] | null = null;
 if (sceneName === 'buildings') {
   stage.scene.add(buildShowcase());
   camera.setTarget(0, 0);
+} else if (stressCount > 0) {
+  // Estrés de render puro (T6.1): mismo mundo por defecto de fondo, pero
+  // los agentes son sintéticos — sin worker, sin sim, solo para medir el
+  // coste de CitizenView (peatones + coches) a escala real en el HUD F3.
+  worldView = createWorldView();
+  stage.scene.add(worldView.root);
+  camera.setTarget(20, 20);
+  citizenView = new CitizenView();
+  stage.scene.add(citizenView.root);
+  const rng = createRng(20260704);
+  stressAgents = Array.from({ length: stressCount }, (_, i) => ({
+    id: i,
+    x: rng.range(-90, 90),
+    z: rng.range(-90, 90),
+    heading: rng.range(0, Math.PI * 2),
+    state: AgentState.Walking,
+    activity: 0,
+    mode: rng.next() < 0.15 ? TravelModeCode.Car : TravelModeCode.Foot,
+    grief: rng.next() < 0.1 ? rng.next() : 0,
+  }));
 } else {
   // Grid de render: el del barrio por defecto (neighborhood.ts), salvo que
   // se pida el escenario mínimo de granja (T4.4) por query param — su
@@ -112,7 +139,17 @@ const loop = new GameLoop(() => stage.renderer.render(stage.scene, camera.cam));
 loop.onUpdate((dt) => {
   controller.update(dt);
   if (worldView) hud.setStats({ chunks: worldView.countVisibleChunks(camera.cam) });
-  if (simClient && citizenView) {
+  if (stressAgents && citizenView) {
+    // Deambulan en línea recta y rebotan en el borde — no hace falta más
+    // para medir coste de render, esto no es una simulación.
+    for (const a of stressAgents) {
+      a.x += Math.sin(a.heading) * dt * 2;
+      a.z += Math.cos(a.heading) * dt * 2;
+      if (a.x > 95 || a.x < -95 || a.z > 95 || a.z < -95) a.heading += Math.PI;
+    }
+    citizenView.update(stressAgents, stressAgents.length, dt);
+    hud.setStats({ agents: stressAgents.length, clock: `ESTRÉS RENDER (${stressAgents.length})` });
+  } else if (simClient && citizenView) {
     const n = simClient.view(agentViews);
     citizenView.update(agentViews, n, dt);
     if (inspector) {
