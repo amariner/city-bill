@@ -8,7 +8,9 @@ import { Input } from './core/input';
 import { CameraController } from './core/cameraController';
 import { GameLoop } from './core/loop';
 import { DebugHud } from './core/debugHud';
-import { createWorldView, worldGrid } from './neighborhood';
+import { createWorldView, worldGrid as defaultWorldGrid } from './neighborhood';
+import { WorldView } from './world/render/worldView';
+import { seedFarm } from './world/seedFarm';
 import { catalogItem } from './world/catalog';
 import { buildShowcase } from './showcase';
 import { SimClient, AgentView } from './sim/client';
@@ -23,7 +25,11 @@ import { CitizenInspector } from './ui/inspector';
 import { Chronicle } from './ui/chronicle';
 
 const sceneName = new URLSearchParams(window.location.search).get('scene');
-const WORLD_SEED = 20260703;
+// T4.4: escenario mínimo (una granja) para el test de aceptación estrella
+// (ROADMAP.md) — ?scenario=farm. Independiente de ?scene=buildings (que
+// sigue teniendo prioridad, sin cambios). Ver world/seedFarm.ts.
+const scenarioName = new URLSearchParams(window.location.search).get('scenario');
+const WORLD_SEED = scenarioName === 'farm' ? 20260704 : 20260703;
 
 const stage = createStage();
 
@@ -38,12 +44,17 @@ if (sceneName === 'buildings') {
   stage.scene.add(buildShowcase());
   camera.setTarget(0, 0);
 } else {
-  worldView = createWorldView();
+  // Grid de render: el del barrio por defecto (neighborhood.ts), salvo que
+  // se pida el escenario mínimo de granja (T4.4) por query param — su
+  // WorldView se construye igual, solo cambia qué Grid alimenta ambos lados
+  // (render + SimClient). No se toca createWorldView()/worldGrid por defecto.
+  const renderGrid = scenarioName === 'farm' ? seedFarm() : defaultWorldGrid;
+  worldView = scenarioName === 'farm' ? new WorldView(renderGrid) : createWorldView();
   stage.scene.add(worldView.root);
   camera.setTarget(20, 20);
 
   // Simulación en worker (T3.1+). Velocidad con teclas 0-3.
-  simClient = new SimClient(WORLD_SEED, worldGrid.serialize());
+  simClient = new SimClient(WORLD_SEED, renderGrid.serialize());
   citizenView = new CitizenView();
   stage.scene.add(citizenView.root);
   // Crecimiento autónomo (T4.2): el worker construye → replicamos en el
@@ -56,7 +67,7 @@ if (sceneName === 'buildings') {
       const { id, cx, cz, rot } = data as { id: string; cx: number; cz: number; rot: 0 | 1 | 2 | 3 };
       const it = catalogItem(id);
       if (!it) return;
-      worldGrid.placeBuilding(id, it.w, it.d, cx, cz, rot);
+      renderGrid.placeBuilding(id, it.w, it.d, cx, cz, rot);
       worldView.refreshChunkAt(cx, cz);
     } else if (name === 'homePrestige') {
       const { ax, az, prestige } = data as { ax: number; az: number; prestige: number };
@@ -68,7 +79,7 @@ if (sceneName === 'buildings') {
       // T4.4: repite EXACTAMENTE la misma pintura en el grid espejo del
       // render (misma función pura, mismos argumentos — ver growth.ts).
       const { rx, rz, axis, dir, length } = data as { rx: number; rz: number; axis: 'x' | 'z'; dir: 1 | -1; length: number };
-      const box = paintRoadExtension(worldGrid, rx, rz, axis, dir, length);
+      const box = paintRoadExtension(renderGrid, rx, rz, axis, dir, length);
       if (!box) return;
       const chx0 = Math.floor(box.cx0 / CHUNK);
       const chx1 = Math.floor(box.cx1 / CHUNK);

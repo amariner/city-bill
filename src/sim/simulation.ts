@@ -408,7 +408,7 @@ export class Simulation {
     if (!p) {
       // T4.4 — modo autónomo: sin parcela servible junto a una vía existente,
       // la ciudad se abre un ramal nuevo antes de rendirse este intento.
-      const ext = extendRoad(this.grid, center, this.rng);
+      const ext = extendRoad(this.grid, center);
       if (!ext) return;
       this.events.push({ name: 'roadBuilt', data: { rx: ext.rx, rz: ext.rz, axis: ext.axis, dir: ext.dir, length: ext.length } });
       p = findParcel(this.grid, id, center, this.rng);

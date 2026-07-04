@@ -224,16 +224,26 @@ repetido, arbolado automático en márgenes de carretera (rasgo de identidad).
   adosados → bloque, según densidad local. Cada edificio nuevo genera/atrae ciudadanos.
 - [~] **T4.3 Inmigración/emigración.** Familias llegan si hay vivienda+empleo+felicidad;
   se van si no. La población es consecuencia, no un slider.
-- [~] **T4.4 Modo autónomo.** Mecanismo hecho: `world/growth.ts` traza ramales
-  nuevos (extensiones del grafo hacia demanda no servida, siempre ortogonales y
+- [x] **T4.4 Modo autónomo.** `world/growth.ts` traza ramales nuevos
+  (extensiones del grafo hacia demanda no servida, siempre ortogonales y
   arboladas, mismo aspecto que las vías sembradas) cuando `findParcel` no
   encuentra sitio junto a una vía existente. Activo por defecto (mismo flag
   `autonomousGrowth` que el resto del crecimiento; sin toggle de UI todavía,
-  como el resto de T4.1-T4.3). Falta el TEST DE ACEPTACIÓN completo: con el
-  juego en marcha y sin input, en 30 min de juego debe emerger un pueblo
-  coherente y bonito **desde una sola granja** (escenario semilla nuevo, no el
-  pueblo con cruce actual) — **sigue siendo el test estrella del proyecto**,
-  pendiente de grabar con screenshots periódicos en una sesión dedicada.
+  como el resto de T4.1-T4.3). **Escenario del test de aceptación estrella**:
+  `world/seedFarm.ts` (`?scenario=farm`) siembra SOLO una granja (farmhouse +
+  barn) junto a un tocón corto de vía, rodeada de campo abierto — el punto de
+  partida mínimo desde el que debe emerger un pueblo sin más input.
+  Verificado headless (`sim.test.ts`): población de la familia inicial a 37+
+  en 30 días de juego, 23 edificios, y **al menos un ramal de carretera
+  nuevo (`roadBuilt`) trazado por sí solo** (día 11 en la semilla de test).
+  Bug real encontrado y corregido durante esta misma verificación — ver
+  bitácora. **Verificado también EN VIVO** en el preview (`?scenario=farm`,
+  ×3, ~15 min reales observados): hacia el día 12 de juego ha emergido un
+  pueblo coherente y bonito — 9-10 edificios (cottages, tienda con toldo
+  rojo) alineados a ambos lados de la calle, orientados hacia ella,
+  espaciados con retranqueo, junto a la granja original — sin ningún input
+  del jugador. Draw calls dentro de presupuesto (64-79) durante todo el
+  crecimiento observado.
 - [~] **T4.5 Hitos y tiers.** Población desbloquea tiers del catálogo (T1→T4) con una
   tarjeta de celebración discreta. El tier T4 introduce la estética Zlín (bloques de
   ladrillo, fábrica, tren) — ver CATALOG.md.
@@ -288,6 +298,51 @@ aprieta, T3.8-T3.10 y la Fase 4 valen más que cualquier cosa de la Fase 5.
 
 ## 6. Diario del agente (rellenar al trabajar)
 > Anota aquí: fecha, tarea, decisiones no obvias, deuda técnica, conflictos con §1.
+
+- 2026-07-04 (misma sesión Sonnet, continuación) — **T4.4, escenario de
+  granja + bug real de `extendRoad` encontrado y corregido**. Orquestado con
+  un workflow multi-agente (entender → implementar → verificar) el nuevo
+  `world/seedFarm.ts` (`?scenario=farm`): siembra SOLO una granja
+  (farmhouse+barn) junto a un tocón corto de vía (41 celdas, no las vías
+  casi infinitas de `seed.ts`), rodeada de campo abierto real (no vacío
+  implícito — `grid.get()` sin sembrar es "fuera del mundo" para
+  `findParcel`/`extendRoad`, así que el campo alrededor tiene que existir de
+  verdad). `seedWorld()`/el juego por defecto quedan intactos, cero cambios.
+  · **Hallazgo real durante la verificación** (no del escenario en sí):
+    `extendRoad` (añadido esta misma sesión, antes de esta continuación)
+    tenía un fallo de diseño que impedía que se disparara casi nunca en la
+    práctica — solo miraba la celda de vía MÁS CERCANA al centro de
+    crecimiento y probaba sus dos lados perpendiculares; en cuanto la
+    densificación normal (casitas a ambos lados de cada tramo de vía
+    servible — justo lo que produce `findParcel`) flanqueaba esa celda
+    concreta, la función devolvía `null` PARA SIEMPRE, aunque hubiera vía
+    servible mucho más allá. Confirmado con una sim de 60 días sobre el
+    mundo sembrado por defecto (sus vías CASI INFINITAS): 0 eventos
+    `roadBuilt` en total.
+  · **Arreglo**: `paintRoadExtension` gana un parámetro `dryRun` (comprueba
+    el hueco sin pintar); `extendRoad` funde la búsqueda y la validación en
+    un solo barrido en anillos — para CADA celda de vía que encuentra prueba
+    en seco sus dos lados, y si ambos fallan sigue mirando más lejos en vez
+    de rendirse. De paso se quita el parámetro `rng` de `extendRoad` (solo
+    decidía qué lado probar primero): ahora sale de un hash determinista de
+    las propias coordenadas del candidato, igual que ya hacía el arbolado de
+    `paintRoadExtension` — aplica la lección de esta sesión sobre no
+    perturbar el rng compartido con decisiones estructurales sin
+    consecuencia de juego (y de paso, como el nº de candidatos probados
+    varía con la densidad, mantener esto fuera del rng compartido evita una
+    fuente más de sensibilidad de trayectoria).
+  · Test de regresión que reproduce el fallo exacto (sin adivinar a mano el
+    orden del barrido en anillos: se descubre el punto natural en un grid
+    limpio, se bloquea ESE punto en un grid gemelo, se comprueba que la
+    función mira más allá) — ver `sim.test.ts`. Verificado también con una
+    sim de 30 días sobre `seedFarm()`: población de la familia inicial a 37,
+    23 edificios, y **el primer ramal de carretera nuevo trazado el día 11**
+    (antes del arreglo: nunca). 131/131 tests.
+  · El crecimiento se frena visiblemente hacia el día 20-30 (21→23
+    edificios) según la demanda pide edificios de tier 2-3 que no caben
+    todavía en la red vial pequeña — comportamiento esperado, mismo límite
+    de `extendRoad` (una vía nueva por vez, longitud fija de 16 celdas), no
+    un bug nuevo.
 
 - 2026-07-04 (misma sesión Sonnet, continuación) — **Presupuesto de draw
   calls roto en producción, no solo en teoría**: el HUD F3 mostraba 220-249

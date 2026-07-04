@@ -8,6 +8,7 @@
  * - Determinismo: dos runs con la misma semilla → mismo estado.
  */
 import { seedWorld } from '../world/seed';
+import { seedFarm } from '../world/seedFarm';
 import { Simulation } from './simulation';
 import { TICK_GAME_S, DAY_GAME_SECONDS } from './clock';
 import { FOOD_PRICE } from './economy';
@@ -391,7 +392,7 @@ function buildRoadTestGrid(): Grid {
 }
 {
   const grid = buildRoadTestGrid();
-  const ext = extendRoad(grid, [10, 30], createRng(1)); // centro lejos, al sur de la vía
+  const ext = extendRoad(grid, [10, 30]); // centro lejos, al sur de la vía
   check('T4.4: se abre un ramal cuando no hay parcela servible cerca', ext !== null);
   if (ext) {
     check('T4.4: el ramal es ortogonal (perpendicular a la vía horizontal)', ext.axis === 'x');
@@ -416,7 +417,77 @@ function buildRoadTestGrid(): Grid {
   }
   const farGrid = new Grid();
   farGrid.fillTerrain(-5, -5, 5, 5, 'field');
-  check('T4.4: sin ninguna vía a mano, no hay ramal', extendRoad(farGrid, [0, 0], createRng(1)) === null);
+  check('T4.4: sin ninguna vía a mano, no hay ramal', extendRoad(farGrid, [0, 0]) === null);
+}
+
+// T4.4 — regresión de un fallo real encontrado verificando el escenario de
+// granja (T4.4 más abajo): la versión original de extendRoad solo miraba
+// la celda de vía MÁS CERCANA al centro y probaba solo sus dos lados: en
+// cuanto la densificación normal (casitas a ambos lados de cada tramo de
+// vía servible — justo lo que produce findParcel) flanqueaba esa celda
+// concreta, la función devolvía null PARA SIEMPRE aunque hubiera vía
+// servible más allá. No adivinamos a mano qué punto elige el barrido en
+// anillos (depende del orden exacto de iteración): lo descubrimos
+// empíricamente en un grid limpio, lo bloqueamos en uno idéntico, y
+// comprobamos que la función sigue mirando más allá.
+{
+  const gridA = buildRoadTestGrid();
+  const natural = extendRoad(gridA, [0, 30]);
+  check('T4.4 (regresión, setup): hay un punto natural sin bloquear', natural !== null);
+  if (natural) {
+    const gridB = buildRoadTestGrid();
+    // Bloquea el ramal en AMBAS direcciones perpendiculares desde el mismo
+    // punto que se encontró de forma natural en gridA.
+    gridB.placeBuilding('shed', 1, 1, natural.rx, natural.rz + 5, 0);
+    gridB.placeBuilding('shed', 1, 1, natural.rx, natural.rz - 5, 0);
+    const rerouted = extendRoad(gridB, [0, 30]);
+    check(
+      'T4.4 (regresión): el punto más cercano bloqueado NO detiene la búsqueda',
+      rerouted !== null,
+      rerouted ? `→ (${natural.rx},${natural.rz}) bloqueado, reencaminado a (${rerouted.rx},${rerouted.rz})` : '→ null (el bug ha vuelto)',
+    );
+    if (rerouted) {
+      check(
+        'T4.4 (regresión): el punto elegido es distinto al bloqueado',
+        rerouted.rx !== natural.rx || rerouted.rz !== natural.rz,
+      );
+    }
+  }
+}
+
+// T4.4 — test de aceptación estrella (ROADMAP.md): prueba headless (sin
+// navegador) de que el escenario mínimo de granja (world/seedFarm.ts, NO
+// seedWorld) es viable para que emerja un pueblo por sí solo. No sustituye
+// la observación de 30 min en vivo (eso lo hace el orquestador en el
+// navegador) — es la comprobación barata de que hay ALGO que observar antes
+// de gastar esos 30 min reales.
+{
+  const sim = new Simulation(seedFarm(), 99);
+  const startingPopulation = sim.citizens.size;
+  let grew = 0;
+  let roadBuilt = 0;
+  // 10 días de juego: de sobra para varias decenas de intentos de
+  // crecimiento (uno por hora de luz, ver simulation.ts) y sale muy por
+  // delante de la ventana real de 30 min que luego se observará a ojo.
+  for (let t = 0; t < TICKS_PER_DAY * 10; t++) {
+    sim.step();
+    for (const e of sim.takeEvents()) {
+      if (e.name === 'cityGrew') grew++;
+      if (e.name === 'roadBuilt') roadBuilt++;
+    }
+  }
+  check(
+    'T4.4 escenario granja: la población crece más allá de la familia inicial',
+    sim.citizens.size > startingPopulation,
+    `→ ${startingPopulation} → ${sim.citizens.size}`,
+  );
+  check(
+    'T4.4 escenario granja: el crecimiento autónomo actúa de verdad (cityGrew/roadBuilt)',
+    grew > 0 || roadBuilt > 0,
+    `→ cityGrew=${grew} roadBuilt=${roadBuilt}`,
+  );
+  // Si llegamos aquí sin lanzar (10 días sin excepciones), la tercera
+  // condición del test de aceptación (nunca revienta) queda probada.
 }
 
 // Ciclo 10 RESEARCH.md — fiestas de barrio (N5, cierra la pirámide completa

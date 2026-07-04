@@ -179,26 +179,6 @@ export function townCenter(anchors: Array<[number, number]>): [number, number] {
 // sus propias calles".
 // ---------------------------------------------------------------------------
 
-/** Celda de vía (o camino) más cercana al centro, o null si no hay ninguna
- * a `searchRadius` celdas (mismo barrido en anillos que `findParcel`). */
-function nearestRoadCell(grid: Grid, center: [number, number], searchRadius: number): [number, number] | null {
-  const [ccx, ccz] = center;
-  for (let r = 0; r <= searchRadius; r++) {
-    for (let i = -r; i <= r; i++) {
-      for (const [cx, cz] of [
-        [ccx + i, ccz - r],
-        [ccx + i, ccz + r],
-        [ccx - r, ccz + i],
-        [ccx + r, ccz + i],
-      ] as Array<[number, number]>) {
-        const cell = grid.get(cx, cz);
-        if (cell && (cell.terrain === 'road' || cell.terrain === 'path')) return [cx, cz];
-      }
-    }
-  }
-  return null;
-}
-
 /** ¿La vía que pasa por (cx,cz) corre en X (horizontal) o en Z (vertical)?
  * Cuenta vía en ambos ejes a corta distancia: el eje con más aciertos es
  * el de la calle (la franja solo mide 3 celdas de ancho en el eje corto). */
@@ -230,8 +210,10 @@ export interface RoadExtension {
  * rng compartido de la sim (la lección de esta sesión: no perturbar el rng
  * compartido con algo que no necesita estar sincronizado bit a bit).
  * Devuelve null si el hueco (vía+márgenes, `length` celdas) no está libre.
+ * `dryRun`: solo comprueba el hueco, no pinta nada — lo usa `extendRoad`
+ * para probar candidatos sin mutar el grid hasta encontrar uno que sirva.
  */
-export function paintRoadExtension(grid: Grid, rx: number, rz: number, axis: 'x' | 'z', dir: 1 | -1, length: number): RoadExtension | null {
+export function paintRoadExtension(grid: Grid, rx: number, rz: number, axis: 'x' | 'z', dir: 1 | -1, length: number, dryRun = false): RoadExtension | null {
   const alongIsZ = axis === 'x'; // vía horizontal → ramal vertical (a lo largo de Z)
   const acrossCenter = alongIsZ ? rx : rz;
   const alongStart0 = alongIsZ ? rz : rx;
@@ -260,6 +242,14 @@ export function paintRoadExtension(grid: Grid, rx: number, rz: number, axis: 'x'
     }
   }
 
+  if (dryRun) {
+    const alongMin0 = Math.min(roadStart, roadStart + dir * (length - 1));
+    const alongMax0 = Math.max(roadStart, roadStart + dir * (length - 1));
+    const [dx0, dz0] = at(alongMin0, acrossCenter - 3);
+    const [dx1, dz1] = at(alongMax0, acrossCenter + 3);
+    return { cx0: Math.min(dx0, dx1), cz0: Math.min(dz0, dz1), cx1: Math.max(dx0, dx1), cz1: Math.max(dz0, dz1) };
+  }
+
   const treeRng = createRng((roadStart * 92821 + acrossCenter * 68917 + dir * 7) | 0);
   for (let a = 0; a < length; a++) {
     const along = roadStart + dir * a;
@@ -286,26 +276,53 @@ export function paintRoadExtension(grid: Grid, rx: number, rz: number, axis: 'x'
   return { cx0: Math.min(cx0, cx1), cz0: Math.min(cz0, cz1), cx1: Math.max(cx0, cx1), cz1: Math.max(cz0, cz1) };
 }
 
-/** Busca la vía más cercana al centro de crecimiento y le abre un ramal
- * nuevo (probando los dos lados posibles) — T4.4, modo autónomo. `rng`
- * SOLO decide qué lado probar primero (empate entre dos opciones igual de
- * válidas); toda la pintura es determinista dados (rx,rz,axis,dir,length).
- * null si no hay ninguna vía cerca o ningún lado tiene sitio. */
+/**
+ * Busca UN punto de vía con sitio de verdad para un ramal — T4.4, modo
+ * autónomo. Barre en anillos desde el centro (como `findParcel`) y para
+ * CADA celda de vía/camino que encuentra prueba (en seco, sin mutar) sus
+ * dos lados perpendiculares; sigue mirando más lejos si ese punto concreto
+ * está bloqueado, en vez de rendirse en el primer acierto.
+ *
+ * Corrige un fallo real descubierto verificando el escenario de granja
+ * única (T4.4): la versión anterior solo miraba la celda de vía MÁS
+ * CERCANA al centro y probaba solo sus dos lados — en cuanto la
+ * densificación normal (casitas a ambos lados de toda vía servible, que es
+ * justo lo que `findParcel` produce) flanquea esa celda concreta, la
+ * función devolvía null para siempre, incluso con kilómetros de vía
+ * servible más allá. Comprobado con una sim de 60 días sobre el mundo
+ * sembrado por defecto: 0 ramales nunca, pese a sus vías casi infinitas.
+ * El lado a probar primero en cada candidato sale de sus propias
+ * coordenadas (determinista, no del rng compartido — no hace falta
+ * sincronizar bit a bit una elección estructural sin consecuencia de
+ * juego, misma lección que el arbolado de `paintRoadExtension`).
+ * null si no hay ningún punto con sitio en todo el radio de búsqueda.
+ */
 export function extendRoad(
   grid: Grid,
   center: [number, number],
-  rng: Rng,
   length = 16,
   searchRadius = 60,
 ): (RoadExtension & { rx: number; rz: number; axis: 'x' | 'z'; dir: 1 | -1; length: number }) | null {
-  const found = nearestRoadCell(grid, center, searchRadius);
-  if (!found) return null;
-  const [rx, rz] = found;
-  const axis = roadAxis(grid, rx, rz);
-  const firstDir: 1 | -1 = rng.next() < 0.5 ? 1 : -1;
-  for (const dir of [firstDir, (firstDir * -1) as 1 | -1]) {
-    const box = paintRoadExtension(grid, rx, rz, axis, dir, length);
-    if (box) return { ...box, rx, rz, axis, dir, length };
+  const [ccx, ccz] = center;
+  for (let r = 0; r <= searchRadius; r++) {
+    for (let i = -r; i <= r; i++) {
+      for (const [cx, cz] of [
+        [ccx + i, ccz - r],
+        [ccx + i, ccz + r],
+        [ccx - r, ccz + i],
+        [ccx + r, ccz + i],
+      ] as Array<[number, number]>) {
+        const cell = grid.get(cx, cz);
+        if (!cell || (cell.terrain !== 'road' && cell.terrain !== 'path')) continue;
+        const axis = roadAxis(grid, cx, cz);
+        const firstDir: 1 | -1 = ((cx * 92821 + cz * 68917) & 1) === 0 ? 1 : -1;
+        for (const dir of [firstDir, (firstDir * -1) as 1 | -1]) {
+          if (!paintRoadExtension(grid, cx, cz, axis, dir, length, true)) continue;
+          const box = paintRoadExtension(grid, cx, cz, axis, dir, length);
+          if (box) return { ...box, rx: cx, rz: cz, axis, dir, length };
+        }
+      }
+    }
   }
   return null;
 }
