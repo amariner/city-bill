@@ -66,4 +66,11 @@ export const PALETTE = {
   sun: 0xfff2dd,
   sunGolden: 0xffd9a6, // hora dorada (mañana/tarde) — T1.8, más cálido
   ambient: 0xcfd8e8,
+
+  // Tinte estacional (T5.1): crossfade lento entre invierno frío/pálido y
+  // verano cálido. Se aplican a cielo y ambiente, no a la geometría.
+  skyWinter: 0xdfe4ea, // cielo invernal, frío y lavado
+  skySummer: 0xe6dcc0, // cielo estival, cálido y dorado
+  ambientWinter: 0xc4d2e6, // relleno frío azulado (nieve, sombra fría)
+  ambientSummer: 0xdcd8c8, // relleno cálido de verano
 } as const;

@@ -31,6 +31,22 @@ function seasonAt(day: number): Season {
   return SEASONS[Math.floor(day / DAYS_PER_SEASON) % SEASONS.length];
 }
 
+/** Días de un año completo (4 estaciones). */
+export const DAYS_PER_YEAR = DAYS_PER_SEASON * SEASONS.length;
+
+/**
+ * Calidez estacional CONTINUA [-1,1] para el crossfade visual (T5.1): −1 en el
+ * corazón del invierno, +1 en el del verano, cruzando suave por primavera/otoño.
+ * Pura y determinista (solo el día); la usa el render para graduar luz y cielo.
+ * SEASONS = [invierno(0-20), primavera, verano(40-60), otoño] → el invierno cae
+ * en el centro del primer bloque (día≈10) y el verano en el tercero (día≈50).
+ */
+export function seasonalWarmth(day: number): number {
+  const p = ((day % DAYS_PER_YEAR) + DAYS_PER_YEAR) % DAYS_PER_YEAR / DAYS_PER_YEAR; // [0,1)
+  const winterCenter = (0.5 * DAYS_PER_SEASON) / DAYS_PER_YEAR; // centro del invierno
+  return -Math.cos(2 * Math.PI * (p - winterCenter));
+}
+
 /** Determinista por (seed, día): no consume el RNG general de la sim. */
 export function weatherAt(seed: number, day: number): Weather {
   const season = seasonAt(day);

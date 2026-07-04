@@ -238,9 +238,12 @@ repetido, arbolado automático en márgenes de carretera (rasgo de identidad).
   ladrillo, fábrica, tren) — ver CATALOG.md.
 
 ### Fase 5 — Atmósfera y juice
-- [ ] **T5.1 Estaciones.** 4 variantes de paleta intercambiables con crossfade lento
-  (invierno = nieve estilo Zlín: cubiertas blancas, campos claros). La paleta estacional
-  vive también en `palette.ts`.
+- [~] **T5.1 Estaciones.** *Primer paso HECHO:* tinte estacional de LUZ y cielo con
+  crossfade lento continuo (`seasonalWarmth(day)` en `weather.ts` → `updateSeason`
+  en `renderer.ts`), invierno frío/apagado ↔ verano cálido/luminoso; colores en
+  `palette.ts` (`skyWinter/Summer`, `ambientWinter/Summer`). Verificado por
+  screenshots invierno/verano. *Pendiente:* repintado del TERRENO (nieve estilo
+  Zlín: cubiertas blancas, campos claros) — la malla mergeada con vertex-colors.
 - [ ] **T5.2 Tren.** Vía + estación + tren con 3-5 vagones en circuito, humo de la
   locomotora con sprites de esferas.
 - [ ] **T5.3 Sonido generativo.** Web Audio: viento, pájaros, campana lejana, murmullo

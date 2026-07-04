@@ -11,7 +11,7 @@ import { seedWorld } from '../world/seed';
 import { Simulation } from './simulation';
 import { TICK_GAME_S, DAY_GAME_SECONDS } from './clock';
 import { FOOD_PRICE } from './economy';
-import { weatherAt } from './weather';
+import { weatherAt, seasonalWarmth } from './weather';
 import { deathChance, lifeYear, OLD_AGE, ADULT_AGE } from './lifecycle';
 import { CLINIC_RECOVERY_PER_HOUR } from './health';
 import { bereave, griefTick, consoleGrief, consoleGriefBy, GRIEF_PARTNER } from './grief';
@@ -725,6 +725,17 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
   // Idempotente: recompactar no vuelve a resumir lo ya resumido.
   const again = compactChronicle(events, 10);
   check('memoria: compactar es idempotente', again.filter((e) => e.year === 1).length === 1);
+}
+
+// T5.1 (primer paso) — calidez estacional continua para el crossfade visual:
+// fría en invierno, cálida en verano, cruzando suave. Pura (solo el día).
+{
+  // SEASONS=[invierno(0-20), primavera, verano(40-60), otoño]; centros ≈ día 10 y 50.
+  check('estaciones: el invierno es lo más frío', seasonalWarmth(10) < -0.9, `→ ${seasonalWarmth(10).toFixed(2)}`);
+  check('estaciones: el verano es lo más cálido', seasonalWarmth(50) > 0.9, `→ ${seasonalWarmth(50).toFixed(2)}`);
+  check('estaciones: primavera/otoño quedan templados (entre medias)', Math.abs(seasonalWarmth(30)) < 0.4 && Math.abs(seasonalWarmth(70)) < 0.4);
+  check('estaciones: es periódico por año', Math.abs(seasonalWarmth(10) - seasonalWarmth(90)) < 1e-9);
+  check('estaciones: acotada en [-1,1]', seasonalWarmth(37) >= -1 && seasonalWarmth(63) <= 1);
 }
 
 // Determinismo: mismo snapshot final con la misma semilla.

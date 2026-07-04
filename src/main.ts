@@ -2,7 +2,7 @@
  * Punto de entrada: ensambla stage (renderer + luz), cámara isométrica jugable,
  * mundo (por chunks) y bucle. La lógica vive en core/ y world/; aquí se conecta.
  */
-import { createStage, updateSun } from './core/renderer';
+import { createStage, updateSun, updateSeason } from './core/renderer';
 import { IsoCamera } from './core/camera';
 import { Input } from './core/input';
 import { CameraController } from './core/cameraController';
@@ -14,6 +14,7 @@ import { buildShowcase } from './showcase';
 import { SimClient, AgentView } from './sim/client';
 import { CitizenView } from './world/render/citizens';
 import { DAY_GAME_SECONDS } from './sim/clock';
+import { seasonalWarmth } from './sim/weather';
 import { Speed } from './sim/protocol';
 import { CitizenInspector } from './ui/inspector';
 import { Chronicle } from './ui/chronicle';
@@ -85,6 +86,7 @@ loop.onUpdate((dt) => {
     const t = simClient.gameTime;
     updateSun(stage.sun, (t % DAY_GAME_SECONDS) / DAY_GAME_SECONDS); // ciclo de luz T1.8
     const day = Math.floor(t / DAY_GAME_SECONDS);
+    updateSeason(stage, seasonalWarmth(day)); // tinte estacional T5.1
     const h = (t % DAY_GAME_SECONDS) / 3600;
     const hh = String(Math.floor(h)).padStart(2, '0');
     const mm = String(Math.floor((h % 1) * 60)).padStart(2, '0');
