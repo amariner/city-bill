@@ -383,6 +383,91 @@ export function parkingGarage(floors = 3): THREE.Group {
   return g;
 }
 
+/** Consultorio: caja baja con tejado plano, porche discreto y cruz roja sobre la puerta. */
+export function clinic(): THREE.Group {
+  const g = new THREE.Group();
+  const w = 7.4;
+  const d = 5.6;
+  const wallH = 2.7;
+  const body = solid(new THREE.BoxGeometry(w, wallH, d), PALETTE.houseWall);
+  body.position.y = wallH / 2;
+  g.add(body);
+  const roof = solid(new THREE.BoxGeometry(w + 0.3, 0.35, d + 0.3), PALETTE.flatRoof);
+  roof.position.y = wallH + 0.18;
+  g.add(roof);
+
+  const canopy = solid(new THREE.BoxGeometry(2.6, 0.14, 1.1), PALETTE.houseTrim);
+  canopy.position.set(0, wallH * 0.82, d / 2 + 0.55);
+  g.add(canopy);
+  for (const x of [-1.1, 1.1]) {
+    const col = solid(new THREE.BoxGeometry(0.14, wallH * 0.8, 0.14), PALETTE.houseTrim);
+    col.position.set(x, wallH * 0.42, d / 2 + 1.05);
+    g.add(col);
+  }
+
+  const door = solid(new THREE.BoxGeometry(1.0, 1.85, 0.1), PALETTE.houseWallShade);
+  door.position.set(0, 0.93, d / 2 + 0.05);
+  g.add(door);
+
+  // Cruz roja discreta sobre la puerta (dos listones cruzados)
+  const crossV = solid(new THREE.BoxGeometry(0.3, 0.8, 0.08), PALETTE.signRed);
+  crossV.position.set(0, wallH + 0.55, d / 2 + 0.02);
+  const crossH = solid(new THREE.BoxGeometry(0.8, 0.3, 0.08), PALETTE.signRed);
+  crossH.position.copy(crossV.position);
+  g.add(crossV, crossH);
+
+  return g;
+}
+
+/** Escuela: aulas + patio cubierto con columnas + campanita sobre el tejado. */
+export function school(): THREE.Group {
+  const g = new THREE.Group();
+  const bodyW = 7.4;
+  const bodyD = 7.6;
+  const wallH = 3.0;
+  const bodyX = -2.1;
+
+  const body = solid(new THREE.BoxGeometry(bodyW, wallH, bodyD), PALETTE.houseWall);
+  body.position.set(bodyX, wallH / 2, 0);
+  g.add(body);
+  const roof = solid(new THREE.BoxGeometry(bodyW + 0.3, 0.35, bodyD + 0.3), PALETTE.flatRoof);
+  roof.position.set(bodyX, wallH + 0.18, 0);
+  g.add(roof);
+
+  const door = solid(new THREE.BoxGeometry(1.1, 2.0, 0.1), PALETTE.houseWallShade);
+  door.position.set(bodyX, 1.0, bodyD / 2 + 0.05);
+  g.add(door);
+
+  // Patio cubierto: losa + columnas + tejadillo, al lado de las aulas
+  const yardX = bodyX + bodyW / 2 + 2.3;
+  const yardSlab = solid(new THREE.BoxGeometry(4.4, 0.14, bodyD), PALETTE.porch);
+  yardSlab.position.set(yardX, 0.07, 0);
+  g.add(yardSlab);
+  for (const z of [-bodyD / 2 + 0.7, 0, bodyD / 2 - 0.7]) {
+    const col = solid(new THREE.BoxGeometry(0.28, 2.3, 0.28), PALETTE.houseTrim);
+    col.position.set(yardX, 1.15, z);
+    g.add(col);
+  }
+  const canopy = solid(new THREE.BoxGeometry(4.6, 0.16, bodyD + 0.2), PALETTE.houseTrim);
+  canopy.position.set(yardX, 2.4, 0);
+  g.add(canopy);
+
+  // Campanita: torrecita con tejado a cuatro aguas y campana
+  const tower = solid(new THREE.BoxGeometry(1.1, 1.3, 1.1), PALETTE.houseWall);
+  tower.position.set(bodyX, wallH + 0.85, 0);
+  g.add(tower);
+  const towerRoof = solid(new THREE.ConeGeometry(1, 0.9, 4), PALETTE.roofTerracotta);
+  towerRoof.rotation.y = Math.PI / 4;
+  towerRoof.scale.set(1.25, 1, 1.25);
+  towerRoof.position.set(bodyX, wallH + 1.3 + 0.45, 0);
+  g.add(towerRoof);
+  const bell = solid(new THREE.SphereGeometry(0.2, 8, 6), PALETTE.barnWallShade);
+  bell.position.set(bodyX, wallH + 1.05, 0);
+  g.add(bell);
+
+  return g;
+}
+
 /** Edificio cívico: cuerpo blanco con pórtico, tejado a cuatro aguas y torre. */
 export function civic(): THREE.Group {
   const g = new THREE.Group();

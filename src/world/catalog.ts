@@ -18,6 +18,8 @@ import {
   supermarket,
   parkingGarage,
   civic,
+  clinic,
+  school,
   factory,
   apartmentSlab,
   brickBlock,
@@ -44,10 +46,8 @@ const BUILDERS: Record<string, () => THREE.Object3D> = {
   supermarket: () => supermarket(),
   parking: () => parkingGarage(3),
   civic: () => civic(),
-  // TODO(Sonnet): mesh propio de escuela (patio + campanita); civic() de momento.
-  school: () => civic(),
-  // TODO(Sonnet): mesh propio de consultorio (cruz roja discreta); civic() de momento.
-  clinic: () => civic(),
+  school: () => school(),
+  clinic: () => clinic(),
   office: () => officeBlock(8),
   factory: () => factory(),
   'tree-blob': () => blobTree(1),
