@@ -904,3 +904,25 @@ una simulación, y los tratamos como tales:
   — el gran pendiente estructural. (b) que los bienes/riqueza HAGAN algo (estatus/
   comfort, N2→N4). (c) producción de bienes DENTRO (artesanos). (d) la vacuna (ciclo 25)
   y atar el techo de población K a la base económica (ciclo 30) para tender a §5.
+- 2026-07-04 · **Ciclo 33: VACUNACIÓN (salud pública preventiva)** · Remata el arco
+  del contagio (25-27) y cierra su carencia (c): la medida que PREVIENE en vez de
+  curar. Pivote de esfera tras cuatro ciclos de economía (29-32), y hacia el nivel más
+  fino de contagio. Modelo: en la temporada de brotes (otoño-invierno) el sistema
+  sanitario vacuna a los SUSCEPTIBLES (ni enfermos ni ya inmunes), confiriéndoles la
+  inmunidad SIN pasar la enfermedad (`VACCINE_IMMUNITY`, decae igual que la natural →
+  hay que revacunar cada temporada). Requiere CLÍNICA (infraestructura) y la paga el
+  TESORO (`VACCINE_COST_PER_DOSE`, acopla contagio↔gobierno↔salud: un pueblo en quiebra
+  no la costea). Cuando bastantes quedan inmunes emerge sola la INMUNIDAD DE REBAÑO —
+  el contagio (que en social.ts salta solo a los susceptibles) no encuentra a quién
+  saltar y la oleada se apaga. Verificado A/B (misma semilla, sin cuarentena para
+  aislar el efecto, 50 días): con vacuna el pico de la oleada cae de 24 a 8 enfermos
+  simultáneos y el TOTAL de gente que enferma de 51 a 14 — muchísima menos. El coste lo
+  absorbe el tesoro (ciclo 32 le dio sentido: financia la salud pública). Los tests de
+  oleada cruda (25) y de cuarentena (26) apagan la vacuna (`vaccination=false`) para
+  aislar su mecanismo, como ya hacían con la cuarentena. 243/243 tests verdes.
+  Carencias observadas para próximos ciclos: (a) el cierre monetario TOTAL (nómina
+  finita) sigue siendo el gran pendiente estructural. (b) los bienes/riqueza aún no
+  HACEN nada social (estatus/comfort, N2→N4 — la esfera más fina). (c) la vacuna podría
+  tener cobertura desigual (los barrios ricos se vacunan antes — injusticia sanitaria
+  real) o dudas/rechazo. (d) subir por fin a N4/N5 (legado, vocación) — la pirámide
+  está muy desarrollada en la base y fina en la cúspide.

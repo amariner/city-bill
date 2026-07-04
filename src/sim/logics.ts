@@ -39,6 +39,7 @@ export const LOGICS: LogicEntry[] = [
   { id: 'monetary-closure', name: 'cierre monetario (coste de la vida + el tesoro reparte → riqueza estable)', level: 2, files: ['economy.ts', 'sim/simulation.ts'], couples: ['money', 'government', 'goods'] },
   { id: 'health', name: 'salud (consultorio, bajas laborales)', level: 2, files: ['sim/health.ts', 'citizens/activities.ts'], couples: ['life', 'money', 'jobs'] },
   { id: 'contagion', name: 'contagio (epidemias en oleadas + cuarentena)', level: 2, files: ['sim/contagion.ts', 'citizens/social.ts', 'citizens/activities.ts'], couples: ['health', 'social', 'government'] },
+  { id: 'vaccination', name: 'vacunación (inmunidad de rebaño, salud pública preventiva)', level: 2, files: ['sim/contagion.ts', 'sim/simulation.ts'], couples: ['contagion', 'government', 'health'] },
   { id: 'weather', name: 'clima y estaciones', level: 0, files: ['sim/weather.ts', 'citizens/activities.ts'], couples: ['needs', 'social', 'vehicles'] },
   { id: 'third-place', name: 'vecindario y pandillas (tercer lugar)', level: 3, files: ['citizens/activities.ts'], couples: ['social'] },
   { id: 'vehicles', name: 'vehículos (coche para trayectos largos)', level: 0, files: ['sim/simulation.ts', 'sim/protocol.ts'], couples: ['space', 'money', 'weather'] },

@@ -37,6 +37,10 @@ const ENERGY_DRAIN_PER_HOUR = 1 / 80;
 /** Decaimiento de la inmunidad por hora: dura ~una estación (20 días) y luego
  * vuelve la susceptibilidad → nuevas oleadas (modelo SIRS). */
 const IMMUNE_DECAY_PER_HOUR = 1 / 480;
+/** Inmunidad que confiere la vacuna (ciclo 33): protección plena, pero decae
+ * igual que la natural (IMMUNE_DECAY) → hace falta revacunar cada temporada. La
+ * vacuna es prevención: da la inmunidad SIN pasar la enfermedad. */
+export const VACCINE_IMMUNITY = 1;
 
 /** Un tick de enfermedad: si está enfermo, mella salud y energía y se va
  * curando; al recuperarse queda INMUNE un tiempo. La inmunidad decae despacio.

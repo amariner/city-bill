@@ -857,6 +857,7 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
   {
     const sim = new Simulation(seedWorld(), 42);
     sim.quarantine = false;
+    sim.vaccination = false; // oleada CRUDA: sin cuarentena (c26) ni vacuna (c33), que aún no existían
     let peakSick = 0, epidemicEvents = 0, everSick = new Set<number>();
     for (let t = 0; t < TICKS_PER_DAY * 50; t++) {
       sim.step();
@@ -895,6 +896,7 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
   const peakOf = (q: boolean): number => {
     const sim = new Simulation(seedWorld(), 42);
     sim.quarantine = q;
+    sim.vaccination = false; // aísla el efecto de la cuarentena (sin inmunidad de rebaño)
     let peak = 0;
     for (let t = 0; t < TICKS_PER_DAY * 50; t++) {
       sim.step();
@@ -1086,6 +1088,34 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
   check('cierre: el coste de la vida drena el excedente (sumidero)', sim.economy.lifestyleSpent > 0, `→ ${sim.economy.lifestyleSpent.toFixed(0)}`);
   check('cierre: el tesoro reparte su superávit (no atesora sin fin)', sim.economy.dividendPaid > 0, `→ ${sim.economy.dividendPaid.toFixed(0)}`);
   check('cierre: la sociedad sobrevive (sigue comiendo)', avgFood > 0.25, `→ ${avgFood.toFixed(2)}`);
+}
+
+// Ciclo 33 RESEARCH.md — VACUNACIÓN (salud pública preventiva): remata el arco del
+// contagio (25-27). La medida COLECTIVA que PREVIENE en vez de curar: el sistema
+// sanitario vacuna a los susceptibles en la temporada de brotes → cuando basta
+// gente queda inmune emerge la INMUNIDAD DE REBAÑO y la oleada no encuentra a
+// quién saltar. Requiere clínica y la paga el tesoro (acopla contagio↔gobierno).
+{
+  // A/B misma semilla, sin cuarentena (para aislar el efecto de la vacuna sobre
+  // la oleada cruda): con vacuna, el pico y el total de enfermos caen mucho.
+  const outbreak = (vax: boolean) => {
+    const sim = new Simulation(seedWorld(), 42);
+    sim.quarantine = false;
+    sim.vaccination = vax;
+    let peak = 0; const ever = new Set<number>();
+    for (let t = 0; t < TICKS_PER_DAY * 50; t++) {
+      sim.step();
+      let s = 0; for (const c of sim.citizens.values()) if (c.sick > 0.1) { s++; ever.add(c.id); }
+      peak = Math.max(peak, s);
+    }
+    return { peak, ever: ever.size, given: (sim as unknown as { vaccinationsGiven: number }).vaccinationsGiven };
+  };
+  const off = outbreak(false);
+  const on = outbreak(true);
+  check('vacuna: la campaña administra dosis (la paga el tesoro)', on.given > 0, `→ ${on.given}`);
+  check('vacuna: inmunidad de rebaño — el pico de la oleada cae mucho', on.peak < off.peak * 0.6, `→ pico con ${on.peak} vs sin ${off.peak}`);
+  check('vacuna: mucha menos gente llega a enfermar', on.ever < off.ever, `→ ${on.ever} vs ${off.ever}`);
+  check('vacuna: sin campaña (para medir) no se administra ninguna', off.given === 0);
 }
 
 // Determinismo: mismo snapshot final con la misma semilla.

@@ -32,7 +32,7 @@ import { STARTING_MONEY, PENSION_PER_DAY, RENT_PER_DAY, RENT_TIER_FACTOR } from 
 import { catalogData, Tier } from '../world/catalogData';
 import { healthTick, CLINIC_RECOVERY_PER_HOUR, WORK_BLOCK_HEALTH } from './health';
 import { griefTick, consoleGrief, bereave, GRIEF_PARTNER, GRIEF_FRIEND, GRIEF_FRIEND_AFFINITY } from './grief';
-import { sickenTick, treatSick, SICK_ONSET } from './contagion';
+import { sickenTick, treatSick, SICK_ONSET, VACCINE_IMMUNITY } from './contagion';
 import { weatherAt, seasonalFestivalName, Weather } from './weather';
 
 /** Velocidad al caminar, en celdas por tick (0.25 s reales a vel. 1). */
@@ -57,6 +57,14 @@ const COMFORT_FUN_PER_HOUR = 0.15;
 
 /** Granero por encima del cual la fiesta de la cosecha es "abundante" (ciclo 24). */
 const BOUNTIFUL_GRANARY = 40;
+
+// --- Lógica de vacunación (ciclo 33): salud pública preventiva -----------------
+/** Coste por dosis que paga el tesoro (acopla contagio↔gobierno: la salud
+ * pública cuesta; un pueblo en quiebra no puede permitírsela). */
+const VACCINE_COST_PER_DOSE = 6;
+/** Fracción de la población a la que se ofrece la vacuna al día durante la
+ * campaña (otoño-invierno): la capacidad del sistema, ~toda en dos semanas. */
+const VACCINE_DAILY_FRACTION = 0.12;
 
 export interface SimEvent {
   name: 'citizenBorn' | 'citizenLeft' | 'jobTaken' | 'chatStarted' | 'cityGrew' | 'tierUnlocked' | 'coupleFormed' | 'festivalDay' | 'roadExtended' | 'epidemic';
@@ -85,6 +93,11 @@ export class Simulation {
   /** Alquiler activo (ciclo 29): los hogares pagan por la vivienda. false =
    * escenario "vivienda gratis" (para medir cuánto drena y cómo circula). */
   rentEnabled = true;
+  /** Vacunación activa (ciclo 33): salud pública preventiva. false = escenario
+   * "sin vacuna" (para medir la inmunidad de rebaño contra la epidemia cruda). */
+  vaccination = true;
+  /** Vacunaciones administradas (ciclo 33 — métrica de tests/Crónica). */
+  vaccinationsGiven = 0;
   /** Tier desbloqueado (T4.5 lo ligará a población; fijo de momento). */
   tier: Tier = 1;
   /** Familias alojadas por vivienda ('ax,az') — para la demanda de techo. */
@@ -329,6 +342,7 @@ export class Simulation {
       this.chargeRent(); // ciclo 29: la vivienda cuesta (antes de pensiones: la red cubre a quien no llega)
       this.chargeLifestyle(); // ciclo 32: el coste de la vida escala con la riqueza (drena el ahorro excedente)
       this.payPensions();
+      this.vaccinate(); // ciclo 33: salud pública preventiva (antes del dividendo: la salud primero)
       this.economy.payPublicDividend([...this.households.keys()], this.citizens.size); // ciclo 32: el tesoro no atesora sin fin — reparte su superávit
       this.stepOutbreak(); // ciclo 25: en invierno, algún resfriado prende y se propaga
       this.stepEmigration(); // ciclo 14: tras la red de pensiones (última bala)
@@ -480,6 +494,31 @@ export class Simulation {
    * fin (la nómina acuña dinero). Escala con la riqueza (lifestyle inflation). */
   private chargeLifestyle(): void {
     for (const k of this.households.keys()) this.economy.spendLifestyle(k);
+  }
+
+  /** Vacunación (ciclo 33): salud pública PREVENTIVA. En la temporada de brotes
+   * (otoño-invierno) el sistema sanitario ofrece la vacuna a los SUSCEPTIBLES
+   * (ni enfermos ni ya inmunes), que confiere inmunidad SIN pasar la enfermedad.
+   * Cuando una fracción alta queda inmune emerge la INMUNIDAD DE REBAÑO: el
+   * contagio (social.ts salta a los inmunes) no encuentra a quién saltar y la
+   * oleada se apaga sola. Requiere clínica (infraestructura) y la paga el tesoro
+   * (acopla contagio↔gobierno↔salud): un pueblo en quiebra no la puede costear.
+   * Determinista (orden de inserción del Map). */
+  private vaccinate(): void {
+    if (!this.vaccination) return;
+    const season = this.weather.season;
+    if (season !== 'otoño' && season !== 'invierno') return; // campaña de temporada
+    if (!this.index.buildings.some((b) => b.id === 'clinic')) return; // hace falta clínica
+    let doses = Math.ceil(this.citizens.size * VACCINE_DAILY_FRACTION);
+    for (const c of this.citizens.values()) {
+      if (doses <= 0) break;
+      if (c.sick > 0 || c.immune > 0) continue; // solo susceptibles
+      if (this.economy.treasury < VACCINE_COST_PER_DOSE) break; // sin fondos, se para la campaña
+      this.economy.treasury -= VACCINE_COST_PER_DOSE;
+      c.immune = VACCINE_IMMUNITY;
+      this.vaccinationsGiven++;
+      doses--;
+    }
   }
 
   /** Contagio (ciclo 25): en el frío del invierno, con cierta probabilidad
