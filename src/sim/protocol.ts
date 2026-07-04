@@ -120,6 +120,10 @@ export interface CitizenInfoMsg {
   type: 'citizenInfo';
   id: number;
   name: string;
+  /** Quién es (ciclo 23): edad, etapa de vida y pareja. */
+  age: number;
+  lifeStage: string;
+  partnerName?: string;
   activity: ActivityKind;
   activityLabel: string;
   needs: Record<string, number>;

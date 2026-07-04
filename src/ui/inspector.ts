@@ -166,6 +166,8 @@ export class CitizenInspector {
       `despensa ${info.pantry.toFixed(0)} uds`,
       `hogar   ${bar(info.prestige)}`,
     ].join('\n');
-    this.el.textContent = `${info.name}\n${info.activityLabel}${this.follow ? '  ⌖' : ''}\n\n${bars}\n${meta}\n\n[F] seguir · [Esc] cerrar`;
+    // Quién es (ciclo 23): edad, etapa y pareja bajo el nombre.
+    const who = `${info.age} años · ${info.lifeStage}${info.partnerName ? ` · con ${info.partnerName}` : ''}`;
+    this.el.textContent = `${info.name}\n${who}\n${info.activityLabel}${this.follow ? '  ⌖' : ''}\n\n${bars}\n${meta}\n\n[F] seguir · [Esc] cerrar`;
   }
 }

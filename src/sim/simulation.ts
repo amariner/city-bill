@@ -722,12 +722,19 @@ export class Simulation {
   }
 
   /** Estado legible de un ciudadano (inspector T3.10). */
-  describe(id: number): { name: string; activity: ActivityKind; activityLabel: string; needs: Record<string, number>; home: [number, number]; work?: [number, number]; health: number; grief: number; wallet: number; pantry: number; prestige: number } | null {
+  describe(id: number): { name: string; age: number; lifeStage: string; partnerName?: string; activity: ActivityKind; activityLabel: string; needs: Record<string, number>; home: [number, number]; work?: [number, number]; health: number; grief: number; wallet: number; pantry: number; prestige: number } | null {
     const c = this.citizens.get(id);
     if (!c) return null;
     const homeKey = `${c.home.ax},${c.home.az}`;
+    // Quién es (ciclo 23): edad, etapa de vida y con quién comparte la vida —
+    // el inspector deja de ser una hoja de stats y pasa a mostrar una PERSONA.
+    const lifeStage = c.age < ADULT_AGE ? 'niño/a' : c.age >= OLD_AGE ? 'mayor' : 'adulto/a';
+    const partner = c.partnerId !== null ? this.citizens.get(c.partnerId) : undefined;
     return {
       name: c.name,
+      age: c.age,
+      lifeStage,
+      partnerName: partner?.name,
       activity: c.activity,
       activityLabel: activityLabel(c.activity, c.phase.kind === 'moving' || c.phase.kind === 'waitingPath'),
       needs: { ...c.needs },

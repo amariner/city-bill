@@ -748,6 +748,26 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
   check('fiestas: el nombre es determinista y periódico', seasonalFestivalName(65) === seasonalFestivalName(65 + 80));
 }
 
+// Ciclo 23 RESEARCH.md — el INSPECTOR muestra a una PERSONA (§6.2 dignidad): no
+// una hoja de stats, sino quién es — edad, etapa de vida y con quién la comparte.
+{
+  const sim = new Simulation(seedWorld(), 42);
+  for (let t = 0; t < TICKS_PER_DAY * 25; t++) sim.step(); // que haya parejas y edades variadas
+  const anyId = [...sim.citizens.keys()][0];
+  const info = sim.describe(anyId)!;
+  check('persona: el inspector expone la edad', typeof info.age === 'number' && info.age >= 0, `→ ${info.age}`);
+  check('persona: expone la etapa de vida', ['niño/a', 'adulto/a', 'mayor'].includes(info.lifeStage), `→ ${info.lifeStage}`);
+  // Alguien emparejado debe mostrar el nombre de su pareja.
+  const partneredId = [...sim.citizens.values()].find((c) => c.partnerId !== null)?.id;
+  if (partneredId !== undefined) {
+    const p = sim.describe(partneredId)!;
+    check('persona: quien tiene pareja muestra con quién comparte la vida', typeof p.partnerName === 'string' && p.partnerName.length > 0, `→ ${p.partnerName}`);
+  } else {
+    check('persona: quien tiene pareja muestra con quién comparte la vida', true, '(no hubo parejas en 25 años, se omite)');
+  }
+  check('persona: la etapa concuerda con la edad', sim.describe(anyId)!.age < 18 ? info.lifeStage === 'niño/a' : true);
+}
+
 // Determinismo: mismo snapshot final con la misma semilla.
 const a = runDays(7, 1).sim.snapshot();
 const b = runDays(7, 1).sim.snapshot();

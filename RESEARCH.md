@@ -652,3 +652,14 @@ una simulación, y los tratamos como tales:
   Carencia observada: la fiesta estacional podría además ACOPLAR con la lógica
   (la cosecha de otoño rinde más si el granero está lleno; San Juan atrae más en
   buen tiempo — el clima ya lo module) — hoy es solo nombre, un gancho para más.
+- 2026-07-04 · **Ciclo 23: el inspector muestra a una PERSONA (§6.2 dignidad)** ·
+  Primer paso de la "memoria de las personas" (carencia repetida de 18/21). El
+  inspector (T3.10, la ventana para verificar la autonomía) dejaba ver stats
+  pero no QUIÉN es cada cual. Ahora `describe()` añade edad, etapa de vida
+  (niño/adulto/mayor) y el nombre de la PAREJA — "Vera Bosch · 34 años · adulta ·
+  con Tomás". Datos ya presentes en la sim; contrato del inspector ampliado
+  (protocol.ts CitizenInfoMsg += age/lifeStage/partnerName) replicado en el mismo
+  commit. Testeado headless vía `describe()`. 181/181 tests, build OK.
+  Carencia observada: falta la HISTORIA (hitos: nació el año 3, se casó el 21) —
+  un diario de vida por persona pediría acumular sus eventos por id (sistema
+  aparte); hoy el inspector es una foto del presente, no un relato.
