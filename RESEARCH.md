@@ -729,3 +729,27 @@ una simulación, y los tratamos como tales:
   (b) no hay CUARENTENA ni conducta de evitación (la gente sigue socializando
   igual con enfermos) — un "quedarse en casa si enfermo" bajaría R0 y sería
   realista; (c) la vacuna/clínica podría PREVENIR (inmunizar) además de curar.
+- 2026-07-04 · **Ciclo 26: CUARENTENA (contagio→comportamiento, "aplanar la
+  curva")** · Cierra la carencia (b) del ciclo 25 y añade la RESPUESTA CONDUCTUAL
+  a la enfermedad, clave en epidemias reales. Modelo: (1) un enfermo se recoge en
+  casa — `sickStayIn(ctx,c)` baja la idoneidad de salir a socializar/pasear
+  proporcional a la enfermedad (utility AI, sin guion); (2) el que se siente
+  bastante mal (sick > SICK_ISOLATE=0.5) NO se para a charlar en `social.ts`
+  (evita el contacto estrecho), mientras los casos LEVES/incubando (sick entre
+  0.15 y 0.5) SÍ propagan — exactamente como en la vida real, donde el contagio
+  lo mueven los asintomáticos/leves. La pieza (2) es la que de verdad corta la
+  transmisión (las charlas son el vector). Flag `quarantine` (como clinicHealing)
+  para medir y para el escenario "sin autoaislamiento". Emergió con fuerza,
+  MEDIDO en A/B con la misma semilla: la curva se APLANA de un pico del 83% de la
+  ciudad enferma a la vez (sin cuarentena) al 17% (con) — casi 5× más bajo, y muy
+  menos gente enferma en total (48 vs 426). Bajado el umbral de narración de la
+  epidemia (25%→12%) porque ahora las oleadas aplanadas ya no llegan al 25% pero
+  siguen siendo epidemias que contar. Nuevo campo de contexto (`quarantine`) y
+  `detectEncounters` recibe el flag. 200/200 tests.
+  Carencia observada: (a) la cuarentena hoy es INDIVIDUAL y automática; una
+  medida COLECTIVA (el gobierno cierra la plaza/escuela en plena epidemia, como
+  el toque de queda) sería un acoplamiento gobierno↔contagio precioso; (b) sigue
+  pendiente la vacuna/inmunización preventiva (carencia (c) del ciclo 25); (c) el
+  aislamiento tan efectivo (17%) quizá sea demasiado — en la realidad la gente no
+  cumple perfecto; un factor de "cumplimiento" por personalidad lo haría más gris
+  y humano.

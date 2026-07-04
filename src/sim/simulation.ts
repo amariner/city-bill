@@ -79,6 +79,9 @@ export class Simulation {
   /** Sanidad activa (ciclo 15): si es false, la clínica no cura — permite medir
    * cuánta vida SALVA la sanidad (escenario "sin sistema de salud"). */
   clinicHealing = true;
+  /** Autoaislamiento activo (ciclo 26): los enfermos se recogen en casa y
+   * aplanan la curva. false = escenario "sin cuarentena" (para medir/estudiar). */
+  quarantine = true;
   /** Tier desbloqueado (T4.5 lo ligará a población; fijo de momento). */
   tier: Tier = 1;
   /** Familias alojadas por vivienda ('ax,az') — para la demanda de techo. */
@@ -252,6 +255,7 @@ export class Simulation {
       pantry: this.pantry,
       wallets: this.economy.wallets,
       weather: this.weather,
+      quarantine: this.quarantine,
     };
   }
 
@@ -291,7 +295,7 @@ export class Simulation {
     }
 
     // Encuentros emergentes entre caminantes.
-    const started = this.social.detectEncounters(walkers, this.clock.tick);
+    const started = this.social.detectEncounters(walkers, this.clock.tick, this.quarantine);
     for (const chat of started) {
       const a = this.citizens.get(chat.a)!;
       const b = this.citizens.get(chat.b)!;
@@ -457,10 +461,12 @@ export class Simulation {
       let sick = 0;
       for (const c of this.citizens.values()) if (c.sick > 0.1) sick++;
       const frac = sick / pop;
-      if (!this.inEpidemic && frac > 0.25) {
+      // Umbral bajo a propósito (12%): con la cuarentena (ciclo 26) las oleadas
+      // se aplanan, y un 12% de la ciudad enferma ya es una epidemia que contar.
+      if (!this.inEpidemic && frac > 0.12) {
         this.inEpidemic = true;
         this.events.push({ name: 'epidemic', data: { sick, population: pop } });
-      } else if (this.inEpidemic && frac < 0.1) {
+      } else if (this.inEpidemic && frac < 0.05) {
         this.inEpidemic = false;
       }
       // Caso índice espontáneo en invierno.

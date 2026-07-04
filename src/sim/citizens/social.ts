@@ -9,7 +9,7 @@ import { restore } from './needs';
 import { TICK_GAME_S } from '../clock';
 import { Rng } from '../../rng';
 import { consoleGriefBy } from '../grief';
-import { maybeInfect } from '../contagion';
+import { maybeInfect, SICK_ISOLATE } from '../contagion';
 
 /** Distancia máx. (celdas) para pararse a charlar. */
 const CHAT_RANGE = 3;
@@ -65,7 +65,7 @@ export class SocialSystem {
    * Hash espacial por buckets de 4 celdas: solo se comparan vecinos de bucket
    * (O(n) amortizado; CHAT_RANGE=1.6 < 4 garantiza que no se escapa ninguno).
    */
-  detectEncounters(walkers: Citizen[], tick: number): ChatPair[] {
+  detectEncounters(walkers: Citizen[], tick: number, quarantine = true): ChatPair[] {
     const started: ChatPair[] = [];
     const BUCKET = 4;
     const buckets = new Map<number, Citizen[]>();
@@ -77,6 +77,7 @@ export class SocialSystem {
     for (const a of walkers) {
       if (this.chatting.has(a.id) || a.needs.social >= SOCIAL_THRESHOLD) continue;
       if (tick - a.lastChatTick < CHAT_COOLDOWN_TICKS) continue;
+      if (quarantine && a.sick > SICK_ISOLATE) continue; // cuarentena (ciclo 26): el que se siente mal no se para a charlar
       let paired = false;
       for (let dx = -1; dx <= 1 && !paired; dx++) {
         for (let dz = -1; dz <= 1 && !paired; dz++) {
@@ -86,6 +87,7 @@ export class SocialSystem {
             if (b.id <= a.id) continue; // cada par una sola vez, determinista
             if (this.chatting.has(b.id) || b.needs.social >= SOCIAL_THRESHOLD) continue;
             if (tick - b.lastChatTick < CHAT_COOLDOWN_TICKS) continue;
+            if (quarantine && b.sick > SICK_ISOLATE) continue; // cuarentena (ciclo 26): no te paras con quien está muy enfermo
             if (!a.friends.has(b.id)) continue; // solo conocidos se paran
             const ex = a.x - b.x;
             const ez = a.z - b.z;

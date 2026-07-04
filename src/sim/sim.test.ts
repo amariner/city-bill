@@ -17,6 +17,7 @@ import { CLINIC_RECOVERY_PER_HOUR } from './health';
 import { bereave, griefTick, consoleGrief, consoleGriefBy, GRIEF_PARTNER } from './grief';
 import { maybeInfect, sickenTick, SICK_ONSET } from './contagion';
 import { chatBond } from './citizens/social';
+import { sickStayIn } from './citizens/activities';
 import { chronicleText, summarizeYear, compactChronicle, ChronEvent } from '../ui/chronicle';
 import { townAttractiveness, householdHardship, updateEmigrationPressure, EMIGRATE_PRESSURE_LIMIT } from '../world/growth';
 import { ACTIVITY_BY_KIND, SimContext } from './citizens/activities';
@@ -859,6 +860,43 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
     check('contagio: mucha gente pasa la enfermedad a lo largo del tiempo', everSick.size >= 15, `→ ${everSick.size}`);
     check('contagio: la sociedad SOBREVIVE la epidemia (no es espiral de muerte)', sim.citizens.size >= 30, `→ ${sim.citizens.size} hab.`);
   }
+}
+
+// Ciclo 26 RESEARCH.md — CUARENTENA (contagio→comportamiento): un enfermo se
+// recoge en casa y el que se siente mal no se para a charlar → APLANA LA CURVA
+// epidémica. La respuesta conductual, clave en epidemias reales.
+{
+  // (a) Puro: un enfermo tiene menos ganas de salir; con cuarentena apagada, no.
+  const mk = (sick: number): Citizen => ({
+    id: 1, name: 'Q', age: 40,
+    personality: { sociable: 0.5, trabajador: 0.5, hogareño: 0.5 },
+    needs: { energy: 1, food: 1, social: 1, fun: 1, purpose: 1 },
+    home: { ax: 0, az: 0, buildingId: 'house' }, work: null,
+    x: 0, z: 0, heading: 0, phase: { kind: 'deciding' }, activity: 'none',
+    partnerId: null, education: 0, health: 1, grief: 0, sick, immune: 0, friends: new Map(), lastChatTick: -1, inside: false,
+  });
+  const ctxOn = { quarantine: true } as unknown as SimContext;
+  const ctxOff = { quarantine: false } as unknown as SimContext;
+  check('cuarentena: un enfermo tiene menos ganas de salir', sickStayIn(ctxOn, mk(0.8)) < sickStayIn(ctxOn, mk(0)), `→ ${sickStayIn(ctxOn, mk(0.8)).toFixed(2)}`);
+  check('cuarentena: un sano sale con normalidad', sickStayIn(ctxOn, mk(0)) === 1);
+  check('cuarentena: con el modo apagado, el enfermo sale igual (para medir)', sickStayIn(ctxOff, mk(0.9)) === 1);
+
+  // (b) Emergencia integrada A/B (misma semilla): la cuarentena APLANA la curva —
+  //     el pico de enfermos simultáneos es mucho menor que sin ella.
+  const peakOf = (q: boolean): number => {
+    const sim = new Simulation(seedWorld(), 42);
+    sim.quarantine = q;
+    let peak = 0;
+    for (let t = 0; t < TICKS_PER_DAY * 70; t++) {
+      sim.step();
+      let s = 0; for (const c of sim.citizens.values()) if (c.sick > 0.1) s++;
+      peak = Math.max(peak, s);
+    }
+    return peak;
+  };
+  const peakOn = peakOf(true);
+  const peakOff = peakOf(false);
+  check('cuarentena: aplana la curva (pico mucho menor que sin ella)', peakOn < peakOff * 0.6, `→ con ${peakOn} vs sin ${peakOff}`);
 }
 
 // Determinismo: mismo snapshot final con la misma semilla.

@@ -20,6 +20,10 @@ export const SICK_ONSET = 0.8;
 export const INFECT_CHANCE = 0.4;
 /** Por encima de esto un enfermo ya contagia (los primeros compases incuban). */
 export const INFECTIOUS_ABOVE = 0.15;
+/** Por encima de esto uno se siente lo bastante mal como para NO pararse a
+ * charlar (evita el contacto estrecho). Los casos leves/incubando (sick entre
+ * INFECTIOUS_ABOVE y esto) SÍ propagan — como en la vida real. */
+export const SICK_ISOLATE = 0.5;
 /** Recuperación por hora en soledad: la enfermedad se pasa en ~5 días — ventana
  * infecciosa lo bastante larga para que cada enfermo contagie a >1 (oleadas). */
 const RECOVERY_PER_HOUR = 1 / 120;
