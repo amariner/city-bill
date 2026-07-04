@@ -163,6 +163,9 @@ export class CitizenInspector {
       `dinero  ${info.wallet.toFixed(0)}`,
       `despensa ${info.pantry.toFixed(0)} uds`,
       `hogar   ${bar(info.prestige)}`,
+      // Solo se muestra si hay duelo real: no es un fondo permanente como
+      // salud/prestigio, es un estado que casi siempre está en cero.
+      ...(info.grief > 0.01 ? [`duelo   ${bar(info.grief)}`] : []),
     ].join('\n');
     this.el.textContent = `${info.name}\n${info.activityLabel}${this.follow ? '  ⌖' : ''}\n\n${bars}\n${meta}\n\n[F] seguir · [Esc] cerrar`;
   }

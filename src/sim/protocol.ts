@@ -134,6 +134,8 @@ export interface CitizenInfoMsg {
   pantry: number;
   /** Prestigio de la vivienda [0,1] — ciclo 9. */
   prestige: number;
+  /** Duelo [0,1] — lógica de duelo. */
+  grief: number;
 }
 
 export type WorkerToMain = SnapshotMsg | SimEventMsg | CitizenInfoMsg;

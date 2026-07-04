@@ -14,7 +14,7 @@ import { TICK_GAME_S, DAY_GAME_SECONDS } from './clock';
 import { FOOD_PRICE } from './economy';
 import { weatherAt } from './weather';
 import { deathChance } from './lifecycle';
-import { weatherSpeedFactor, familySize } from './simulation';
+import { weatherSpeedFactor, familySize, griefDecay, FRIEND_GRIEF } from './simulation';
 import { computeDemand, extendRoad, paintRoadExtension } from '../world/growth';
 import { createRng } from '../rng';
 import { Grid } from '../world/grid';
@@ -128,6 +128,48 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
   check('vida: la sociedad sobrevive', cs.length >= 5, `→ ${cs.length}`);
   const kidsWorking = cs.filter((c) => c.age < 18 && c.work).length;
   check('vida: los niños no trabajan', kidsWorking === 0, `→ ${kidsWorking}`);
+}
+
+// Lógica de duelo (carencia observada esta sesión: la muerte no afectaba a
+// nadie más que al difunto — ni la pareja ni los amigos cercanos sentían
+// nada). griefDecay es pura: lineal hasta 0, nunca negativa.
+{
+  check('duelo: decae con el tiempo', griefDecay(1, 24) < 1 && griefDecay(1, 24) > 0);
+  check('duelo: nunca queda negativo por muchas horas que pasen', griefDecay(0.1, 10000) === 0);
+  check('duelo: sin horas, no cambia', griefDecay(0.6, 0) === 0.6);
+  // A GRIEF_DECAY_PER_HOUR = 1/(24*14), un duelo pleno tarda ~14 días en
+  // apagarse del todo — ni un día (demasiado rápido para un luto) ni
+  // un año (demasiado lento para que se note en una partida).
+  const daysToFade = (() => {
+    let g = 1;
+    let hours = 0;
+    while (g > 0 && hours < 24 * 60) {
+      g = griefDecay(g, 1);
+      hours++;
+    }
+    return hours / 24;
+  })();
+  check('duelo: un duelo pleno tarda del orden de dos semanas en apagarse', daysToFade > 10 && daysToFade < 20, `→ ${daysToFade.toFixed(1)} días`);
+}
+
+// Lógica de duelo, emergente: en una sociedad que vive y muere durante 40
+// días, alguna muerte debe dejar duelo real en quien queda — pareja o
+// amigo cercano — y el duelo nunca debe salirse de [0,1]. No se fuerza
+// ninguna muerte concreta (sería un guion): se observa sobre una sim
+// normal, igual que el resto de tests de "vida".
+{
+  const sim = new Simulation(seedWorld(), 7);
+  let maxGriefSeen = 0;
+  let outOfBounds = false;
+  for (let t = 0; t < TICKS_PER_DAY * 40; t++) {
+    sim.step();
+    for (const c of sim.citizens.values()) {
+      if (c.grief > maxGriefSeen) maxGriefSeen = c.grief;
+      if (c.grief < 0 || c.grief > 1) outOfBounds = true;
+    }
+  }
+  check('duelo: alguna muerte deja duelo real en quien queda', maxGriefSeen >= FRIEND_GRIEF, `→ máximo visto ${maxGriefSeen.toFixed(2)}`);
+  check('duelo: nunca sale de [0,1] durante toda la partida', !outOfBounds);
 }
 
 // Acoplamiento salud→mortalidad (carencia observada en el ciclo 5 de

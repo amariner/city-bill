@@ -68,6 +68,11 @@ export interface Citizen {
   /** Salud [0,1] (lógica de salud, ciclo 5). Decae con hambre/sueño crónicos
    * y la edad; se recupera descansando o en la clínica. */
   health: number;
+  /** Duelo [0,1] (lógica de duelo): sube de golpe al morir la pareja o un
+   * amigo cercano, decae solo con el tiempo (nada lo restaura antes de
+   * hora). Mientras dura, cuesta más disfrutar y concentrarse en el
+   * trabajo, y apetece más buscar compañía — ver simulation.ts/activities.ts. */
+  grief: number;
   /** Afinidad por id de conocido [0,1]. Se refuerza con encuentros. */
   friends: Map<number, number>;
   /** Tick en que terminó su última charla (histéresis anti-bucle). */

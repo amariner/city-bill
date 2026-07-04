@@ -19,7 +19,7 @@ import { Economy } from './economy';
 import { Citizen, citizenName, PlannedActivity, TravelMode } from './citizens/citizen';
 import { decayNeeds, restore, NEED_KEYS } from './citizens/needs';
 import { chooseActivity } from './citizens/brain';
-import { ACTIVITY_BY_KIND, SimContext, activityLabel, EDU_PER_HOUR, CLINIC_FEE, isFestivalDay } from './citizens/activities';
+import { ACTIVITY_BY_KIND, SimContext, activityLabel, EDU_PER_HOUR, CLINIC_FEE, isFestivalDay, CLUB_AFFINITY } from './citizens/activities';
 import { SocialSystem } from './citizens/social';
 import { AgentState, ActivityKind, activityId, AGENT_STRIDE, TravelModeCode } from './protocol';
 import { computeDemand, itemForDemand, findParcel, townCenter, GrowthPlacement, extendRoad } from '../world/growth';
@@ -51,6 +51,26 @@ const CAR_CELLS_PER_TICK_OFFROAD = WALK_CELLS_PER_TICK;
  * poder testearla sin levantar una Simulation entera. */
 export function weatherSpeedFactor(mode: 'foot' | 'car', outdoor: number): number {
   return mode === 'foot' ? 0.6 + 0.4 * outdoor : 0.92 + 0.08 * outdoor;
+}
+
+// --- Lógica de duelo (nueva carencia observada: la muerte no afectaba a
+// nadie más que al difunto) ----------------------------------------------
+/** Duelo al morir la pareja: máximo, llena el depósito entero. */
+const PARTNER_GRIEF = 1;
+/** Duelo al morir un amigo CERCANO (misma barra que "tercer lugar" — no
+ * cualquier conocido, un vínculo de verdad): más suave que perder pareja. */
+export const FRIEND_GRIEF = 0.45;
+/** El duelo no lo restaura ninguna actividad — solo se apaga con el tiempo,
+ * a lo largo de unas dos semanas de juego (mismo orden que un luto real). */
+const GRIEF_DECAY_PER_HOUR = 1 / (24 * 14);
+/** Mientras dura el duelo, cuesta más disfrutar: nada sabe tan bien. */
+const GRIEF_FUN_DECAY_PER_HOUR = 1 / 10;
+
+/** Duelo tras `hours` horas: nada lo restaura, solo el tiempo lo apaga —
+ * lineal hasta 0, nunca negativo. Exportada (pura) para testear la curva
+ * sin levantar una Simulation entera. */
+export function griefDecay(grief: number, hours: number): number {
+  return Math.max(0, grief - GRIEF_DECAY_PER_HOUR * hours);
 }
 
 /** Cuántos adultos llegan a una vivienda nueva (inmigración): 1-3, con un
@@ -193,6 +213,7 @@ export class Simulation {
       // Los adultos fundadores llegan con estudios variados; los niños, de cero.
       education: age === undefined ? this.rng.range(0.2, 0.9) : 0,
       health: this.rng.range(0.75, 1),
+      grief: 0,
       x: door[0] + 0.5,
       z: door[1] + 0.5,
       heading: this.rng.range(0, Math.PI * 2),
@@ -267,6 +288,12 @@ export class Simulation {
 
     for (const c of this.citizens.values()) {
       decayNeeds(c.needs, c.personality, hours);
+      if (c.grief > 0) {
+        // Duelo: nada lo restaura, solo se apaga con el tiempo; mientras
+        // dura, cuesta más disfrutar (fun decae más rápido de lo normal).
+        c.grief = griefDecay(c.grief, hours);
+        c.needs.fun = Math.max(0, c.needs.fun - c.grief * GRIEF_FUN_DECAY_PER_HOUR * hours);
+      }
       healthTick(c, hours); // lógica de salud: fondo, no una actividad
       // Estatus (ciclo 9): una vivienda mejorada es más agradable — quien
       // está EN CASA (durmiendo, comiendo) recupera algo más de ánimo.
@@ -353,7 +380,17 @@ export class Simulation {
     const life = lifeYear(this.citizens, this.rng);
     for (const d of life.deaths) {
       const partner = d.partnerId !== null ? this.citizens.get(d.partnerId) : undefined;
-      if (partner) partner.partnerId = null;
+      if (partner) {
+        partner.partnerId = null;
+        partner.grief = Math.max(partner.grief, PARTNER_GRIEF);
+      }
+      // Duelo (lógica nueva): quien tuviera al difunto como amigo CERCANO
+      // (no cualquier conocido — el mismo umbral que el "tercer lugar" de
+      // vecindario) también lo siente, más suave que perder pareja.
+      for (const c of this.citizens.values()) {
+        const aff = c.friends.get(d.id);
+        if (aff !== undefined && aff >= CLUB_AFFINITY) c.grief = Math.max(c.grief, FRIEND_GRIEF);
+      }
       this.citizens.delete(d.id);
       const k = `${d.home.ax},${d.home.az}`;
       // Ojo: la familia sigue en la casa; solo liberamos el hueco si era el último.
@@ -510,6 +547,18 @@ export class Simulation {
       c.activity = 'none';
       return;
     }
+    // Revalida la FECHA al llegar, no solo al decidir: decidir ir a la
+    // fiesta a última hora y tardar en llegar (camino largo, cola de paths)
+    // puede dejar a alguien "empezando" la fiesta ya en el día siguiente —
+    // mismo patrón que la revalidación de salud de arriba, esta vez para el
+    // caso límite que el recorte de duración de más abajo NO cubre (ese
+    // evita que se ALARGUE pasada medianoche; este evita que EMPIECE ya
+    // pasada medianoche).
+    if (planned.activity === 'festival' && !isFestivalDay(this.clock.day)) {
+      c.phase = { kind: 'deciding' };
+      c.activity = 'none';
+      return;
+    }
     const def = ACTIVITY_BY_KIND.get(planned.activity);
     c.activity = planned.activity;
     let until = this.clock.time + planned.duration;
@@ -638,7 +687,7 @@ export class Simulation {
   }
 
   /** Estado legible de un ciudadano (inspector T3.10). */
-  describe(id: number): { name: string; activity: ActivityKind; activityLabel: string; needs: Record<string, number>; home: [number, number]; work?: [number, number]; health: number; wallet: number; pantry: number; prestige: number } | null {
+  describe(id: number): { name: string; activity: ActivityKind; activityLabel: string; needs: Record<string, number>; home: [number, number]; work?: [number, number]; health: number; wallet: number; pantry: number; prestige: number; grief: number } | null {
     const c = this.citizens.get(id);
     if (!c) return null;
     const homeKey = `${c.home.ax},${c.home.az}`;
@@ -653,6 +702,7 @@ export class Simulation {
       wallet: this.economy.walletOf(homeKey),
       pantry: this.pantry.get(homeKey) ?? 0,
       prestige: this.economy.prestigeOf(homeKey),
+      grief: c.grief,
     };
   }
 

@@ -398,3 +398,37 @@ una simulación, y los tratamos como tales:
   sorteada la dejaba "asistiendo" pasada la medianoche, violando la
   invariante de fecha — `beginDoing` ahora recorta la duración de
   `festival` para que nunca cruce el día. 121/121 tests.
+- 2026-07-04 · **Ciclo 11: Duelo (N3 pertenencia)** · Con la pirámide N0-N5
+  cerrada y las carencias de acoplamiento resueltas, toca de nuevo la
+  pregunta de OBSERVAR (§1): ¿qué haría un humano real que ningún ciudadano
+  hacía? Cuando alguien moría, nadie lo sentía — ni la pareja ni los amigos
+  de toda la vida notaban nada, la muerte solo desaparecía a un `Citizen`
+  del mapa. Modelo: `citizen.grief` [0,1] sube de golpe al morir la pareja
+  (pleno, 1.0) o un amigo CERCANO (afinidad ≥ `CLUB_AFFINITY`, el mismo
+  umbral que el "tercer lugar" del ciclo 7 — no cualquier conocido, un
+  vínculo de verdad; 0.45, más suave que la pareja); nada lo restaura antes
+  de hora, solo decae solo con el tiempo (~14 días de juego para apagarse
+  del todo, el orden de un luto real). Mientras dura: cuesta más disfrutar
+  (`fun` decae más rápido) y concentrarse en el trabajo (`work` pierde hasta
+  un 30% de idoneidad, nunca se bloquea del todo — no es una baja médica),
+  y apetece MÁS buscar compañía (`visit` gana hasta el doble de idoneidad a
+  duelo pleno) — mismo motor de utility AI de siempre, ningún guion nuevo.
+  Visible en el inspector (barra "duelo", solo aparece si hay duelo real).
+  Emergió: quien pierde a su pareja o a un amigo cercano visita más y
+  trabaja algo menos una temporada, sin que nadie se lo diga.
+  Bug real encontrado verificando esto (no de la lógica de duelo en sí,
+  sino expuesto por el cambio de trayectoria que introduce — la misma
+  lección de sensibilidad del RNG compartido de sesiones anteriores): el
+  arreglo de fiestas-fuera-de-fecha de la entrada anterior solo cubría "la
+  duración se ALARGA pasada medianoche"; faltaba el caso simétrico "se
+  decide ir tarde, tarda en llegar (cola de paths, trayecto largo) y
+  EMPIEZA ya en el día siguiente". Arreglado con el mismo patrón que la
+  revalidación de salud al llegar (`beginDoing`): si el día ya no es de
+  fiesta al llegar, vuelve a decidir en vez de empezar. 137/137 tests.
+  Carencias observadas para futuros ciclos: (a) sin reflejo visual del
+  duelo en el mundo (ropa oscura, cabeza gacha) — tarea de Sonnet si se
+  quiere ver además de leerlo en el inspector; (b) el duelo no acopla aún
+  con `growth`/inmigración (un pueblo que ha sufrido muertes recientes no
+  se ve distinto a uno que no); (c) sin luto colectivo — una fiesta caída
+  justo tras una muerte reciente no se atenúa, aunque en la vida real un
+  pueblo de luto no celebraría igual.

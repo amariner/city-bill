@@ -112,8 +112,10 @@ export const ACTIVITIES: ActivityDef[] = [
     need: 'purpose',
     restorePerHour: { purpose: 1 / 6 },
     durationH: [3.5, 5], // dos bloques con pausa a comer emergen solos
-    // Trabajar apetece con luz (los turnos nocturnos llegarán con la fábrica).
-    suitability: (ctx) => Math.max(0, 1 - ctx.darkness * 1.6),
+    // Trabajar apetece con luz (los turnos nocturnos llegarán con la fábrica);
+    // el duelo lo apaga un poco más (cuesta concentrarse) sin bloquearlo del
+    // todo — no es una baja médica, solo pesa más levantarse a currar.
+    suitability: (ctx, c) => Math.max(0, 1 - ctx.darkness * 1.6) * (1 - 0.3 * c.grief),
     findTarget: (ctx, c) => {
       if (!c.work) return null;
       const b = ctx.index.at(c.work.ax, c.work.az);
@@ -236,7 +238,10 @@ export const ACTIVITIES: ActivityDef[] = [
     need: 'social',
     restorePerHour: { social: 0.7, fun: 0.2 },
     durationH: [1, 2],
-    suitability: (ctx) => Math.max(0.1, 1 - ctx.darkness * 1.2) * (0.65 + 0.35 * ctx.weather.outdoorFactor),
+    // Duelo: buscar consuelo en un amigo pesa más que el resto de factores
+    // (hasta doblar la idoneidad a duelo pleno) — se nota MÁS que el frío o
+    // la noche, como debe ser cuando de verdad se necesita compañía.
+    suitability: (ctx, c) => Math.max(0.1, 1 - ctx.darkness * 1.2) * (0.65 + 0.35 * ctx.weather.outdoorFactor) * (1 + c.grief),
     findTarget: (ctx, c) => {
       // Visitar al amigo con más afinidad que esté EN CASA (localizable).
       let best: Citizen | null = null;
