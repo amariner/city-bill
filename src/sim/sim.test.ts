@@ -13,7 +13,9 @@ import { TICK_GAME_S, DAY_GAME_SECONDS } from './clock';
 import { FOOD_PRICE } from './economy';
 import { weatherAt } from './weather';
 import { deathChance } from './lifecycle';
-import { weatherSpeedFactor } from './simulation';
+import { weatherSpeedFactor, familySize } from './simulation';
+import { computeDemand } from '../world/growth';
+import { createRng } from '../rng';
 
 let passed = 0;
 let failed = 0;
@@ -230,22 +232,35 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
   check('circular: el pago al mayorista no supera lo vendido', e.wholesalePaid <= e.foodSold * FOOD_PRICE + 1e-6);
 }
 
-// Ciclo 5 RESEARCH.md — lógica de salud: la ciudad construye consultorio
-// cuando la salud media flaquea, los enfermos van a curarse y NADIE trabaja
-// estando demasiado enfermo (bloqueo real, no solo cosmético).
+// La demanda de clínica es una función PURA de (salud media, población,
+// si ya hay consultorio) — testearla directamente es mucho más robusto que
+// esperar a que una tirada de 40-60 días concretos la cruce: la trayectoria
+// larga es sensible al RNG compartido (cualquier cambio de comportamiento,
+// aunque no toque población, puede desplazar quién vive/muere/nace y con
+// ello CUÁNTAS veces se consume el RNG desde ese punto — lo confirmé
+// bisecando: el mismo umbral que aquí se prueba directo dejó de cruzarse en
+// 60 días de sim completa tras acoplar salud→mortalidad y clima→coche,
+// SIN que la lógica de demanda cambiara una coma). La sim completa de abajo
+// sigue siendo la prueba de que la ciudad no colapsa; esta es la prueba de
+// que la clínica se PIDE cuando toca.
+check(
+  'salud: la demanda de clínica se activa con salud baja y sin consultorio',
+  computeDemand({ population: 20, employed: 15, jobs: 15, freeHousing: 0, shops: 1, avgProsperity: 0.5, tier: 2, children: 0, studentSlots: 0, avgHealth: 0.5, hasClinic: false }) === 'clinic',
+);
+check(
+  'salud: no vuelve a pedir clínica si ya existe una',
+  computeDemand({ population: 20, employed: 15, jobs: 15, freeHousing: 0, shops: 1, avgProsperity: 0.5, tier: 2, children: 0, studentSlots: 0, avgHealth: 0.5, hasClinic: true }) !== 'clinic',
+);
+
+// Ciclo 5 RESEARCH.md — lógica de salud: los enfermos van a curarse y NADIE
+// trabaja estando demasiado enfermo (bloqueo real, no solo cosmético).
 {
   const sim = new Simulation(seedWorld(), 42);
-  let clinicBuilt = false;
   let anyoneAtClinic = false;
   let startedWorkTooSick = 0;
   const wasWorking = new Set<number>();
-  // 40 días: la ciudad tarda ~20-25 en escapar del equilibrio inicial de
-  // población pequeña (lo hace sola, vía nacimientos/muertes — ver ciclo T4.2
-  // en la bitácora) antes de que población≥10 habilite la demanda de clínica.
   for (let t = 0; t < TICKS_PER_DAY * 40; t++) {
     sim.step();
-    for (const e of sim.takeEvents())
-      if (e.name === 'cityGrew' && (e.data as { id?: string }).id === 'clinic') clinicBuilt = true;
     for (const c of sim.citizens.values()) {
       if (c.activity === 'clinic') anyoneAtClinic = true;
       const working = c.activity === 'work' && c.phase.kind === 'doing';
@@ -256,7 +271,6 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
       else wasWorking.delete(c.id);
     }
   }
-  check('salud: la ciudad construye consultorio', clinicBuilt || sim.index.buildings.some((b) => b.id === 'clinic'));
   check('salud: nadie EMPIEZA a trabajar demasiado enfermo', startedWorkTooSick === 0, `→ ${startedWorkTooSick}`);
   const cs = [...sim.citizens.values()];
   const avgHealth = cs.reduce((s, c) => s + c.health, 0) / cs.length;
@@ -332,6 +346,25 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
   check('estatus: es un sumidero de dinero real', sim.economy.prestigeInvested > 0 && sim.economy.moneySpent >= sim.economy.prestigeInvested);
   const capped = [...sim.economy.prestige.values()].every((p) => p >= 0 && p <= 1);
   check('estatus: el prestigio nunca sale de [0,1]', capped);
+}
+
+// Acoplamiento prestigio→inmigración (última carencia anotada tras cerrar
+// la pirámide N0-N5): un pueblo "de posibles" debe atraer familias más
+// grandes que uno sin prestigio, sin dejar de ser 1-3 en el caso base
+// (avgPrestige=0, la curva original intacta). Mismo par de rng.next() para
+// las dos comparaciones — así el único grado de libertad es el prestigio.
+{
+  const rng1 = createRng(7);
+  const rng2 = createRng(7);
+  let totalNone = 0;
+  let totalFull = 0;
+  const N = 500;
+  for (let i = 0; i < N; i++) {
+    totalNone += familySize(rng1, 0);
+    totalFull += familySize(rng2, 1);
+  }
+  check('prestigio→inmigración: prestigio 0 da familias 1-3 (curva original)', totalNone / N >= 1 && totalNone / N <= 3);
+  check('prestigio→inmigración: más prestigio atrae familias más grandes', totalFull > totalNone, `→ media ${(totalNone / N).toFixed(2)} vs ${(totalFull / N).toFixed(2)}`);
 }
 
 // Ciclo 10 RESEARCH.md — fiestas de barrio (N5, cierra la pirámide completa

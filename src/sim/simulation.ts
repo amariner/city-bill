@@ -11,7 +11,7 @@
  */
 import { Grid } from '../world/grid';
 import { createRng, Rng } from '../rng';
-import { GameClock, TICK_GAME_S } from './clock';
+import { GameClock, TICK_GAME_S, DAY_GAME_SECONDS } from './clock';
 import { PathQueue, pathLength } from './pathfinding';
 import { CellXZ, manhattan } from './geometry';
 import { WorldIndex } from './worldIndex';
@@ -51,6 +51,16 @@ const CAR_CELLS_PER_TICK_OFFROAD = WALK_CELLS_PER_TICK;
  * poder testearla sin levantar una Simulation entera. */
 export function weatherSpeedFactor(mode: 'foot' | 'car', outdoor: number): number {
   return mode === 'foot' ? 0.6 + 0.4 * outdoor : 0.92 + 0.08 * outdoor;
+}
+
+/** Cuántos adultos llegan a una vivienda nueva (inmigración): 1-3, con un
+ * barrio de posibles (prestigio medio [0,1] de la ciudad) atrayendo
+ * familias más completas — acoplamiento prestigio→inmigración (RESEARCH.md,
+ * carencia anotada en los ciclos 9/10). En `avgPrestige=0` es exactamente
+ * la curva original (1-3, sin sesgo). Exportada (pura) para testear sin
+ * levantar una Simulation entera. */
+export function familySize(rng: Rng, avgPrestige: number): number {
+  return 1 + Math.floor(rng.next() * (2.4 + avgPrestige * 0.6));
 }
 
 // --- Lógica de estatus y propiedad (ciclo 9) ----------------------------------
@@ -120,8 +130,9 @@ export class Simulation {
     // Los recién llegados traen algo de comida y unos ahorros en la mudanza.
     this.pantry.set(k, (this.pantry.get(k) ?? 0) + 3 * count);
     this.economy.wallets.set(k, (this.economy.wallets.get(k) ?? 0) + STARTING_MONEY * count);
+    const prestige = this.avgPrestige();
     for (let h = 0; h < count; h++) {
-      const adults = 1 + Math.floor(this.rng.next() * 2.4); // 1-3
+      const adults = familySize(this.rng, prestige);
       const family: Citizen[] = [];
       for (let a = 0; a < adults; a++) family.push(this.spawnCitizen(ax, az, buildingId));
       for (let i = 0; i < family.length; i++)
@@ -134,6 +145,16 @@ export class Simulation {
     let sum = 0;
     for (const c of this.citizens.values()) sum += c.health;
     return sum / this.citizens.size;
+  }
+
+  /** Prestigio medio de la ciudad YA construida (0 si nadie ha invertido
+   * aún). Base del acoplamiento prestigio→inmigración: un pueblo "de
+   * posibles" es más goloso para quien llega. */
+  private avgPrestige(): number {
+    if (this.economy.prestige.size === 0) return 0;
+    let sum = 0;
+    for (const p of this.economy.prestige.values()) sum += p;
+    return sum / this.economy.prestige.size;
   }
 
   /** Huecos de familia libres en todas las viviendas. */
@@ -482,7 +503,19 @@ export class Simulation {
     }
     const def = ACTIVITY_BY_KIND.get(planned.activity);
     c.activity = planned.activity;
-    c.phase = { kind: 'doing', until: this.clock.time + planned.duration };
+    let until = this.clock.time + planned.duration;
+    // La fiesta es una FECHA, no un turno: si se decide tarde y la duración
+    // sorteada la haría cruzar medianoche, se acorta para que NUNCA quede
+    // "asistiendo" en el día siguiente (invariante del ciclo 10 de
+    // RESEARCH.md — sin esto, empezar a las 23h con 3h de duración deja al
+    // ciudadano en la fiesta fuera de fecha, aunque decidiera ir dentro de
+    // ella). El resto de actividades SÍ cruzan medianoche a propósito
+    // (dormir, por ejemplo) — esto es exclusivo de eventos de calendario.
+    if (planned.activity === 'festival') {
+      const endOfDay = (this.clock.day + 1) * DAY_GAME_SECONDS;
+      until = Math.min(until, endOfDay);
+    }
+    c.phase = { kind: 'doing', until };
     c.inside = def?.indoors ?? false;
     if (planned.activity === 'shop' && planned.target) {
       this.economy.registerVisit(planned.target);

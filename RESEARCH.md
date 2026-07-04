@@ -367,3 +367,34 @@ una simulación, y los tratamos como tales:
   la penalización a pie es más del doble que en coche, y mejor tiempo
   nunca ralentiza. 118/118 tests.
   Queda **prestigio→inmigración** como último acoplamiento anotado.
+- 2026-07-04 · **Prestigio→inmigración** (cierra la última carencia
+  anotada): `familySize(rng, avgPrestige)` — un pueblo con prestigio medio
+  alto atrae familias más completas al llenar una vivienda nueva (hasta
+  ~1.25× de media a prestigio 1); en `avgPrestige=0` es EXACTAMENTE la
+  curva original (1-3), así que el arranque de partida no cambia.
+  **Lección de esta sesión, más valiosa que el acoplamiento en sí**: el
+  test de 40 días "la ciudad construye consultorio" empezó a fallar al
+  añadir esto, y bisequé con `git worktree` para entender por qué. Resultado
+  sorprendente: la población YA se disparaba (19→664 en 60 días) con SOLO
+  salud→mortalidad + clima→coche activos, ANTES de tocar inmigración —
+  ninguno de esos dos cambia cuántas veces se llama a `rng.next()`, pero SÍ
+  cambia QUÉ ciudadanos siguen vivos, y eso reordena silenciosamente todo el
+  consumo de RNG compartido (`this.rng`) desde ese punto en adelante. Con
+  población tan alta, la salud media nunca cae de 0.88 (los inmigrantes
+  sanos la diluyen más rápido de lo que los enfermos la bajan) y la clínica
+  deja de pedirse — no por un bug de la lógica de demanda, sino porque la
+  trayectoria completa de 40-60 días para una semilla concreta es
+  **inherentemente frágil** a CUALQUIER cambio de comportamiento, toque o no
+  población. Corregido no ajustando el acoplamiento sino el test: la
+  demanda de clínica ahora se prueba DIRECTO sobre `computeDemand()` (pura,
+  sin sim completa) en vez de esperar a que una tirada larga la cruce; la
+  sim completa de 40 días se queda para lo que sí es robusto (nadie
+  empieza a trabajar enfermo, salud media razonable). **Regla para futuros
+  ciclos**: cualquier test que dependa de un umbral cruzándose en una
+  simulación larga con semilla fija es una bomba de relojería — si la
+  propiedad es una función pura testeable sin levantar `Simulation`,
+  pruébala así. De paso, apareció y se corrigió un bug real independiente
+  de todo esto: la fiesta (ciclo 10) podía empezarse tarde y su duración
+  sorteada la dejaba "asistiendo" pasada la medianoche, violando la
+  invariante de fecha — `beginDoing` ahora recorta la duración de
+  `festival` para que nunca cruce el día. 121/121 tests.
