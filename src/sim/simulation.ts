@@ -31,7 +31,7 @@ import { lifeYear, ADULT_AGE, OLD_AGE } from './lifecycle';
 import { STARTING_MONEY, SHOP_TREAT_PRICE, PENSION_PER_DAY } from './economy';
 import { catalogData, Tier } from '../world/catalogData';
 import { healthTick, CLINIC_RECOVERY_PER_HOUR, WORK_BLOCK_HEALTH } from './health';
-import { griefTick, bereave, GRIEF_PARTNER, GRIEF_FRIEND, GRIEF_FRIEND_AFFINITY } from './grief';
+import { griefTick, consoleGrief, bereave, GRIEF_PARTNER, GRIEF_FRIEND, GRIEF_FRIEND_AFFINITY } from './grief';
 import { weatherAt, Weather } from './weather';
 
 /** Velocidad al caminar, en celdas por tick (0.25 s reales a vel. 1). */
@@ -270,6 +270,7 @@ export class Simulation {
       }
       if (this.social.isChatting(c.id)) {
         c.activity = 'chat';
+        consoleGrief(c, hours); // consuelo (ciclo 17): la charla alivia el duelo
         continue; // parado charlando; social.ts le restaura
       }
       this.stepCitizen(c, ctx);
@@ -573,6 +574,9 @@ export class Simulation {
             const r = def.restorePerHour[k];
             if (r) restore(c.needs, k, r * hours);
           }
+          // Consuelo (ciclo 17): las actividades de COMPAÑÍA de verdad (visita,
+          // club, fiesta — mucha restauración social) alivian el duelo.
+          if ((def.restorePerHour.social ?? 0) >= 0.5) consoleGrief(c, hours);
           if (c.activity === 'school') c.education = Math.min(1, c.education + EDU_PER_HOUR * hours);
           if (c.activity === 'clinic' && this.clinicHealing) c.health = Math.min(1, c.health + CLINIC_RECOVERY_PER_HOUR * hours);
           if (c.activity === 'work' && c.work) {

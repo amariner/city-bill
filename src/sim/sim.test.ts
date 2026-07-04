@@ -14,7 +14,7 @@ import { FOOD_PRICE } from './economy';
 import { weatherAt } from './weather';
 import { deathChance, lifeYear, OLD_AGE, ADULT_AGE } from './lifecycle';
 import { CLINIC_RECOVERY_PER_HOUR } from './health';
-import { bereave, griefTick, GRIEF_PARTNER } from './grief';
+import { bereave, griefTick, consoleGrief, GRIEF_PARTNER } from './grief';
 import { townAttractiveness, householdHardship, updateEmigrationPressure, EMIGRATE_PRESSURE_LIMIT } from '../world/growth';
 import { ACTIVITY_BY_KIND, SimContext } from './citizens/activities';
 import { Weather } from './weather';
@@ -317,19 +317,26 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
   const sim = new Simulation(seedWorld(), 42);
   let festivalDays = 0;
   let festivalAttendance = 0;
-  let attendanceOnNonFestivalDay = 0;
+  // El invariante real es que nadie EMPIEZA una fiesta fuera de su fecha (la
+  // DECISIÓN es lo que la suitability veta). Una fiesta que arranca la tarde del
+  // día 15 puede alargarse pasada la medianoche (realista): eso NO es "fiesta
+  // fuera de fecha", así que contamos INICIOS, no ticks de 'doing' que se solapan.
+  const wasFestival = new Set<number>();
+  let startsOnNonFestivalDay = 0;
   for (let t = 0; t < TICKS_PER_DAY * 46; t++) {
     sim.step();
     for (const e of sim.takeEvents()) if (e.name === 'festivalDay') festivalDays++;
+    const isFestivalDay = sim.clock.day % 15 === 0 && sim.clock.day > 0;
     for (const c of sim.citizens.values()) {
-      if (c.activity !== 'festival' || c.phase.kind !== 'doing') continue;
-      if (sim.clock.day % 15 === 0 && sim.clock.day > 0) festivalAttendance++;
-      else attendanceOnNonFestivalDay++;
+      const doing = c.activity === 'festival' && c.phase.kind === 'doing';
+      if (doing && isFestivalDay) festivalAttendance++;
+      if (doing && !isFestivalDay && !wasFestival.has(c.id)) startsOnNonFestivalDay++;
+      if (doing) wasFestival.add(c.id); else wasFestival.delete(c.id);
     }
   }
   check('fiestas: caen en su fecha de calendario', festivalDays >= 3, `→ ${festivalDays} en 46 días`);
   check('fiestas: la gente asiste de verdad', festivalAttendance > 0, `→ ${festivalAttendance} ticks`);
-  check('fiestas: NUNCA fuera de fecha (nada de guion suelto)', attendanceOnNonFestivalDay === 0, `→ ${attendanceOnNonFestivalDay}`);
+  check('fiestas: NUNCA se INICIAN fuera de fecha (nada de guion suelto)', startsOnNonFestivalDay === 0, `→ ${startsOnNonFestivalDay}`);
 }
 
 // Ciclo 11 RESEARCH.md — acoplamiento salud→mortalidad: la salud deja de ser
@@ -559,6 +566,44 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
     check('duelo: la muerte/emigración deja dolientes (el vínculo se siente)', anyGrieved);
     check('duelo: los dolientes disfrutan menos que el resto de la ciudad', gN > 0 && gSum / gN < nSum / nN, `→ dolientes ${gN ? (gSum / gN).toFixed(2) : 'n/a'} vs resto ${(nSum / nN).toFixed(2)}`);
   }
+}
+
+// Ciclo 17 RESEARCH.md — CONSUELO (grief→social): cierra el bucle del duelo. El
+// duelo ya empuja a buscar gente (drena `social` → más urgencia de compañía);
+// aquí la COMPAÑÍA consuela — el duelo se pasa más deprisa acompañado que a
+// solas. Es la carencia (a) del ciclo 16.
+{
+  const mkPerson = (grief: number): Citizen => ({
+    id: 1, name: 'C', age: 40,
+    personality: { sociable: 0.5, trabajador: 0.5, hogareño: 0.5 },
+    needs: { energy: 1, food: 1, social: 0.8, fun: 0.8, purpose: 1 },
+    home: { ax: 0, az: 0, buildingId: 'house' }, work: null,
+    x: 0, z: 0, heading: 0, phase: { kind: 'deciding' }, activity: 'none',
+    partnerId: null, education: 0, health: 1, grief, friends: new Map(), lastChatTick: -1, inside: false,
+  });
+
+  // (a) Puro: en la misma hora, quien está acompañado alivia MÁS que quien pasa
+  //     el duelo a solas.
+  const alone = mkPerson(0.8);
+  const comforted = mkPerson(0.8);
+  griefTick(alone, 1);
+  griefTick(comforted, 1);
+  consoleGrief(comforted, 1); // además, está en compañía
+  check('consuelo: la compañía alivia el duelo más que el tiempo a solas', comforted.grief < alone.grief, `→ ${comforted.grief.toFixed(3)} vs ${alone.grief.toFixed(3)}`);
+
+  // (b) A lo largo del duelo: acompañado un par de horas al día se supera antes.
+  const daysToHeal = (consoleHours: number): number => {
+    const c = mkPerson(0.85);
+    for (let day = 1; day <= 30; day++) {
+      for (let h = 0; h < 24; h++) { griefTick(c, 1); if (h < consoleHours) consoleGrief(c, 1); }
+      if (c.grief <= 0) return day;
+    }
+    return 99;
+  };
+  const solo = daysToHeal(0);
+  const acompañado = daysToHeal(2);
+  check('consuelo: acompañado se supera el duelo antes que a solas', acompañado < solo, `→ acompañado ${acompañado} d vs solo ${solo} d`);
+  check('consuelo: pero el duelo no se ignora (aun acompañado dura días)', acompañado >= 5, `→ ${acompañado} d`);
 }
 
 // Determinismo: mismo snapshot final con la misma semilla.

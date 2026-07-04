@@ -21,8 +21,12 @@ export const GRIEF_PARTNER = 0.85;
 export const GRIEF_FRIEND = 0.35;
 /** Afinidad a partir de la cual la pérdida de un amigo se siente como duelo. */
 export const GRIEF_FRIEND_AFFINITY = 0.55;
-/** Recuperación por hora: se pasa el duelo en ~10 días de juego. */
+/** Recuperación por hora EN SOLEDAD: se pasa el duelo en ~10 días de juego. */
 const GRIEF_RECOVERY_PER_HOUR = 1 / 240;
+/** Consuelo por hora EN COMPAÑÍA (charlando/visitando): el duelo se lleva mucho
+ * mejor acompañado — ~4× más rápido que a solas (ciclo 17). Es el otro lado del
+ * bucle: el duelo empuja a buscar gente (drena `social`) y la gente consuela. */
+export const GRIEF_CONSOLE_PER_HOUR = 1 / 60;
 /** A pleno duelo, la diversión se escurre a este ritmo por hora (además del
  * decaimiento normal): por eso a un doliente no le levanta el ánimo nada. */
 const GRIEF_FUN_DRAIN_PER_HOUR = 1 / 14;
@@ -42,4 +46,12 @@ export function griefTick(c: Citizen, hours: number): void {
   c.needs.fun = Math.max(0, c.needs.fun - GRIEF_FUN_DRAIN_PER_HOUR * c.grief * hours);
   c.needs.social = Math.max(0, c.needs.social - GRIEF_SOCIAL_DRAIN_PER_HOUR * c.grief * hours);
   c.grief = Math.max(0, c.grief - GRIEF_RECOVERY_PER_HOUR * hours);
+}
+
+/** Consuelo (ciclo 17): estar en compañía (charla/visita/club/fiesta) alivia el
+ * duelo más deprisa que el paso del tiempo a solas. Se llama ADEMÁS del
+ * `griefTick` cuando el ciudadano está acompañado. */
+export function consoleGrief(c: Citizen, hours: number): void {
+  if (c.grief <= 0) return;
+  c.grief = Math.max(0, c.grief - GRIEF_CONSOLE_PER_HOUR * hours);
 }

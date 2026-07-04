@@ -541,3 +541,31 @@ una simulación, y los tratamos como tales:
   ("año 22: muere Vera, Tomás queda solo") — memoria afectiva, no solo
   contadores; (d) el duelo es puro ánimo: si algún día se quisiera el "morir de
   pena" (duelo→salud) habría que medir con MUCHO cuidado su efecto demográfico.
+- 2026-07-04 · **Ciclo 17: CONSUELO (grief→social) — cierra el bucle del duelo** ·
+  Cierra la carencia (a) del ciclo 16 ("el duelo hoy solo APAGA; también une").
+  Modelo (real en una frase): el duelo se lleva mucho mejor acompañado — la
+  compañía consuela y acorta la pena. Traducción al motor: la mitad "buscar
+  gente" YA existía por composición limpia sobre el ciclo 16 (el duelo drena
+  `social` → sube la urgencia → el doliente puntúa más alto visitar/charlar/club,
+  sin ninguna regla nueva); faltaba la mitad "la gente consuela": `consoleGrief`
+  alivia el duelo ~4× más rápido que el paso del tiempo a solas, y se llama
+  cuando el ciudadano está EN COMPAÑÍA de verdad (charlando, o en una actividad
+  de mucha restauración social: visita/club/fiesta). Bucle cerrado: pena →
+  buscar compañía → consuelo → recuperación. Emergió (verificado): acompañado un
+  par de horas al día se supera el duelo en ~7 días frente a ~9 a solas, y sigue
+  durando días (no se ignora). Sin RNG, sin tocar población. Durante la
+  verificación destapé (y ARREGLÉ) una fragilidad LATENTE del test del ciclo 10:
+  medía "fiestas fuera de fecha" contando ticks de 'doing', que se disparaba con
+  el solapamiento benigno de una fiesta del día 15 que se alarga pasada la
+  medianoche (159 ticks, pero 0 INICIOS fuera de fecha — la puerta de decisión
+  intacta). Reescrito para medir el invariante REAL (nadie EMPIEZA una fiesta
+  off-date), ahora robusto ante el solapamiento para todos los ciclos futuros.
+  149/149 tests.
+  Carencias observadas: (a) el consuelo hoy no distingue de QUIÉN viene — que
+  consolara MÁS un amigo íntimo (o alguien que también pena) que un desconocido
+  cerraría un matiz precioso (duelo compartido); (b) siguen las carencias (b)(c)
+  del ciclo 16 (duelo por hijos/padres; memoria afectiva en la Crónica); (c) con
+  el duelo y su consuelo, la esfera social (N3) está muy rica — el siguiente
+  valor emocional podría subir a N4/N5 (una PÉRDIDA que cambia la vocación, o un
+  legado) o, por fin, bajar a domar la sensibilidad del crecimiento para
+  reabrir las lógicas de población.
