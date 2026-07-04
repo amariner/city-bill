@@ -26,6 +26,9 @@ export interface AgentView {
   /** Modo de trayecto (ciclo 8 — vehículos): 0 a pie, 1 en coche. Categórico:
    * NO se interpola, se toma el valor actual (un cambio de modo no "mezcla"). */
   mode: number;
+  /** Duelo [0,1] (ciclo 11). No se interpola (cambia despacio, en horas —
+   * no hace falta suavizarlo entre snapshots de 250 ms). */
+  grief: number;
 }
 
 export class SimClient {
@@ -115,7 +118,7 @@ export class SimClient {
         if (dh < -Math.PI) dh += Math.PI * 2;
         heading = p[po + 3] + dh * alpha;
       }
-      if (!out[n]) out[n] = { id: 0, x: 0, z: 0, heading: 0, state: 0, activity: 0, mode: 0 };
+      if (!out[n]) out[n] = { id: 0, x: 0, z: 0, heading: 0, state: 0, activity: 0, mode: 0, grief: 0 };
       const v = out[n++];
       v.id = id;
       v.x = x;
@@ -124,6 +127,7 @@ export class SimClient {
       v.state = c.agents[o + 4] as AgentState;
       v.activity = c.agents[o + 5];
       v.mode = c.agents[o + 6];
+      v.grief = c.agents[o + 7];
     }
     return n;
   }

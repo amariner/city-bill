@@ -18,6 +18,7 @@ import { weatherSpeedFactor, familySize, griefDecay, FRIEND_GRIEF } from './simu
 import { computeDemand, extendRoad, paintRoadExtension } from '../world/growth';
 import { createRng } from '../rng';
 import { Grid } from '../world/grid';
+import { AGENT_STRIDE } from './protocol';
 
 let passed = 0;
 let failed = 0;
@@ -367,17 +368,20 @@ check(
 
 // Ciclo 8 RESEARCH.md — vehículos: trayectos largos se hacen en coche (más
 // rápido, cuesta dinero), trayectos cortos siguen a pie. El snapshot lleva
-// el modo en su propia columna (contrato §1.3: AGENT_STRIDE ahora 7).
+// el modo en su propia columna (contrato §1.3: AGENT_STRIDE, ver protocol.ts).
 {
   const sim = new Simulation(seedWorld(), 42);
   for (let t = 0; t < TICKS_PER_DAY * 10; t++) sim.step();
   check('vehículos: se hacen trayectos en coche', sim.carTrips > 0, `→ ${sim.carTrips}`);
   const snap = sim.snapshot();
-  check('vehículos: el snapshot tiene 7 floats por agente', snap.length === sim.citizens.size * 7);
+  check(`vehículos: el snapshot tiene ${AGENT_STRIDE} floats por agente`, snap.length === sim.citizens.size * AGENT_STRIDE);
   // La columna mode (offset 6) solo puede ser 0 (a pie) o 1 (coche).
   let validModes = true;
-  for (let i = 6; i < snap.length; i += 7) if (snap[i] !== 0 && snap[i] !== 1) validModes = false;
+  let validGrief = true;
+  for (let i = 6; i < snap.length; i += AGENT_STRIDE) if (snap[i] !== 0 && snap[i] !== 1) validModes = false;
+  for (let i = 7; i < snap.length; i += AGENT_STRIDE) if (snap[i] < 0 || snap[i] > 1) validGrief = false;
   check('vehículos: la columna mode del snapshot es siempre 0 o 1', validModes);
+  check('duelo: la columna grief del snapshot nunca sale de [0,1]', validGrief);
 }
 
 // Ciclo 9 RESEARCH.md — estatus y propiedad: el ahorro de sobra se invierte

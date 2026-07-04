@@ -697,6 +697,7 @@ export class Simulation {
       arr[i++] = state;
       arr[i++] = activityId(c.activity);
       arr[i++] = c.phase.kind === 'moving' && c.phase.mode === 'car' ? TravelModeCode.Car : TravelModeCode.Foot;
+      arr[i++] = c.grief;
     }
     return arr;
   }

@@ -449,3 +449,25 @@ una simulación, y los tratamos como tales:
   work/visit (ciclo 11 original): un factor continuo sobre `c.grief`, cero
   horario ni excepción especial. 139/139 tests.
   Queda (a): sin reflejo visual del duelo en el mundo todavía.
+- 2026-07-04 · **Reflejo visual del duelo** (cierra la carencia (a), cierra
+  el ciclo 11 del todo): `grief` pasa a ser la 8ª columna del snapshot
+  (`AGENT_STRIDE` 7→8, contrato §1.3 — protocol.ts/simulation.ts/client.ts
+  actualizados en el mismo commit, como manda la regla). `render/
+  citizens.ts` apaga la ropa hasta la mitad de saturación a duelo pleno.
+  De paso, arreglo de un defecto pequeño pero real que llevaba desde T3.6:
+  el color de la ropa se asignaba UNA VEZ en el constructor indexado por
+  SLOT de instancia, no por ciudadano — con la compactación de instancias
+  (gente entrando/saliendo de casa) el color de una MISMA persona podía
+  cambiar de un frame a otro. Ahora se pinta cada frame indexado por `id`
+  (estable) y además permite el apagado por duelo. 140/140 tests
+  (`AGENT_STRIDE` ya no está hardcodeado a 7 en los tests, se importa).
+  Verificado: `tsc` limpio, sin errores de consola tras recargar con el
+  contrato nuevo, escena general intacta (edificios/HUD/draw calls en
+  presupuesto). NO se esperó en vivo a que un ciudadano concreto entrara en
+  duelo (necesita una muerte con pareja o amigo cercano, evento poco
+  frecuente) — la ruta de color ya estaba verificada por el resto de la
+  sesión (mismo `setColorAt`+`multiplyScalar` que ya usan coche/jardín) y
+  los tests cubren los límites [0,1] de la columna; queda como
+  confirmación en vivo pendiente para quien tenga una sesión más larga.
+  **Con esto, el ciclo 11 (duelo) está completo: lógica, tres
+  acoplamientos (needs/brain, inmigración, fiestas) y reflejo visual.**

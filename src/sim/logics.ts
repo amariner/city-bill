@@ -38,7 +38,7 @@ export const LOGICS: LogicEntry[] = [
   { id: 'vehicles', name: 'vehículos (coche para trayectos largos)', level: 0, files: ['sim/simulation.ts', 'sim/protocol.ts'], couples: ['space', 'money'] },
   { id: 'status', name: 'estatus y propiedad (mejoras del hogar)', level: 4, files: ['economy.ts', 'sim/simulation.ts'], couples: ['money', 'needs'] },
   { id: 'festival', name: 'fiestas de barrio (calendario emergente)', level: 5, files: ['citizens/activities.ts'], couples: ['social', 'weather'] },
-  { id: 'grief', name: 'duelo (pérdida de pareja o amigo cercano)', level: 3, files: ['sim/simulation.ts', 'citizens/citizen.ts', 'citizens/activities.ts'], couples: ['life', 'social', 'needs'] },
+  { id: 'grief', name: 'duelo (pérdida de pareja o amigo cercano)', level: 3, files: ['sim/simulation.ts', 'citizens/citizen.ts', 'citizens/activities.ts', 'sim/protocol.ts', 'world/render/citizens.ts'], couples: ['life', 'social', 'needs'] },
 ];
 
 /** Para la Crónica: nombres ordenados por nivel (básico → superior). */

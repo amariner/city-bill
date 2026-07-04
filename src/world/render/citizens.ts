@@ -100,6 +100,7 @@ export class CitizenView {
   private p = new THREE.Vector3();
   private s = new THREE.Vector3();
   private up = new THREE.Vector3(0, 1, 0);
+  private clothColor = new THREE.Color();
   /** Escala de aparición por id (fade al entrar/salir de edificios). */
   private appear = new Map<number, number>();
   private time = 0;
@@ -120,11 +121,12 @@ export class CitizenView {
       mesh.frustumCulled = false; // se mueven cada frame; culled a mano no compensa aún
       this.root.add(mesh);
     }
-    const color = new THREE.Color();
-    for (let i = 0; i < MAX_AGENTS; i++) {
-      color.setHex(PALETTE.citizenClothes[i % PALETTE.citizenClothes.length]);
-      this.bodies.setColorAt(i, color);
-    }
+    // El color de la ropa se pinta cada frame en update() (depende del id
+    // ESTABLE del ciudadano, no del slot de instancia — y del duelo, que
+    // apaga el tono). instanceColor se crea ya aquí para que exista el
+    // atributo desde el primer frame.
+    const color = new THREE.Color(0xffffff);
+    for (let i = 0; i < MAX_AGENTS; i++) this.bodies.setColorAt(i, color);
     this.bodies.instanceColor!.needsUpdate = true;
 
     const carBodyMat = new THREE.MeshLambertMaterial({ flatShading: true, vertexColors: true });
@@ -175,6 +177,12 @@ export class CitizenView {
         this.m.compose(this.p, this.q, this.s);
         this.bodies.setMatrixAt(nWalk, this.m);
         this.heads.setMatrixAt(nWalk, this.m);
+        // Duelo (ciclo 11): la ropa se apaga hasta la mitad de saturación a
+        // duelo pleno — nada de escaparate cuando se está de luto. Color por
+        // ID (estable por ciudadano), no por slot de instancia.
+        this.clothColor.setHex(PALETTE.citizenClothes[a.id % PALETTE.citizenClothes.length]);
+        if (a.grief > 0) this.clothColor.multiplyScalar(1 - 0.5 * a.grief);
+        this.bodies.setColorAt(nWalk, this.clothColor);
         nWalk++;
       }
     }
@@ -186,5 +194,6 @@ export class CitizenView {
     this.heads.instanceMatrix.needsUpdate = true;
     this.carBody.instanceMatrix.needsUpdate = true;
     this.carGlass.instanceMatrix.needsUpdate = true;
+    this.bodies.instanceColor!.needsUpdate = true;
   }
 }
