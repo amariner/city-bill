@@ -607,3 +607,18 @@ una simulación, y los tratamos como tales:
   consuelan estrechan afinidad más rápido — el luto une); (b) siguen las
   disyuntivas del ciclo 18 (memoria de vida / año resumido) y del 17 (N4/N5 vs
   domar crecimiento).
+- 2026-07-04 · **Ciclo 20: el luto une (duelo→vínculo)** · Cierra la carencia (a)
+  del ciclo 19 y REMATA el clúster del duelo (16-20). Modelo: la pérdida
+  compartida forja amistad — dos que se consuelan salen más unidos. Traducción:
+  `chatBond(a,b)` (pura) devuelve la afinidad de una charla: la normal
+  (AFFINITY_PER_CHAT=0.08), o el doble (GRIEF_BOND_AFFINITY=0.16) si AMBOS penan.
+  Verificado. 161/161 tests. **Balance del clúster del duelo (16→20):** una
+  pérdida ahora deja duelo (16), que empuja a buscar compañía y se consuela
+  (17), más de un íntimo o codoliente (19), y ese consuelo compartido TEJE
+  vínculo nuevo (20) — un ciclo emocional humano completo, y la Crónica lo narra
+  (18). El árbol social (N3) es hoy de lo más rico del motor.
+  Carencias observadas: con el duelo agotado como veta, el mayor valor pendiente
+  ya NO está en N3 — está en (a) domar la sensibilidad del crecimiento (reabre
+  re-ocupación/remesas/retorno, y robustece el test estrella T4.4 del ROADMAP),
+  o (b) una veta emocional nueva en OTRA esfera (p.ej. el TRABAJO: orgullo de
+  oficio, jubilación como pérdida de propósito) para no sobre-ajustar el duelo.

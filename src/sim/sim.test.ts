@@ -15,6 +15,7 @@ import { weatherAt } from './weather';
 import { deathChance, lifeYear, OLD_AGE, ADULT_AGE } from './lifecycle';
 import { CLINIC_RECOVERY_PER_HOUR } from './health';
 import { bereave, griefTick, consoleGrief, consoleGriefBy, GRIEF_PARTNER } from './grief';
+import { chatBond } from './citizens/social';
 import { chronicleText } from '../ui/chronicle';
 import { townAttractiveness, householdHardship, updateEmigrationPressure, EMIGRATE_PRESSURE_LIMIT } from '../world/growth';
 import { ACTIVITY_BY_KIND, SimContext } from './citizens/activities';
@@ -675,6 +676,22 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
   const serene = person(1, 0, [[2, 0.9]]);
   consoleGriefBy(serene, person(2, 0.8), 1);
   check('duelo compartido: a quien no pena, no hay nada que consolar', serene.grief === 0);
+}
+
+// Ciclo 20 RESEARCH.md — EL LUTO UNE (duelo→vínculo): cierra la carencia (a) del
+// ciclo 19. Dos que se consuelan mutuamente estrechan lazos más rápido que una
+// charla cualquiera — la pérdida compartida forja amistad.
+{
+  const p = (grief: number): Citizen => ({
+    id: 1, name: 'X', age: 40,
+    personality: { sociable: 0.5, trabajador: 0.5, hogareño: 0.5 },
+    needs: { energy: 1, food: 1, social: 1, fun: 1, purpose: 1 },
+    home: { ax: 0, az: 0, buildingId: 'house' }, work: null,
+    x: 0, z: 0, heading: 0, phase: { kind: 'deciding' }, activity: 'none',
+    partnerId: null, education: 0, health: 1, grief, friends: new Map(), lastChatTick: -1, inside: false,
+  });
+  check('luto une: dos dolientes estrechan más lazo que una charla normal', chatBond(p(0.5), p(0.6)) > chatBond(p(0), p(0)));
+  check('luto une: si solo uno pena, la charla es normal', chatBond(p(0.5), p(0)) === chatBond(p(0), p(0)));
 }
 
 // Determinismo: mismo snapshot final con la misma semilla.

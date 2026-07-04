@@ -24,6 +24,15 @@ export const CHAT_RESTORE_PER_HOUR = 0.9;
 /** Afinidad inicial entre convecinos/compañeros; crece con encuentros. */
 export const AFFINITY_SEED = 0.15;
 export const AFFINITY_PER_CHAT = 0.08;
+/** Afinidad ganada en una charla cuando AMBOS penan (ciclo 20): el luto une —
+ * consolarse mutuamente estrecha lazos más rápido que una charla cualquiera. */
+export const GRIEF_BOND_AFFINITY = 0.16;
+
+/** Afinidad que deja una charla: la normal, o la reforzada si los dos están de
+ * duelo (duelo compartido → vínculo, ciclo 20). Pura y testeable. */
+export function chatBond(a: Citizen, b: Citizen): number {
+  return a.grief > 0 && b.grief > 0 ? GRIEF_BOND_AFFINITY : AFFINITY_PER_CHAT;
+}
 
 export interface ChatPair {
   a: number;
@@ -114,7 +123,7 @@ export class SocialSystem {
       if (chat.remaining <= 0 || !a || !b) {
         ended.push(chat);
         if (a && b) {
-          SocialSystem.acquaint(a, b, AFFINITY_PER_CHAT);
+          SocialSystem.acquaint(a, b, chatBond(a, b)); // el luto une (ciclo 20)
           a.lastChatTick = tick;
           b.lastChatTick = tick;
         }
