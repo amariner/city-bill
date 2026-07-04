@@ -240,6 +240,15 @@ repetido, arbolado automático en márgenes de carretera (rasgo de identidad).
   replicar las celdas nuevas en render + grafo de pathfinding vía un evento
   worker→main (como `cityGrew`), y verificar el pueblo emergente a 30 min. Se dejó
   aparte a propósito: toca crecimiento (caóticamente sensible) + worker + render.
+  *Hallazgo que BAJA el riesgo del enganche:* el pathfinding lee el grid EN VIVO
+  (`walkCost(this.grid.get(nx,nz))`, sin grafo cacheado), así que una vía nueva en
+  el grid de la sim es navegable AL INSTANTE — no hace falta reconstruir grafo. Y
+  como en `extendRoad` la calzada+márgenes son deterministas (sin RNG; solo el
+  arbolado usa RNG), worker y main producen las MISMAS vías aunque el arbolado
+  difiera — la réplica en render puede ser `extendRoad(renderGrid, from,dir,len,rng)`
+  con solo emitir `{from,dir,length}`. Lo verdaderamente delicado que queda es la
+  ESTÉTICA: elegir desde dónde/hacia dónde extender para que el pueblo emergente
+  sea bonito (heurística de periferia + demanda), y el playtest de 30 min.
 - [~] **T4.5 Hitos y tiers.** Población desbloquea tiers del catálogo (T1→T4) con una
   tarjeta de celebración discreta. El tier T4 introduce la estética Zlín (bloques de
   ladrillo, fábrica, tren) — ver CATALOG.md.
