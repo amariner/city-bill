@@ -14,6 +14,8 @@ import { FOOD_PRICE } from './economy';
 import { weatherAt } from './weather';
 import { deathChance, lifeYear, OLD_AGE } from './lifecycle';
 import { townAttractiveness } from '../world/growth';
+import { ACTIVITY_BY_KIND, SimContext } from './citizens/activities';
+import { Weather } from './weather';
 import { Citizen } from './citizens/citizen';
 import { createRng } from '../rng';
 
@@ -381,6 +383,33 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
   const drawProsp = Math.max(1, Math.round(18 * prosperous));
   const drawStrug = Math.max(1, Math.round(18 * struggling));
   check('inmigración: un bloque atrae menos familias en un pueblo en apuros', drawStrug < drawProsp, `→ ${drawStrug} vs ${drawProsp} de 18`);
+}
+
+// Ciclo 13 RESEARCH.md — acoplamiento clima→coche: quien puede permitirse ir en
+// coche viaja resguardado, así que el mal tiempo le disuade MENOS en los recados
+// (comprar/visitar/club); el PASEO, en cambio, se moja igual (su sentido es
+// estar fuera). Salda una deuda anotada en los ciclos 6 y 8.
+{
+  const home = { ax: 0, az: 0, buildingId: 'house' };
+  const c = { home } as unknown as Citizen;
+  const mkCtx = (outdoorFactor: number, wallet: number): SimContext =>
+    ({
+      darkness: 0,
+      hour: 15,
+      weather: { outdoorFactor } as unknown as Weather,
+      wallets: new Map<string, number>([['0,0', wallet]]),
+    }) as unknown as SimContext;
+  const shop = ACTIVITY_BY_KIND.get('shop')!;
+  const stroll = ACTIVITY_BY_KIND.get('stroll')!;
+  const badRich = shop.suitability(mkCtx(0.2, 100), c);
+  const badPoor = shop.suitability(mkCtx(0.2, 0), c);
+  const clearRich = shop.suitability(mkCtx(1, 100), c);
+  const clearPoor = shop.suitability(mkCtx(1, 0), c);
+  check('clima→coche: con mal tiempo, el hogar con coche hace más recados que el que no', badRich > badPoor, `→ ${badRich.toFixed(3)} vs ${badPoor.toFixed(3)}`);
+  check('clima→coche: con buen tiempo el coche no cambia nada (no hay castigo que esquivar)', Math.abs(clearRich - clearPoor) < 1e-9);
+  const strollRich = stroll.suitability(mkCtx(0.2, 100), c);
+  const strollPoor = stroll.suitability(mkCtx(0.2, 0), c);
+  check('clima→coche: el PASEO NO se resguarda (su sentido es estar fuera)', strollRich === strollPoor, `→ ${strollRich.toFixed(3)} vs ${strollPoor.toFixed(3)}`);
 }
 
 // Determinismo: mismo snapshot final con la misma semilla.

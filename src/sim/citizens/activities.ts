@@ -37,6 +37,23 @@ export interface SimContext {
 /** Coste de la consulta (lógica de salud, ciclo 5) — acopla con dinero. */
 export const CLINIC_FEE = 6;
 
+// --- Acoplamiento clima→coche (ciclo 13 de RESEARCH.md) ----------------------
+// Un hogar que puede permitirse ir en coche (combustible) viaja RESGUARDADO, así
+// que el mal tiempo le disuade MENOS en los trayectos UTILITARIOS (comprar,
+// visitar, salir al tercer lugar). NO toca el PASEO: su sentido es estar fuera,
+// y ahí la lluvia pega igual vayas como vayas. Recupera una fracción del castigo
+// del tiempo, no todo (aparcar y el último tramo siguen siendo a la intemperie).
+/** Ahorro del hogar a partir del cual puede motorizar sus recados (~2 trayectos). */
+const WEATHER_CAR_WALLET = 8;
+/** Fracción del castigo del tiempo que esquiva quien va en coche. */
+const CAR_WEATHER_SHELTER = 0.6;
+export function shelteredWeather(ctx: SimContext, c: Citizen): number {
+  const f = ctx.weather.outdoorFactor;
+  const wallet = ctx.wallets.get(`${c.home.ax},${c.home.az}`) ?? 0;
+  if (wallet < WEATHER_CAR_WALLET) return f;
+  return f + (1 - f) * CAR_WEATHER_SHELTER;
+}
+
 export interface ActivityDef {
   kind: ActivityKind;
   /** Necesidad principal que atiende (urgencia = urgency(needs[need])). */
@@ -200,10 +217,10 @@ export const ACTIVITIES: ActivityDef[] = [
     durationH: [0.7, 1.4],
     // Comprar: con luz, mejor hacia la tarde, algo menos con mal tiempo
     // (trayecto corto: se nota menos que en un paseo — ciclo 6).
-    suitability: (ctx) =>
+    suitability: (ctx, c) =>
       Math.max(0, 1 - ctx.darkness * 1.8) *
       (0.7 + 0.3 * Math.sin(((ctx.hour - 10) / 24) * Math.PI * 2)) *
-      (0.6 + 0.4 * ctx.weather.outdoorFactor),
+      (0.6 + 0.4 * shelteredWeather(ctx, c)),
     findTarget: (ctx, c) => {
       const b = nearestOfRole(ctx, c, 'commerce');
       return b ? entranceTarget(b) : null;
@@ -236,7 +253,7 @@ export const ACTIVITIES: ActivityDef[] = [
     need: 'social',
     restorePerHour: { social: 0.7, fun: 0.2 },
     durationH: [1, 2],
-    suitability: (ctx) => Math.max(0.1, 1 - ctx.darkness * 1.2) * (0.65 + 0.35 * ctx.weather.outdoorFactor),
+    suitability: (ctx, c) => Math.max(0.1, 1 - ctx.darkness * 1.2) * (0.65 + 0.35 * shelteredWeather(ctx, c)),
     findTarget: (ctx, c) => {
       // Visitar al amigo con más afinidad que esté EN CASA (localizable).
       let best: Citizen | null = null;
@@ -265,7 +282,7 @@ export const ACTIVITIES: ActivityDef[] = [
     // ahí confluyen VARIOS del círculo cercano, no solo uno.
     restorePerHour: { social: 1.0, fun: 0.5 },
     durationH: [1, 2],
-    suitability: (ctx) => Math.max(0.1, 1 - ctx.darkness * 1.2) * (0.7 + 0.3 * ctx.weather.outdoorFactor),
+    suitability: (ctx, c) => Math.max(0.1, 1 - ctx.darkness * 1.2) * (0.7 + 0.3 * shelteredWeather(ctx, c)),
     findTarget: (ctx, c) => {
       // Un "club" no es una entidad que se guarda: emerge cada vez que 2+
       // amigos de CONFIANZA (afinidad alta, no cualquier conocido) están

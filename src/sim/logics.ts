@@ -33,9 +33,9 @@ export const LOGICS: LogicEntry[] = [
   { id: 'government', name: 'gobierno (impuestos y pensiones)', level: 2, files: ['economy.ts', 'simulation.ts'], couples: ['money', 'life'] },
   { id: 'circular-economy', name: 'economía circular (mayorista + caja de tienda)', level: 2, files: ['economy.ts'], couples: ['money', 'food', 'government'] },
   { id: 'health', name: 'salud (consultorio, bajas laborales)', level: 2, files: ['sim/health.ts', 'citizens/activities.ts'], couples: ['life', 'money', 'jobs'] },
-  { id: 'weather', name: 'clima y estaciones', level: 0, files: ['sim/weather.ts', 'citizens/activities.ts'], couples: ['needs', 'social'] },
+  { id: 'weather', name: 'clima y estaciones', level: 0, files: ['sim/weather.ts', 'citizens/activities.ts'], couples: ['needs', 'social', 'vehicles'] },
   { id: 'third-place', name: 'vecindario y pandillas (tercer lugar)', level: 3, files: ['citizens/activities.ts'], couples: ['social'] },
-  { id: 'vehicles', name: 'vehículos (coche para trayectos largos)', level: 0, files: ['sim/simulation.ts', 'sim/protocol.ts'], couples: ['space', 'money'] },
+  { id: 'vehicles', name: 'vehículos (coche para trayectos largos)', level: 0, files: ['sim/simulation.ts', 'sim/protocol.ts'], couples: ['space', 'money', 'weather'] },
   { id: 'status', name: 'estatus y propiedad (mejoras del hogar)', level: 4, files: ['economy.ts', 'sim/simulation.ts'], couples: ['money', 'needs', 'growth'] },
   { id: 'festival', name: 'fiestas de barrio (calendario emergente)', level: 5, files: ['citizens/activities.ts'], couples: ['social', 'weather'] },
 ];

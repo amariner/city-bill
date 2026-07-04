@@ -398,3 +398,30 @@ una simulación, y los tratamos como tales:
   infelicidad sostenida; (c) la atractividad es global a la ciudad, no por
   BARRIO — con distritos, una calle de prestigio podría atraer mientras otra se
   vacía (segregación emergente, delicado pero muy humano).
+- 2026-07-04 · **Ciclo 13: clima→coche (PROFUNDIDAD)** · Salda una deuda
+  anotada DOS veces (ciclos 6 y 8: "el clima debería penalizar menos a quien va
+  en coche"). Modelo (vida real en una frase): el mal tiempo disuade de salir
+  porque te MOJAS/PASAS FRÍO andando; si haces el recado en coche vas
+  resguardado, así que el tiempo pesa mucho menos — pero un PASEO se moja igual,
+  porque su sentido ES estar fuera. Traducción al motor: `shelteredWeather(ctx,
+  c)` eleva el `outdoorFactor` percibido hacia 1 (recupera el 60% del castigo)
+  SOLO si el hogar puede motorizar sus recados (ahorro ≥ ~2 trayectos de
+  combustible), y SOLO se aplica a las actividades de TRAYECTO utilitario
+  (comprar, visitar, club); el paseo sigue con el factor crudo. Sin ningún `if
+  invierno`: mismo factor continuo de siempre, solo suavizado por acceso al
+  coche. Emergió (verificado): con mal tiempo, un hogar con coche puntúa más
+  alto ir de compras que uno sin coche; con buen tiempo son idénticos (no hay
+  castigo que esquivar); el paseo no cambia con el coche. Cierra el triángulo
+  clima↔dinero↔vehículos (el coche, que ya costaba dinero, ahora también
+  COMPRA comodidad frente al tiempo). Registrado en el manifiesto
+  (`weather.couples` += `vehicles`, y viceversa). 126/126 tests.
+  Carencias observadas: (a) el resguardo es binario (tienes coche o no); en la
+  realidad depende de CUÁNTO del trayecto es a pie (aparcar lejos, el último
+  tramo) — se podría afinar con la longitud real del path como en ciclo 8, pero
+  hoy brain.ts puntúa ANTES de conocer la ruta; (b) el clima aún no tiene
+  reflejo VISUAL (nieve/lluvia/paleta estacional, T5.1 — sigue siendo la deuda
+  visual más antigua, para Sonnet); (c) con los tres acoplamientos "fáciles"
+  cerrados (salud→mortalidad, prestigio→inmigración, clima→coche), el siguiente
+  salto de PROFUNDIDAD más valioso es la EMIGRACIÓN digna por infelicidad
+  sostenida (§6.2: quien sobra se VA andando, no se despawnea) — cierra T4.3 por
+  completo y es el candidato fuerte a ciclo 14.
