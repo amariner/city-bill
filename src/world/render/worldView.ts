@@ -9,6 +9,7 @@ import { Grid, Chunk, CELL_SIZE, CHUNK, rotatedFootprint } from '../grid';
 import { catalogItem } from '../catalog';
 import { buildTerrainMeshForChunk } from './terrain';
 import { buildVegetationForChunk } from './instances';
+import { mergeBuildingsForChunk } from './buildings';
 import { homeGarden, festivalDecor } from '../../props';
 import { Season } from '../../palette';
 
@@ -117,7 +118,12 @@ export class WorldView {
     const veg = buildVegetationForChunk(chunk, this.season);
     if (veg) group.add(veg);
 
-    // Edificios anclados en este chunk.
+    // Edificios anclados en este chunk: se posicionan/rotan/decoran igual que
+    // antes, pero en vez de añadirse al group como Object3D individuales se
+    // acumulan y se funden en como mucho 2 THREE.Mesh (sombra/sin sombra) —
+    // ver buildings.ts. Así el draw-count de edificios pasa de O(edificios x
+    // piezas por edificio) a O(1) por chunk, igual que ya hace terrain.ts.
+    const buildingRoots: THREE.Object3D[] = [];
     chunk.cells.forEach((cell, key) => {
       const [cx, cz] = cellFromKey(key);
       if (cell.building && cell.building.anchorX === cx && cell.building.anchorZ === cz) {
@@ -138,9 +144,15 @@ export class WorldView {
         }
         mesh.position.set((cx + fw / 2) * CELL_SIZE, 0, (cz + fd / 2) * CELL_SIZE);
         mesh.rotation.y = (-rot * Math.PI) / 2;
-        group.add(mesh);
+        buildingRoots.push(mesh);
       }
     });
+
+    if (buildingRoots.length > 0) {
+      const { shadowMesh, unshadowedMesh } = mergeBuildingsForChunk(buildingRoots);
+      if (shadowMesh) group.add(shadowMesh);
+      if (unshadowedMesh) group.add(unshadowedMesh);
+    }
 
     if (group.children.length === 0) return null;
 

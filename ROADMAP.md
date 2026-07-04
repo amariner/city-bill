@@ -289,6 +289,46 @@ aprieta, T3.8-T3.10 y la Fase 4 valen más que cualquier cosa de la Fase 5.
 ## 6. Diario del agente (rellenar al trabajar)
 > Anota aquí: fecha, tarea, decisiones no obvias, deuda técnica, conflictos con §1.
 
+- 2026-07-04 (misma sesión Sonnet, continuación) — **Presupuesto de draw
+  calls roto en producción, no solo en teoría**: el HUD F3 mostraba 220-249
+  draw calls ya en el día 1-4 de partida con solo 10-20 edificios, muy por
+  encima del límite de §1.5 (≤200) — y los fps reales medidos en el preview
+  eran de 10-17, no 60. Causa: los edificios de `props.ts` NO están
+  instanciados (cada uno es un `Group` de 5-15 `Mesh` sueltos — paredes,
+  tejado, porche, columnas...); `worldView.ts` los añadía tal cual al chunk,
+  así que el coste escalaba con nº edificios × piezas por edificio, no con
+  nº de chunks como el terreno.
+  · Arreglo orquestado con un workflow multi-agente (panel de 3 diseños
+    independientes → jueces → implementación → revisión adversarial):
+    ganó "fundir todo el edificio (ya posicionado/rotado/decorado) en como
+    mucho 2 `THREE.Mesh` con vertex-colors, agrupados por `castShadow`" —
+    mismo patrón que `terrain.ts` (buf/emit/finish) y el horneado de
+    `citizens.ts` (`paintedPart`/`mergeParts`), generalizado a un recorrido
+    recursivo (`buildings.ts`, nuevo). Las `InstancedMesh` de ventanas
+    (`windowGrid`) se expanden instancia a instancia y se hornean también —
+    cero draw calls extra por ventanas.
+  · La fase de verificación automática del workflow murió por un corte de
+    conexión a la API (no un hallazgo real) — la repetí a mano: `tsc`
+    limpio, 126/126 tests, y en el preview real los draw calls bajaron de
+    ~220-249 a **73-102** (por debajo del presupuesto) y los **fps subieron
+    de 10-17 a 60** — la caída de fps que había notado antes en esta misma
+    sesión SÍ era este problema, no un artefacto del entorno como sospeché
+    en su momento. Revisé también a ojo (zoom en granja/granero) que
+    sombras, colores y siluetas no cambiaron nada.
+  · Detalle no obvio de la implementación: las geometrías originales de cada
+    pieza se disponen (`geometry.dispose()`) tras hornearlas — sin esto,
+    cada `refreshChunkAt`/`rebuildAllChunks` (que ya se dispara por
+    `setCultivation`/`setFestivalActive`/`setSeason`/`setHomePrestige`)
+    filtraría memoria GPU porque los edificios se construyen y se tiran en
+    cada reconstrucción, a diferencia del terreno (procedural, nunca se
+    dispone). `showcase.ts` (`?scene=buildings`) no se toca: llama a
+    `catalogItem.build()` directamente y nunca pasa por el camino de fusión
+    de `worldView.ts`.
+  · Deuda que queda: el presupuesto de 200 draw calls vuelve a acercarse
+    según crecen vegetación/citizens/coches en chunks muy poblados — sigue
+    siendo el candidato número uno para T6.1 (perfilado con 5.000
+    ciudadanos) en cuanto la población autónoma llegue a esa escala.
+
 - 2026-07-04 (misma sesión Sonnet, continuación) — T5.1 (paleta estacional).
   `sim/weather.ts` calculaba estación desde el ciclo 6 sin reflejo visual
   (anotado como carencia en varias entradas de la bitácora de RESEARCH.md).
