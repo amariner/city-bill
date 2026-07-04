@@ -899,6 +899,18 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
   check('cuarentena: aplana la curva (pico mucho menor que sin ella)', peakOn < peakOff * 0.6, `→ con ${peakOn} vs sin ${peakOff}`);
 }
 
+// Ciclo 27 RESEARCH.md — SALUD PÚBLICA (gobierno↔contagio): en una epidemia
+// declarada, el gobierno SUSPENDE las fiestas (medida colectiva, como cerrar
+// eventos en una pandemia) para no alimentar el contagio en las aglomeraciones.
+{
+  const festival = ACTIVITY_BY_KIND.get('festival')!;
+  const festCtx = (epidemic: boolean): SimContext =>
+    ({ day: 15, darkness: 0.3, epidemic, quarantine: true, weather: { rain: false } as unknown as Weather, wallets: new Map() }) as unknown as SimContext;
+  const c = { home: { ax: 0, az: 0, buildingId: 'house' }, sick: 0 } as unknown as Citizen;
+  check('salud pública: en día de fiesta normal, la fiesta se celebra', festival.suitability(festCtx(false), c) > 0);
+  check('salud pública: en epidemia, el gobierno suspende la fiesta', festival.suitability(festCtx(true), c) === 0);
+}
+
 // Determinismo: mismo snapshot final con la misma semilla.
 const a = runDays(7, 1).sim.snapshot();
 const b = runDays(7, 1).sim.snapshot();

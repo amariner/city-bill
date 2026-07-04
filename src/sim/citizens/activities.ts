@@ -34,6 +34,9 @@ export interface SimContext {
   weather: Weather;
   /** Autoaislamiento activo (ciclo 26): los enfermos se quedan en casa. */
   quarantine: boolean;
+  /** ¿La ciudad está en epidemia declarada? (ciclo 27) — el gobierno suspende
+   * las fiestas mientras dure (medida de salud pública). */
+  epidemic: boolean;
 }
 
 /** Coste de la consulta (lógica de salud, ciclo 5) — acopla con dinero. */
@@ -325,6 +328,7 @@ export const ACTIVITIES: ActivityDef[] = [
     durationH: [1.5, 3],
     suitability: (ctx, c) => {
       if (!isFestivalDay(ctx.day)) return 0; // fuera de la fecha, no existe
+      if (ctx.epidemic) return 0; // el gobierno suspende la fiesta en plena epidemia (ciclo 27)
       if (ctx.weather.rain) return 0.15; // hasta las fiestas se deslucen con lluvia
       return Math.max(0.2, 1 - ctx.darkness * 0.9) * sickStayIn(ctx, c); // un enfermo no va de fiesta
     },

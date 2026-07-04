@@ -256,6 +256,7 @@ export class Simulation {
       wallets: this.economy.wallets,
       weather: this.weather,
       quarantine: this.quarantine,
+      epidemic: this.inEpidemic,
     };
   }
 

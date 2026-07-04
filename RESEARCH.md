@@ -753,3 +753,19 @@ una simulación, y los tratamos como tales:
   aislamiento tan efectivo (17%) quizá sea demasiado — en la realidad la gente no
   cumple perfecto; un factor de "cumplimiento" por personalidad lo haría más gris
   y humano.
+- 2026-07-04 · **Ciclo 27: salud pública (gobierno↔contagio)** · Cierra la
+  carencia (a) del ciclo 26: la respuesta COLECTIVA a la epidemia, no solo la
+  individual. Cuando la ciudad está en epidemia declarada (`inEpidemic`, el mismo
+  estado que ya narra la Crónica), el gobierno SUSPENDE las fiestas — la
+  aglomeración es justo lo que no conviene en plena oleada (como cancelar
+  eventos en una pandemia). Un `if (ctx.epidemic) return 0` en la suitability de
+  la fiesta, con `epidemic` expuesto al contexto desde la sim. Acopla dos lógicas
+  ya vivas (gobierno del ciclo 3 + contagio del 25) sin maquinaria nueva. 202/202
+  tests. Con esto el contagio (25-27) es un sistema epidemiológico completo:
+  oleadas SIRS + respuesta conductual individual (cuarentena) + medida colectiva
+  de gobierno.
+  Carencia observada: la salud pública podría hacer MÁS (cerrar la escuela,
+  campaña de vacunación con coste del tesoro) — pero conviene diversificar de
+  esfera: la ECONOMÍA sigue siendo la más plana (solo el alimento se comercia;
+  no hay alquiler/vivienda de pago, ni variedad de oficios) — probable próxima
+  veta de realismo.
