@@ -642,3 +642,13 @@ una simulación, y los tratamos como tales:
   boda, nietos) sigue pendiente — la memoria hoy es de la CIUDAD, no de las
   personas; (c) sin cambios en la disyuntiva de fondo: domar el crecimiento
   (reabre lógicas de población + robustece T4.4) sigue siendo el mayor salto.
+- 2026-07-04 · **Ciclo 22: festivales estacionales (festival↔clima)** · Veta
+  cultural, fresca tras el clúster del duelo. `seasonalFestivalName(day)` (pura)
+  da identidad a la fiesta según su estación (fiesta de invierno / primavera /
+  verbena de verano / fiesta de la cosecha), acoplando dos lógicas ya vivas
+  (festival del ciclo 10 + estaciones del 6). El evento `festivalDay` lleva el
+  nombre y la Crónica lo narra ("año 8: fiesta de la cosecha" en vez del genérico
+  "fiesta mayor"). Cero coste, pura identidad. 177/177 tests.
+  Carencia observada: la fiesta estacional podría además ACOPLAR con la lógica
+  (la cosecha de otoño rinde más si el granero está lleno; San Juan atrae más en
+  buen tiempo — el clima ya lo module) — hoy es solo nombre, un gancho para más.

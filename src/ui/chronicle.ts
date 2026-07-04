@@ -110,7 +110,7 @@ export function chronicleText(name: string, data?: Record<string, unknown>): str
     case 'tierUnlocked':
       return `¡hito! tier ${data?.tier} desbloqueado (${data?.population} hab.)`;
     case 'festivalDay':
-      return 'fiesta mayor del pueblo';
+      return typeof data?.name === 'string' ? data.name : 'fiesta mayor del pueblo';
     default:
       return null;
   }

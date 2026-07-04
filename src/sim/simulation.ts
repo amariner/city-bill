@@ -32,7 +32,7 @@ import { STARTING_MONEY, SHOP_TREAT_PRICE, PENSION_PER_DAY } from './economy';
 import { catalogData, Tier } from '../world/catalogData';
 import { healthTick, CLINIC_RECOVERY_PER_HOUR, WORK_BLOCK_HEALTH } from './health';
 import { griefTick, consoleGrief, bereave, GRIEF_PARTNER, GRIEF_FRIEND, GRIEF_FRIEND_AFFINITY } from './grief';
-import { weatherAt, Weather } from './weather';
+import { weatherAt, seasonalFestivalName, Weather } from './weather';
 
 /** Velocidad al caminar, en celdas por tick (0.25 s reales a vel. 1). */
 const WALK_CELLS_PER_TICK = 0.9; // ≈ 7 km/h de juego a escala urbana
@@ -312,7 +312,7 @@ export class Simulation {
       this.economy.investInHomes(this.households.keys()); // estatus, ciclo 9
       this.hireAndAcquaint();
       if (isFestivalDay(this.clock.day)) {
-        this.events.push({ name: 'festivalDay', data: { day: this.clock.day } });
+        this.events.push({ name: 'festivalDay', data: { day: this.clock.day, name: seasonalFestivalName(this.clock.day) } });
       }
       const pop = this.citizens.size;
       const unlocked: Tier = pop >= 200 ? 4 : pop >= 80 ? 3 : pop >= 25 ? 2 : 1;

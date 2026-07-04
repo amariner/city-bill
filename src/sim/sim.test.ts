@@ -11,7 +11,7 @@ import { seedWorld } from '../world/seed';
 import { Simulation } from './simulation';
 import { TICK_GAME_S, DAY_GAME_SECONDS } from './clock';
 import { FOOD_PRICE } from './economy';
-import { weatherAt, seasonalWarmth } from './weather';
+import { weatherAt, seasonalWarmth, seasonalFestivalName } from './weather';
 import { deathChance, lifeYear, OLD_AGE, ADULT_AGE } from './lifecycle';
 import { CLINIC_RECOVERY_PER_HOUR } from './health';
 import { bereave, griefTick, consoleGrief, consoleGriefBy, GRIEF_PARTNER } from './grief';
@@ -736,6 +736,16 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
   check('estaciones: primavera/otoño quedan templados (entre medias)', Math.abs(seasonalWarmth(30)) < 0.4 && Math.abs(seasonalWarmth(70)) < 0.4);
   check('estaciones: es periódico por año', Math.abs(seasonalWarmth(10) - seasonalWarmth(90)) < 1e-9);
   check('estaciones: acotada en [-1,1]', seasonalWarmth(37) >= -1 && seasonalWarmth(63) <= 1);
+}
+
+// Ciclo 22 RESEARCH.md — FESTIVALES ESTACIONALES (festival↔clima): la fiesta gana
+// identidad cultural según la estación (cosecha en otoño, verbena en verano…).
+{
+  // SEASONS=[invierno(0-19), primavera(20-39), verano(40-59), otoño(60-79)].
+  check('fiestas: la de otoño es la de la cosecha', seasonalFestivalName(65) === 'fiesta de la cosecha', `→ ${seasonalFestivalName(65)}`);
+  check('fiestas: la de verano es la verbena', seasonalFestivalName(50) === 'verbena de verano');
+  check('fiestas: cada estación tiene su fiesta (4 nombres)', new Set([0, 25, 45, 65].map(seasonalFestivalName)).size === 4);
+  check('fiestas: el nombre es determinista y periódico', seasonalFestivalName(65) === seasonalFestivalName(65 + 80));
 }
 
 // Determinismo: mismo snapshot final con la misma semilla.

@@ -47,6 +47,17 @@ export function seasonalWarmth(day: number): number {
   return -Math.cos(2 * Math.PI * (p - winterCenter));
 }
 
+/** Nombre de la fiesta según la ESTACIÓN en que cae (ciclo 22): una fiesta de
+ * verano no es la de la cosecha — le da identidad cultural al calendario. Pura. */
+export function seasonalFestivalName(day: number): string {
+  switch (seasonAt(day)) {
+    case 'invierno': return 'fiesta de invierno';
+    case 'primavera': return 'fiesta de primavera';
+    case 'verano': return 'verbena de verano';
+    case 'otoño': return 'fiesta de la cosecha';
+  }
+}
+
 /** Determinista por (seed, día): no consume el RNG general de la sim. */
 export function weatherAt(seed: number, day: number): Weather {
   const season = seasonAt(day);
