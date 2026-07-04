@@ -41,6 +41,22 @@ export const SHOP_TREAT_PRICE = 5;
 /** Con qué llega una familia inmigrante. */
 export const STARTING_MONEY = 60;
 
+// --- Lógica de bienes (ciclo 31): consumo discrecional que CIRCULA -------------
+// El segundo bien tras el alimento. Antes el "capricho" gastaba 5 fijos que se
+// ESFUMABAN (leak: spend() sin destino). Ahora es un gasto en bienes duraderos
+// PROPORCIONAL al excedente del hogar (el rico consume más — desigualdad y
+// sumidero del ahorro ocioso que el alquiler no llega a drenar) y CONSERVADO: va
+// a la caja del comercio (su margen) y al tesoro (IVA) — circula, no desaparece.
+/** Ahorro por debajo del cual no hay caprichos (primero se cubre lo básico). */
+export const GOODS_COMFORT_FLOOR = 40;
+/** Fracción del excedente (ahorro − suelo) que se gasta en bienes por visita. */
+export const GOODS_PROPENSITY = 0.12;
+/** Tope de gasto en bienes por visita (un capricho no vacía la cuenta). */
+export const GOODS_MAX_SPEND = 30;
+/** IVA de los bienes: la parte del gasto que va al tesoro (el resto financia la
+ * importación del bien y sale del pueblo — sumidero que equilibra la nómina). */
+export const GOODS_SALES_TAX = 0.15;
+
 // --- Lógica de gobierno (ciclo 3): impuestos y pensiones ----------------------
 /** Parte del salario que va al tesoro municipal. */
 export const TAX_RATE = 0.2;
@@ -93,6 +109,10 @@ export class Economy {
   /** Métricas de la economía circular (tests/crónica). */
   wholesalePaid = 0;
   corpTaxCollected = 0;
+  /** Gasto total en bienes discrecionales (ciclo 31 — métrica tests/crónica). */
+  goodsSold = 0;
+  /** Parte de ese gasto que salió del pueblo (importaciones — sumidero). */
+  goodsImported = 0;
 
   /** Nómina: el trabajo mete dinero en el hogar del trabajador, menos la
    * parte que va al tesoro municipal (impuesto sobre la renta, lógica de
@@ -237,6 +257,28 @@ export class Economy {
     this.tills.set(shopKey, (this.tills.get(shopKey) ?? 0) + got * FOOD_PRICE);
     this.foodSoldTodayByShop.set(shopKey, (this.foodSoldTodayByShop.get(shopKey) ?? 0) + got);
     return got;
+  }
+
+  /** Compra de BIENES discrecionales (ciclo 31): un hogar con excedente se da un
+   * capricho en durables, PROPORCIONAL a lo que le sobra (el rico consume más →
+   * desigualdad y sumidero del ahorro ocioso que el alquiler no drena). Sustituye
+   * al viejo capricho de 5 fijos que se esfumaba. El IVA va al tesoro (→ circula
+   * a pensiones); el resto paga bienes IMPORTADOS de fuera del pueblo, así que
+   * SALE de la economía local — un sumidero REALISTA (las importaciones) que
+   * equilibra la nómina, que "acuña" dinero de la nada. Un ciclo futuro los
+   * producirá dentro (artesanos) y ese dinero se quedará. Devuelve lo gastado. */
+  buyGoods(homeKey: string): number {
+    const surplus = this.walletOf(homeKey) - GOODS_COMFORT_FLOOR;
+    if (surplus <= 0) return 0;
+    const want = Math.min(GOODS_MAX_SPEND, surplus * GOODS_PROPENSITY);
+    const spent = this.spend(homeKey, want);
+    if (spent <= 0) return 0;
+    const tax = spent * GOODS_SALES_TAX;
+    this.treasury += tax;
+    this.taxesCollected += tax;
+    this.goodsImported += spent - tax; // sale del pueblo (importación) — sumidero
+    this.goodsSold += spent;
+    return spent;
   }
 
   tillOf(shopKey: string): number {

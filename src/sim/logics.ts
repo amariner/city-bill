@@ -35,6 +35,7 @@ export const LOGICS: LogicEntry[] = [
   { id: 'government', name: 'gobierno (impuestos, pensiones, salud pública)', level: 2, files: ['economy.ts', 'simulation.ts'], couples: ['money', 'life', 'contagion'] },
   { id: 'circular-economy', name: 'economía circular (mayorista + caja de tienda)', level: 2, files: ['economy.ts'], couples: ['money', 'food', 'government'] },
   { id: 'rent', name: 'alquiler (la vivienda cuesta → drena el ahorro ocioso y circula)', level: 2, files: ['economy.ts', 'sim/simulation.ts'], couples: ['money', 'government', 'status'] },
+  { id: 'goods', name: 'bienes (consumo discrecional: el rico consume más, IVA + importación)', level: 2, files: ['economy.ts', 'sim/simulation.ts'], couples: ['money', 'government'] },
   { id: 'health', name: 'salud (consultorio, bajas laborales)', level: 2, files: ['sim/health.ts', 'citizens/activities.ts'], couples: ['life', 'money', 'jobs'] },
   { id: 'contagion', name: 'contagio (epidemias en oleadas + cuarentena)', level: 2, files: ['sim/contagion.ts', 'citizens/social.ts', 'citizens/activities.ts'], couples: ['health', 'social', 'government'] },
   { id: 'weather', name: 'clima y estaciones', level: 0, files: ['sim/weather.ts', 'citizens/activities.ts'], couples: ['needs', 'social', 'vehicles'] },

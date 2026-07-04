@@ -28,7 +28,7 @@ import {
   extendRoad, GrowthPlacement, CARRYING_CAPACITY, fertilityFactor,
 } from '../world/growth';
 import { lifeYear, ADULT_AGE, OLD_AGE } from './lifecycle';
-import { STARTING_MONEY, SHOP_TREAT_PRICE, PENSION_PER_DAY, RENT_PER_DAY, RENT_TIER_FACTOR } from './economy';
+import { STARTING_MONEY, PENSION_PER_DAY, RENT_PER_DAY, RENT_TIER_FACTOR } from './economy';
 import { catalogData, Tier } from '../world/catalogData';
 import { healthTick, CLINIC_RECOVERY_PER_HOUR, WORK_BLOCK_HEALTH } from './health';
 import { griefTick, consoleGrief, bereave, GRIEF_PARTNER, GRIEF_FRIEND, GRIEF_FRIEND_AFFINITY } from './grief';
@@ -777,8 +777,10 @@ export class Simulation {
       // el importe entra en la caja de ESA tienda (economía circular).
       const got = this.economy.buyFood(shopKey, k, 3);
       this.pantry.set(k, (this.pantry.get(k) ?? 0) + got);
-      // Un capricho si el hogar va holgado (sumidero de dinero).
-      if (this.economy.walletOf(k) > 30) this.economy.spend(k, SHOP_TREAT_PRICE);
+      // Un capricho en BIENES si el hogar va holgado (ciclo 31): ya no se esfuma
+      // sin más — el IVA va al tesoro y el resto paga la importación; escala con
+      // lo que le sobra al hogar (el rico consume más).
+      this.economy.buyGoods(k);
     }
     if (planned.activity === 'clinic') {
       // Consultorio público: la consulta paga una tasa que va al tesoro

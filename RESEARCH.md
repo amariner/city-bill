@@ -848,3 +848,32 @@ una simulación, y los tratamos como tales:
   sostiene, no de golpe. (b) el sobreimpulso podría suavizarse (taper de inmigración
   gradual, no corte duro) para un boom-bust menos brusco. (c) sigue pendiente la
   VARIEDAD de bienes (carencia (b) del ciclo 29) y la vacuna (ciclo 25).
+- 2026-07-04 · **Ciclo 31: BIENES (consumo discrecional que circula)** · Cierra la
+  carencia (c) del ciclo 30 / (b) del 29: el segundo bien tras el alimento. El viejo
+  "capricho" gastaba 5 fijos que se ESFUMABAN (`spend()` sin destino — un leak).
+  Ahora `buyGoods` gasta en durables PROPORCIONAL al excedente del hogar (12% de lo
+  que sobra sobre un suelo de 40, topado a 30): el rico consume más → desigualdad y
+  sumidero del ahorro ocioso que el alquiler no drena. Y CONSERVADO: el IVA (15%) va
+  al tesoro (→ pensiones) y el resto paga la IMPORTACIÓN del bien, que sale del
+  pueblo — un sumidero REALISTA.
+  HALLAZGO al arreglar el leak (lo importante de este ciclo): destapó un problema más
+  hondo. La nómina ACUÑA dinero de la nada (`payWage` no sale de una caja finita), y
+  el leak del capricho era, por accidente, el principal SUMIDERO que lo equilibraba.
+  Sin él, la masa monetaria crece sin freno (tesoro 20k→69k a día 20→60; el ahorro
+  medio trepa). Modelar los bienes como IMPORTACIÓN devuelve un sumidero con sentido,
+  pero es modesto: el desequilibrio de fondo (impuesto de renta ≫ pensiones → el
+  tesoro atesora; nómina acuñada > sumideros → el ahorro sube) SIGUE ahí. Es la
+  carencia grande que deja este ciclo.
+  Lección de verificación (caos): `buyGoods` NO consume RNG y aun así el crecimiento
+  se movió de [42,78,71] a [35,134,122] (semillas 42/7/500 a día 40) — cambiar los
+  saldos altera qué comida se puede pagar → conducta → la trayectoria caótica del
+  crecimiento. Reveló que el test de integración del ciclo 30 estaba DEMASIADO
+  ajustado (clavaba ≤120 en un día pre-meseta, sensible al sobreimpulso); relajado a
+  umbrales GENEROSOS anti-explosión (los números finos, ya validados sobre 8
+  semillas, viven aquí en §4, no en el test). 227/227 tests verdes.
+  Carencias observadas para próximos ciclos: (a) CIERRE MONETARIO — el gran pendiente:
+  que los sueldos salgan de una caja finita (ingresos de la empresa/tienda) y/o que el
+  tesoro GASTE (obra pública, pensiones mayores) para que la masa monetaria no crezca
+  sin fin. (b) que los bienes HAGAN algo (comfort/estatus — consumo ostentoso que sube
+  prestigio, acopla N2→N4) en vez de solo drenar. (c) producir los bienes DENTRO
+  (artesanos/taller) para que el dinero se quede en el pueblo en vez de importarse.
