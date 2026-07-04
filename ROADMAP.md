@@ -228,11 +228,20 @@ repetido, arbolado automático en márgenes de carretera (rasgo de identidad).
 - [x] **T4.3 Inmigración/emigración.** Familias llegan si hay vivienda+empleo+felicidad;
   se van si no. La población es consecuencia, no un slider. (Inmigración modulada por
   atractividad = ciclo 12; emigración digna por penuria sostenida = ciclo 14, RESEARCH.md.)
-- [~] **T4.4 Modo autónomo.** Toggle: la ciudad también traza carreteras nuevas
-  (extensiones del grafo hacia demanda no servida, siempre ortogonales y arboladas).
-  Con el juego en marcha y sin input, en 30 min de juego debe emerger un pueblo
-  coherente y bonito desde una sola granja. **Este es el test de aceptación estrella
-  del proyecto** — grabarlo con screenshots periódicos.
+- [x] **T4.4 Modo autónomo — FUNCIONA (end-to-end, verificado).** Desde una sola
+  granja (`seedFarm`, `?scene=farm`), la ciudad **traza sus propias calles**:
+  cuando hay demanda pero no queda frente construible junto a una vía,
+  `maybeExtendRoad` ramifica/prolonga una calzada de 3 celdas (con márgenes y
+  arbolado, ortogonal) hacia campo abierto, con ritmo (una calle cada ~2 días).
+  El evento `roadExtended` la replica en el render (worker→main) y el pathfinding
+  la usa al instante (lee el grid en vivo). **Test de aceptación estrella en
+  sim.test:** de 3 edificios a un pueblo con calles autotrazadas, población
+  creciente y vida en la calle. Verificado también por screenshot (`?scene=farm`).
+  *Pulido pendiente:* el crecimiento tiende a RIBBON (casas a lo largo de una
+  calle) más que a trama densa 2D — las ramificaciones perpendiculares se
+  acorralan con los frentes; afinar para un pueblo más tupido, y el playtest
+  largo de 30 min. Pero el criterio "de una granja emerge un pueblo sin input"
+  ya se cumple.
   *NÚCLEO HECHO:* `extendRoad(grid, from, dir, length, rng)` en `growth.ts` (puro,
   testeado en grid.test): traza calzada de 3 celdas + márgenes de hierba + arbolado
   con huecos, ortogonal, sin arrasar edificios. *Pendiente (sesión enfocada):* el

@@ -111,7 +111,8 @@ export interface SimEventMsg {
     | 'cityGrew'
     | 'tierUnlocked'
     | 'coupleFormed'
-    | 'festivalDay';
+    | 'festivalDay'
+    | 'roadExtended';
   data?: Record<string, unknown>;
 }
 

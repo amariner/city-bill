@@ -7,7 +7,7 @@
  * - T3.8: hay empleo real asignado.
  * - Determinismo: dos runs con la misma semilla → mismo estado.
  */
-import { seedWorld } from '../world/seed';
+import { seedWorld, seedFarm } from '../world/seed';
 import { Simulation } from './simulation';
 import { TICK_GAME_S, DAY_GAME_SECONDS } from './clock';
 import { FOOD_PRICE } from './economy';
@@ -788,6 +788,23 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
     }
   }
   check('cosecha: con el granero lleno, la fiesta de otoño es abundante', harvestName.includes('abundante'), `→ "${harvestName}"`);
+}
+
+// T4.4 (el test de aceptación ESTRELLA del ROADMAP) — MODO AUTÓNOMO: desde una
+// sola granja y un tramo corto de vía, la ciudad se traza SUS PROPIAS calles y
+// crece sola hasta un pueblo. Sin input.
+{
+  const sim = new Simulation(seedFarm(42), 42);
+  const buildings0 = sim.index.buildings.length;
+  for (let t = 0; t < TICKS_PER_DAY * 40; t++) sim.step();
+  check('autónomo: la ciudad traza sus PROPIAS calles (T4.4)', sim.roadsExtended > 0, `→ ${sim.roadsExtended} tramos`);
+  check('autónomo: de una granja emerge un pueblo (crece solo)', sim.index.buildings.length >= buildings0 + 8, `→ ${buildings0} → ${sim.index.buildings.length} edificios`);
+  check('autónomo: la población crece desde el puñado inicial', sim.citizens.size >= 30, `→ ${sim.citizens.size} hab.`);
+  // Las calles nuevas son navegables (el pathfinding lee el grid en vivo): la
+  // gente se mueve por ellas, luego debe haber vida en la calle.
+  let moving = 0;
+  for (let t = 0; t < 200; t++) { sim.step(); for (const c of sim.citizens.values()) if (c.phase.kind === 'moving') moving++; }
+  check('autónomo: hay vida circulando por las calles trazadas', moving > 0, `→ ${moving} ticks-moving`);
 }
 
 // Determinismo: mismo snapshot final con la misma semilla.

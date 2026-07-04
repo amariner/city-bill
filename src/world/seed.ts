@@ -127,3 +127,35 @@ export function seedWorld(seed: number = SEED): Grid {
 
   return grid;
 }
+
+/**
+ * Escenario MÍNIMO para el modo autónomo (T4.4): una sola granja y un tramo
+ * CORTO de vía. La ciudad no tiene frente construible de sobra — para crecer
+ * TENDRÁ que trazarse sus propias calles (`Simulation.maybeExtendRoad`). Es el
+ * test de aceptación estrella del ROADMAP: de una granja a un pueblo, sin input.
+ */
+export function seedFarm(seed: number = SEED): Grid {
+  const grid = new Grid();
+  const rng = createRng(seed);
+  const R = 44;
+  grid.fillTerrain(-R, -R, R, R, 'field');
+
+  // Tramo de vía corto (3 celdas de ancho) + márgenes de hierba + arbolado.
+  for (let cx = -8; cx <= 8; cx++) {
+    grid.setTerrain(cx, -2, 'grass');
+    grid.setTerrain(cx, 2, 'grass');
+    for (let cz = -1; cz <= 1; cz++) grid.setTerrain(cx, cz, 'road');
+    if (cx % 2 === 0 && rng.next() > 0.4) {
+      for (const cz of [-3, 3]) grid.setProp(cx, cz, { id: rng.next() < 0.6 ? 'tree-cypress' : 'tree-blob', variant: Math.floor(rng.next() * 1e9) });
+    }
+  }
+
+  // La granja, pegada a la vía: un par de casas y el granero para arrancar vida.
+  grid.fillTerrain(-16, 3, 6, 18, 'grass');
+  place(grid, 'farmhouse', -12, 4, 0);
+  place(grid, 'farmhouse', -4, 4, 0);
+  place(grid, 'barn', 2, 5, 0);
+  scatterTrees(grid, rng, -R, -R, R, R, 45, 0.45);
+
+  return grid;
+}

@@ -9,7 +9,9 @@ import { CameraController } from './core/cameraController';
 import { GameLoop } from './core/loop';
 import { DebugHud } from './core/debugHud';
 import { createWorldView } from './neighborhood';
-import { seedWorld } from './world/seed';
+import { seedWorld, seedFarm } from './world/seed';
+import { extendRoad } from './world/growth';
+import { createRng } from './rng';
 import { catalogItem } from './world/catalog';
 import { buildShowcase } from './showcase';
 import { SimClient, AgentView } from './sim/client';
@@ -55,10 +57,12 @@ if (sceneName === 'buildings') {
   // Math.random aquí es bootstrap de sesión (elegir partida), no lógica de
   // mundo: a partir de la semilla, todo es 100% determinista.
   const worldSeed = pickWorldSeed();
-  const grid = seedWorld(worldSeed);
+  // Escenario "granja" (?scene=farm): arranque mínimo para el modo autónomo
+  // (T4.4) — la ciudad se traza sus propias calles desde una sola granja.
+  const grid = sceneName === 'farm' ? seedFarm(worldSeed) : seedWorld(worldSeed);
   worldView = createWorldView(grid);
   stage.scene.add(worldView.root);
-  camera.setTarget(20, 20);
+  camera.setTarget(sceneName === 'farm' ? 0 : 20, sceneName === 'farm' ? 2 : 20);
 
   // Simulación en worker (T3.1+). Velocidad con teclas 0-3.
   simClient = new SimClient(worldSeed, grid.serialize());
@@ -67,14 +71,25 @@ if (sceneName === 'buildings') {
   // Crecimiento autónomo (T4.2): el worker construye → replicamos en el
   // grid de render y refrescamos el chunk (misma colocación, mismo mundo).
   chronicle = new Chronicle(worldSeed);
+  const roadRng = createRng(worldSeed ^ 0x1d872b41); // arbolado de las vías nuevas (solo visual)
   simClient.onEvent = (name, data) => {
     chronicle?.onEvent(name, data);
-    if (name !== 'cityGrew' || !data || !worldView) return;
-    const { id, cx, cz, rot } = data as { id: string; cx: number; cz: number; rot: 0 | 1 | 2 | 3 };
-    const it = catalogItem(id);
-    if (!it) return;
-    grid.placeBuilding(id, it.w, it.d, cx, cz, rot);
-    worldView.refreshChunkAt(cx, cz);
+    if (!data || !worldView) return;
+    if (name === 'cityGrew') {
+      const { id, cx, cz, rot } = data as { id: string; cx: number; cz: number; rot: 0 | 1 | 2 | 3 };
+      const it = catalogItem(id);
+      if (!it) return;
+      grid.placeBuilding(id, it.w, it.d, cx, cz, rot);
+      worldView.refreshChunkAt(cx, cz);
+    } else if (name === 'roadExtended') {
+      // T4.4: la ciudad trazó una calle en el worker → la replicamos EN EL RENDER.
+      // La calzada/márgenes son deterministas (sin RNG); el arbolado puede diferir.
+      const { fromX, fromZ, dx, dz, length } = data as { fromX: number; fromZ: number; dx: number; dz: number; length: number };
+      const laid = extendRoad(grid, [fromX, fromZ], { dx, dz }, length, roadRng);
+      for (const [cx, cz] of laid) worldView.refreshChunkAt(cx, cz);
+      // Refresca también los márgenes/arbolado (±3 alrededor de la calzada).
+      for (let s = 1; s <= length; s++) worldView.refreshChunkAt(fromX + dx * s, fromZ + dz * s);
+    }
   };
   window.addEventListener('keydown', (e) => {
     if (e.key >= '0' && e.key <= '3') simClient!.setSpeed(Number(e.key) as Speed);

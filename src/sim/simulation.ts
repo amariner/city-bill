@@ -25,7 +25,7 @@ import { AgentState, ActivityKind, activityId, AGENT_STRIDE, TravelModeCode } fr
 import {
   computeDemand, itemForDemand, findParcel, townCenter, townAttractiveness,
   householdHardship, updateEmigrationPressure, EMIGRATE_POP_FLOOR, EMIGRATE_PRESSURE_LIMIT,
-  GrowthPlacement,
+  extendRoad, GrowthPlacement,
 } from '../world/growth';
 import { lifeYear, ADULT_AGE, OLD_AGE } from './lifecycle';
 import { STARTING_MONEY, SHOP_TREAT_PRICE, PENSION_PER_DAY } from './economy';
@@ -58,7 +58,7 @@ const COMFORT_FUN_PER_HOUR = 0.15;
 const BOUNTIFUL_GRANARY = 40;
 
 export interface SimEvent {
-  name: 'citizenBorn' | 'citizenLeft' | 'jobTaken' | 'chatStarted' | 'cityGrew' | 'tierUnlocked' | 'coupleFormed' | 'festivalDay';
+  name: 'citizenBorn' | 'citizenLeft' | 'jobTaken' | 'chatStarted' | 'cityGrew' | 'tierUnlocked' | 'coupleFormed' | 'festivalDay' | 'roadExtended';
   data: Record<string, unknown>;
 }
 
@@ -88,6 +88,10 @@ export class Simulation {
   carTrips = 0;
   /** Emigraciones acumuladas (ciclo 14 — métrica de tests/Crónica). */
   emigrations = 0;
+  /** Tramos de vía trazados por la ciudad sola (T4.4 — métrica de tests). */
+  roadsExtended = 0;
+  /** Último día en que se trazó vía (T4.4 — ritmo: una calle no cada tick). */
+  private lastRoadDay = -10;
   /** Presión migratoria por hogar ('ax,az') — penuria sostenida (ciclo 14). */
   private emigrationPressure = new Map<string, number>();
   /** Ciudadanos decididos a marcharse: caminan a la salida y despawnean allí. */
@@ -480,8 +484,84 @@ export class Simulation {
       this.index.buildings.filter((b) => b.data.role !== 'nature').map((b) => [b.ax, b.az]),
     );
     const p = findParcel(this.grid, id, center, this.rng);
-    if (!p) return;
+    if (!p) {
+      // T4.4: hay demanda pero NO queda frente construible junto a una vía →
+      // la ciudad se traza una CALLE nueva hacia campo abierto. El siguiente
+      // intento de crecer ya encontrará parcela en ella.
+      this.maybeExtendRoad(center);
+      return;
+    }
     this.applyGrowth(p);
+  }
+
+  private isRoad(cx: number, cz: number): boolean {
+    return this.grid.get(cx, cz)?.terrain === 'road';
+  }
+
+  /** Celdas de carretera consecutivas desde (cx,cz) en una dirección (hasta 10). */
+  private roadRun(cx: number, cz: number, dx: number, dz: number): number {
+    let n = 0;
+    for (let s = 1; s <= 10; s++) { if (this.isRoad(cx + dx * s, cz + dz * s)) n++; else break; }
+    return n;
+  }
+
+  /** ¿Hay hueco abierto para ramificar? La franja perpendicular (calzada ±2)
+   * debe estar libre de vías y edificios por `depth` celdas — así la calle nueva
+   * no se solapa con el pueblo ni nace pegada a otra calle paralela. */
+  private branchIsClear(rx: number, rz: number, dir: { dx: number; dz: number }, depth: number, halfWidth = 2): boolean {
+    const px = -dir.dz, pz = dir.dx;
+    for (let step = 1; step <= depth; step++) {
+      for (let w = -halfWidth; w <= halfWidth; w++) {
+        const c = this.grid.get(rx + dir.dx * step + px * w, rz + dir.dz * step + pz * w);
+        if (c?.building || c?.terrain === 'road' || c?.terrain === 'water') return false;
+      }
+    }
+    return true;
+  }
+
+  /** T4.4 — traza una calle nueva PERPENDICULAR a la vía existente hacia campo
+   * abierto, empezando por la celda de vía más cercana al centro que tenga hueco
+   * (el pueblo crece compacto). Emite `roadExtended` para replicar en el render. */
+  private maybeExtendRoad(center: [number, number]): boolean {
+    // Ritmo: una calle nueva abre frente para VARIOS edificios; extender en cada
+    // intento fallido sería un sprawl de asfalto vacío. Se deja que los
+    // edificios llenen lo trazado antes de abrir más (T4.4 estético).
+    if (this.clock.day - this.lastRoadDay < 2) return false;
+    const roads = [...this.index.roadCells].sort(
+      (a, b) => (Math.abs(a[0] - center[0]) + Math.abs(a[1] - center[1])) - (Math.abs(b[0] - center[0]) + Math.abs(b[1] - center[1])),
+    );
+    // Dos estrategias, en orden: (1) RAMIFICAR perpendicular desde una vía con
+    // hueco al lado (abre trama 2D — un pueblo, no una tira); (2) si no cabe,
+    // PROLONGAR un extremo recto hacia campo abierto. Las dos usan branchIsClear
+    // (delante debe haber campo libre), así el pueblo crece compacto y ortogonal.
+    for (const strategy of ['branch', 'extend'] as const) {
+      for (const [rx, rz] of roads) {
+        const runX = this.roadRun(rx, rz, 1, 0) + this.roadRun(rx, rz, -1, 0);
+        const runZ = this.roadRun(rx, rz, 0, 1) + this.roadRun(rx, rz, 0, -1);
+        if (Math.abs(runX - runZ) < 3) continue; // cruce/cabo ambiguo
+        const lengthIsX = runX > runZ;
+        const dirs = strategy === 'branch'
+          // Ramificar = perpendicular a la longitud.
+          ? (lengthIsX ? [{ dx: 0, dz: 1 }, { dx: 0, dz: -1 }] : [{ dx: 1, dz: 0 }, { dx: -1, dz: 0 }])
+          // Prolongar = seguir la longitud (solo desde un EXTREMO: sin vía delante).
+          : (lengthIsX ? [{ dx: 1, dz: 0 }, { dx: -1, dz: 0 }] : [{ dx: 0, dz: 1 }, { dx: 0, dz: -1 }]);
+        for (const dir of dirs) {
+          if (strategy === 'extend' && this.isRoad(rx + dir.dx, rz + dir.dz)) continue; // no es extremo
+          // Ramificar exige margen ancho (una calle nueva con sus frentes);
+          // prolongar solo necesita punzar la calzada (±1) entre los edificios.
+          const halfWidth = strategy === 'branch' ? 2 : 1;
+          if (!this.branchIsClear(rx, rz, dir, 10, halfWidth)) continue;
+          const laid = extendRoad(this.grid, [rx, rz], dir, 12, this.rng);
+          if (laid.length < 8) continue;
+          this.index.rebuild();
+          this.roadsExtended++;
+          this.lastRoadDay = this.clock.day;
+          this.events.push({ name: 'roadExtended', data: { fromX: rx, fromZ: rz, dx: dir.dx, dz: dir.dz, length: 12 } });
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
   /** Coloca el edificio, reindexa y aloja/contrata. Emite `cityGrew` para que

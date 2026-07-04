@@ -678,3 +678,28 @@ una simulación, y los tratamos como tales:
   T5.1 con nieve) + semilla persistida (T2.6 parcial). El mayor salto pendiente
   sigue siendo domar el crecimiento para abrir T4.4 (trazado autónomo de vías) —
   merece una sesión enfocada, no la cola de esta.
+- 2026-07-04 · **T4.4 — MODO AUTÓNOMO, el test estrella, FUNCIONA end-to-end** ·
+  Contra la previsión de "sesión aparte", se cerró el bucle completo. Camino:
+  (1) `extendRoad` (núcleo puro, ya testeado); (2) escenario mínimo `seedFarm`
+  (una granja + tramo corto) porque el cross del seed normal NUNCA se satura
+  (±90 de frente) — sin escenario mínimo, T4.4 no se dispara jamás; (3)
+  `maybeExtendRoad`: al fallar `findParcel` con demanda, ramifica/prolonga una
+  calle hacia campo abierto. TRAMPAS resueltas por diagnóstico iterativo:
+  · la calzada de 3 carriles engaña a la detección de eje por vecinos (±1 y ±2
+    dan road en ambos ejes) → uso la TIRADA de carretera (`roadRun`) por eje.
+  · ramificar perpendicular se acorrala con los frentes de edificios → estrategia
+    doble: primero BRANCH (perpendicular, trama 2D), si no cabe EXTEND (prolongar
+    el extremo recto, chequeo estrecho ±1 para punzar entre casas).
+  · sin ritmo, extendía en CADA intento fallido → sprawl (225 vías vacías) →
+    límite de una calle cada 2 días: los edificios llenan antes de abrir más.
+  Emergió y se VE: de 3 edificios, en 40 días, un pueblo con calles autotrazadas
+  (test estrella en sim.test: roadsExtended>0, +8 edificios, población>30, vida
+  circulando); screenshot de `?scene=farm` confirma la réplica en render.
+  Hallazgo reutilizable: el pathfinding lee el grid EN VIVO → vía nueva navegable
+  al instante, sin reconstruir grafo. 186/186 tests. Contrato ampliado
+  (protocol.ts SimEventMsg += `roadExtended`), replicado en el mismo commit.
+  Carencia observada: el crecimiento sale RIBBON (lineal) más que trama densa —
+  las ramificaciones perpendiculares mueren contra los frentes; para un pueblo
+  tupido harían falta reservar corredores o construir con retranqueo mayor cerca
+  de los extremos. Pero el corazón de T4.4 —"de una granja, un pueblo sin
+  input"— ya late.
