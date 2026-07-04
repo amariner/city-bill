@@ -202,6 +202,65 @@ export function findParcel(
   return best;
 }
 
+// --- T4.4 (núcleo): extensión autónoma de vías --------------------------------
+// Geometría PURA y testeable de "la ciudad traza carretera nueva" (el test
+// estrella del ROADMAP §4.4). Todavía NO está enganchada al bucle de crecimiento
+// (esa integración — cuándo/dónde extender + replicar en render/pathfinding vía
+// evento worker→main — es el siguiente paso, deliberadamente aparte para no
+// desestabilizar el crecimiento, ya de por sí sensible). Aquí solo la geometría.
+
+/** Extiende una vía de 3 celdas de ancho desde `from` en la dirección ortogonal
+ * `dir` (unitaria: (±1,0) o (0,±1)), hasta `length` celdas, con márgenes de
+ * hierba a los lados y arbolado con huecos (el rasgo de identidad del juego).
+ * Solo pisa terreno SIN edificios; se detiene si choca con uno (no arrasa el
+ * pueblo). Devuelve las celdas de VÍA nuevas (para que el llamador refresque
+ * render y grafo de navegación). Determinista (RNG con semilla). */
+export function extendRoad(
+  grid: Grid,
+  from: [number, number],
+  dir: { dx: number; dz: number },
+  length: number,
+  rng: Rng,
+): Array<[number, number]> {
+  const laid: Array<[number, number]> = [];
+  const px = -dir.dz; // perpendicular (rotación 90°) para el ancho de la vía
+  const pz = dir.dx;
+  for (let step = 1; step <= length; step++) {
+    const bx = from[0] + dir.dx * step;
+    const bz = from[1] + dir.dz * step;
+    // ¿Hay edificio en la franja de la calzada? Si sí, cortar aquí.
+    let blocked = false;
+    for (let w = -1; w <= 1; w++) {
+      if (grid.get(bx + px * w, bz + pz * w)?.building) { blocked = true; break; }
+    }
+    if (blocked) break;
+    // Calzada de 3 celdas (limpia props que hubiera) + márgenes de hierba (±2).
+    for (let w = -1; w <= 1; w++) {
+      const cx = bx + px * w, cz = bz + pz * w;
+      grid.setProp(cx, cz, undefined);
+      grid.setTerrain(cx, cz, 'road');
+      laid.push([cx, cz]);
+    }
+    for (const m of [-2, 2]) {
+      const cx = bx + px * m, cz = bz + pz * m;
+      if (!grid.get(cx, cz)?.building) grid.setTerrain(cx, cz, 'grass');
+    }
+    // Arbolado con huecos en el margen exterior (±3), cada 2 celdas (identidad).
+    if (step % 2 === 0 && rng.next() > 0.35) {
+      for (const m of [-3, 3]) {
+        const cx = bx + px * m, cz = bz + pz * m;
+        const c = grid.get(cx, cz);
+        // Terreno abierto (campo, hierba o sin sembrar): planta. No sobre
+        // edificios, calzada ni agua.
+        if (!c?.building && !c?.prop && c?.terrain !== 'road' && c?.terrain !== 'water') {
+          grid.setProp(cx, cz, { id: rng.next() < 0.6 ? 'tree-cypress' : 'tree-blob', variant: Math.floor(rng.next() * 1e9) });
+        }
+      }
+    }
+  }
+  return laid;
+}
+
 /** canPlace + margen de respeto: 1 celda libre alrededor (retranqueo/paso). */
 function clearForGrowth(grid: Grid, w: number, d: number, ax: number, az: number, rot: Rot): boolean {
   if (!grid.canPlace(w, d, ax, az, rot)) return false;

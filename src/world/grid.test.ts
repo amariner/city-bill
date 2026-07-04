@@ -2,6 +2,8 @@
  * Tests del grid. Correr con: npm run test:grid  (tsx, sin THREE).
  */
 import { Grid, rotatedFootprint, cellToWorld, worldToCell, CELL_SIZE } from './grid';
+import { extendRoad } from './growth';
+import { createRng } from '../rng';
 
 let passed = 0;
 let failed = 0;
@@ -91,6 +93,30 @@ function assert(cond: boolean, msg: string): void {
   assert(g2.get(0, 0)?.building?.id === 'barn', 'edificio sobrevive round-trip');
   assert(g2.get(-2, -2)?.prop?.variant === 42, 'prop sobrevive round-trip');
   assert(g2.serialize() === json, 'serialize es estable tras round-trip');
+}
+
+// --- T4.4 núcleo: extensión autónoma de vías --------------------------------
+{
+  const g = new Grid();
+  g.placeBuilding('barn', 3, 2, 20, 0); // un edificio que la vía NO debe arrasar
+  const rng = createRng(7);
+  // Extiende hacia +X desde una celda de arranque, 10 celdas.
+  const laid = extendRoad(g, [0, 0], { dx: 1, dz: 0 }, 10, rng);
+
+  assert(laid.length > 0, 'extendRoad traza celdas de vía');
+  // La calzada es de 3 celdas de ancho: en x=1 deben ser road cz=-1,0,1.
+  assert(g.get(1, -1)?.terrain === 'road' && g.get(1, 0)?.terrain === 'road' && g.get(1, 1)?.terrain === 'road', 'calzada de 3 celdas de ancho');
+  // Márgenes de hierba a ±2.
+  assert(g.get(1, -2)?.terrain === 'grass' && g.get(1, 2)?.terrain === 'grass', 'márgenes de hierba a los lados');
+  // Ortogonal: avanza en +X, no toca cz fuera de [-3,3].
+  assert(laid.every(([, cz]) => cz >= -1 && cz <= 1), 'la calzada es ortogonal (recta en X)');
+  // Hay arbolado en algún margen exterior (identidad del juego).
+  let trees = 0;
+  for (const cz of [-3, 3]) for (let cx = 1; cx <= 10; cx++) if (g.get(cx, cz)?.prop) trees++;
+  assert(trees > 0, 'planta arbolado en los márgenes');
+  // No arrasa el edificio en x≈20: la extensión se corta antes.
+  assert(g.get(20, 0)?.building?.id === 'barn', 'la vía no arrasa edificios (se corta)');
+  assert(laid.every(([cx]) => cx < 20), 'la extensión se detiene antes del edificio');
 }
 
 console.log(`\ngrid.test: ${passed} passed, ${failed} failed`);

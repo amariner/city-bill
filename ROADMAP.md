@@ -228,11 +228,18 @@ repetido, arbolado automático en márgenes de carretera (rasgo de identidad).
 - [x] **T4.3 Inmigración/emigración.** Familias llegan si hay vivienda+empleo+felicidad;
   se van si no. La población es consecuencia, no un slider. (Inmigración modulada por
   atractividad = ciclo 12; emigración digna por penuria sostenida = ciclo 14, RESEARCH.md.)
-- [ ] **T4.4 Modo autónomo.** Toggle: la ciudad también traza carreteras nuevas
+- [~] **T4.4 Modo autónomo.** Toggle: la ciudad también traza carreteras nuevas
   (extensiones del grafo hacia demanda no servida, siempre ortogonales y arboladas).
   Con el juego en marcha y sin input, en 30 min de juego debe emerger un pueblo
   coherente y bonito desde una sola granja. **Este es el test de aceptación estrella
   del proyecto** — grabarlo con screenshots periódicos.
+  *NÚCLEO HECHO:* `extendRoad(grid, from, dir, length, rng)` en `growth.ts` (puro,
+  testeado en grid.test): traza calzada de 3 celdas + márgenes de hierba + arbolado
+  con huecos, ortogonal, sin arrasar edificios. *Pendiente (sesión enfocada):* el
+  ENGANCHE — cuándo/dónde extender (cuando `findParcel` falla con demanda viva),
+  replicar las celdas nuevas en render + grafo de pathfinding vía un evento
+  worker→main (como `cityGrew`), y verificar el pueblo emergente a 30 min. Se dejó
+  aparte a propósito: toca crecimiento (caóticamente sensible) + worker + render.
 - [~] **T4.5 Hitos y tiers.** Población desbloquea tiers del catálogo (T1→T4) con una
   tarjeta de celebración discreta. El tier T4 introduce la estética Zlín (bloques de
   ladrillo, fábrica, tren) — ver CATALOG.md.
