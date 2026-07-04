@@ -454,8 +454,12 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
   }
 
   // (d) Emergencia integrada: condena a un hogar concreto a paro sin sustento y
-  //     con la red agotada (tesoro a 0); tras la penuria sostenida, sus miembros
-  //     hacen las maletas y se marchan — con evento narrado (dignidad §6.2).
+  //     con la red agotada (tesoro en quiebra); tras la penuria sostenida, sus
+  //     miembros hacen las maletas y se marchan — con evento narrado (dignidad
+  //     §6.2). El tesoro se pone en NÚMEROS ROJOS PROFUNDOS, no a 0: desde el
+  //     ciclo 29 el alquiler REFILLa el tesoro dentro del cierre del día (antes
+  //     de las pensiones), así que un 0 dejaría que la pensión rescatara al hogar
+  //     — la penuria real exige un gobierno en bancarrota que no pueda pagarla.
   {
     const sim = new Simulation(seedWorld(), 42) as unknown as {
       citizens: Map<number, Citizen>;
@@ -474,7 +478,7 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
     for (const [k, arr] of homes) if (arr.some((c) => c.age >= ADULT_AGE && c.age < OLD_AGE)) { vk = k; break; }
     let emigratedEvents = 0;
     for (let t = 0; t < TICKS_PER_DAY * 18 && vk; t++) {
-      sim.economy.treasury = 0; // la última bala (pensiones) falla
+      sim.economy.treasury = -1e6; // la última bala (pensiones) falla: gobierno en quiebra
       sim.economy.wallets.set(vk, 0); // sin colchón
       for (const c of sim.citizens.values()) if (`${c.home.ax},${c.home.az}` === vk) c.work = null; // sin empleo
       sim.step();
@@ -925,6 +929,34 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
   check('educación paga: a igual empleo, el cualificado cobra más', skilled > unskilled, `→ ${skilled.toFixed(0)} vs ${unskilled.toFixed(0)}`);
   check('educación paga: la brecha es sustancial (~+60% a plena cualificación)', skilled > unskilled * 1.5, `→ ×${(skilled / unskilled).toFixed(2)}`);
   check('educación paga: sin estudios aún se cobra un salario digno', unskilled > 0);
+}
+
+// Ciclo 29 RESEARCH.md — ALQUILER (economía): la vivienda deja de ser gratis. El
+// mayor gasto real de un hogar drena el AHORRO OCIOSO (los bolsillos estaban
+// demasiado llenos porque el sueldo >> gastos) y lo hace CIRCULAR: el alquiler
+// entra en el tesoro → financia MÁS pensiones → vuelve a los hogares sin ingreso.
+// No empobrece al pueblo: sube la velocidad del dinero. A/B con la misma semilla.
+{
+  const measure = (rent: boolean) => {
+    const sim = new Simulation(seedWorld(), 42) as unknown as {
+      citizens: Map<number, Citizen>;
+      economy: { treasury: number; wallets: Map<string, number>; pensionsPaid: number };
+      rentEnabled: boolean;
+      step: () => void;
+    };
+    sim.rentEnabled = rent;
+    for (let t = 0; t < TICKS_PER_DAY * 12; t++) sim.step();
+    const cs = [...sim.citizens.values()];
+    const savings = [...sim.economy.wallets.values()].reduce((s, w) => s + w, 0);
+    const avgFood = cs.reduce((s, c) => s + c.needs.food, 0) / cs.length;
+    return { pop: cs.length, savings, treasury: sim.economy.treasury, pensions: sim.economy.pensionsPaid, avgFood };
+  };
+  const off = measure(false);
+  const on = measure(true);
+  check('alquiler: drena el ahorro ocioso (los hogares ahorran menos)', on.savings < off.savings, `→ ${on.savings.toFixed(0)} vs ${off.savings.toFixed(0)}`);
+  check('alquiler: el dinero CIRCULA — el tesoro recauda más', on.treasury > off.treasury, `→ ${on.treasury.toFixed(0)} vs ${off.treasury.toFixed(0)}`);
+  check('alquiler: alimenta la red — se pagan más pensiones', on.pensions > off.pensions, `→ ${on.pensions.toFixed(0)} vs ${off.pensions.toFixed(0)}`);
+  check('alquiler: la sociedad SOBREVIVE (no empobrece ni vacía el pueblo)', on.pop >= 20 && on.avgFood > 0.25, `→ ${on.pop} hab., comida ${on.avgFood.toFixed(2)}`);
 }
 
 // Determinismo: mismo snapshot final con la misma semilla.

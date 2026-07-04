@@ -29,6 +29,11 @@ export const WAGE_TIER_BONUS = 4; // por nivel de tier del empleador
  * (education 1) cobra este % más que uno sin estudios — desigualdad realista y
  * la educación por fin PAGA (además de abrir empleos de tier alto). */
 export const WAGE_SKILL_BONUS = 0.6;
+/** Alquiler diario por familia (ciclo 29): el mayor gasto real de un hogar.
+ * Escala con el tier de la vivienda (una casa mejor cuesta más). Soaks el
+ * exceso de ahorro (el dinero pasa a importar) y circula vía el tesoro. */
+export const RENT_PER_DAY = 35;
+export const RENT_TIER_FACTOR = 0.5;
 /** Precio de la unidad de comida. */
 export const FOOD_PRICE = 2;
 /** Gasto de capricho al ir de compras (si el hogar puede permitírselo). */

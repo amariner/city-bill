@@ -787,3 +787,31 @@ una simulación, y los tratamos como tales:
   (b) VARIEDAD de bienes más allá del alimento. El alquiler es el más realista
   pero el más delicado (puede vaciar bolsillos → emigración): hará falta cuidado
   y medición, como con el crecimiento.
+- 2026-07-04 · **Ciclo 29: ALQUILER (economía — la vivienda cuesta)** · Cierra la
+  carencia (a) del ciclo 28. Hasta ahora la vivienda era GRATIS y los bolsillos se
+  hinchaban (sueldo >> gastos: ahorro ocioso de ~19k agregado a 12 días). Modelo:
+  cada hogar ocupado paga alquiler al cierre del día (`RENT_PER_DAY=35` por familia,
+  escalado por el tier de la casa, `RENT_TIER_FACTOR=0.5`), ANTES de las pensiones y
+  sin desahucio: paga lo que puede (la red cubre a quien no llega). Vive en
+  `economy.ts` + `chargeRent()` de `simulation.ts`, con flag `rentEnabled` para el
+  A/B. HALLAZGO CLAVE (y tranquilizador dado el riesgo temido de "vaciar bolsillos"):
+  el alquiler NO empobrece al pueblo, sube la VELOCIDAD DEL DINERO. A/B misma semilla,
+  12 días: el ahorro baja (12,7k vs 19,1k — drena el excedente ocioso), el tesoro sube
+  (12,0k vs 5,9k — el alquiler CIRCULA), se pagan casi 4× más pensiones (342 vs 90) y
+  —contraintuitivo— la comida media SUBE (0.38 vs 0.33): el dinero que dormía en las
+  cuentas ahora fluye tesoro→pensiones→hogares sin ingreso→compra de comida. La
+  sociedad sobrevive de sobra (pop 31 vs 29, sin emigración). Acopla money↔government:
+  el alquiler financia la propia red que atrapa a quien el alquiler hundiría.
+  Lección de verificación (coupling emergente destapado): el alquiler REFILLa el
+  tesoro DENTRO del cierre del día, antes de `payPensions`, así que el test de
+  emigración (ciclo 14) —que "agotaba la red" poniendo el tesoro a 0 cada tick— dejó
+  de funcionar: la pensión rescataba al hogar condenado (pop con jubilado). Arreglado
+  poniendo el tesoro en quiebra profunda (−1e6) para agotar la red DE VERDAD: la
+  penuria real exige un gobierno insolvente, no uno que el alquiler rellena. 209/209.
+  Carencias observadas para próximos ciclos: (a) la POBLACIÓN EXPLOTA sin techo (355
+  hab. a día 90 en seed 42, crecimiento exponencial poco realista) — es también la
+  razón de que los tests de epidemia deban correr 90/70 días (la oleada solo emerge
+  con población grande) y de que la suite tarde ~5 min; una lógica de CAPACIDAD DE
+  CARGA (el crecimiento se frena al llenarse el pueblo: techo de vivienda/empleo) sería
+  a la vez ganancia de realismo y de velocidad — el siguiente paso natural. (b)
+  VARIEDAD de bienes más allá del alimento (bienes duraderos, ocio de pago).

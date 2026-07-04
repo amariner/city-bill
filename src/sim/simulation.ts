@@ -28,7 +28,7 @@ import {
   extendRoad, GrowthPlacement,
 } from '../world/growth';
 import { lifeYear, ADULT_AGE, OLD_AGE } from './lifecycle';
-import { STARTING_MONEY, SHOP_TREAT_PRICE, PENSION_PER_DAY } from './economy';
+import { STARTING_MONEY, SHOP_TREAT_PRICE, PENSION_PER_DAY, RENT_PER_DAY, RENT_TIER_FACTOR } from './economy';
 import { catalogData, Tier } from '../world/catalogData';
 import { healthTick, CLINIC_RECOVERY_PER_HOUR, WORK_BLOCK_HEALTH } from './health';
 import { griefTick, consoleGrief, bereave, GRIEF_PARTNER, GRIEF_FRIEND, GRIEF_FRIEND_AFFINITY } from './grief';
@@ -82,6 +82,9 @@ export class Simulation {
   /** Autoaislamiento activo (ciclo 26): los enfermos se recogen en casa y
    * aplanan la curva. false = escenario "sin cuarentena" (para medir/estudiar). */
   quarantine = true;
+  /** Alquiler activo (ciclo 29): los hogares pagan por la vivienda. false =
+   * escenario "vivienda gratis" (para medir cuánto drena y cómo circula). */
+  rentEnabled = true;
   /** Tier desbloqueado (T4.5 lo ligará a población; fijo de momento). */
   tier: Tier = 1;
   /** Familias alojadas por vivienda ('ax,az') — para la demanda de techo. */
@@ -323,6 +326,7 @@ export class Simulation {
       this.lastDay = this.clock.day;
       this.stepLife();
       this.economy.endOfDay();
+      this.chargeRent(); // ciclo 29: la vivienda cuesta (antes de pensiones: la red cubre a quien no llega)
       this.payPensions();
       this.stepOutbreak(); // ciclo 25: en invierno, algún resfriado prende y se propaga
       this.stepEmigration(); // ciclo 14: tras la red de pensiones (última bala)
@@ -450,6 +454,21 @@ export class Simulation {
 
   /** true mientras una oleada supera el umbral epidémico (para narrar una sola vez). */
   private inEpidemic = false;
+
+  /** Alquiler (ciclo 29): cada hogar ocupado paga por su vivienda al cierre del
+   * día, según cuántas familias alberga y el tier de la casa (mejor casa, más
+   * cara). Paga lo que puede (sin desahucio: la pensión cubre a quien no llega).
+   * El alquiler entra en el tesoro → circula (financia pensiones). */
+  private chargeRent(): void {
+    if (!this.rentEnabled) return;
+    for (const b of this.index.ofRole('residential')) {
+      const k = `${b.ax},${b.az}`;
+      const families = this.households.get(k) ?? 0;
+      if (families <= 0) continue;
+      const rent = RENT_PER_DAY * families * (1 + RENT_TIER_FACTOR * (b.data.tier ?? 0));
+      this.economy.treasury += this.economy.spend(k, rent);
+    }
+  }
 
   /** Contagio (ciclo 25): en el frío del invierno, con cierta probabilidad
    * prende un resfriado en alguien sano (caso índice). A partir de ahí se
