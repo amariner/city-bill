@@ -131,6 +131,8 @@ export interface CitizenInfoMsg {
   pantry: number;
   /** Prestigio de la vivienda [0,1] — ciclo 9. */
   prestige: number;
+  /** Duelo [0,1] — ciclo 16. Solo el inspector lo pinta cuando pesa. */
+  grief: number;
 }
 
 export type WorkerToMain = SnapshotMsg | SimEventMsg | CitizenInfoMsg;

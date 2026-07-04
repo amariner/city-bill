@@ -507,3 +507,37 @@ una simulación, y los tratamos como tales:
   A/B de sanidad en sim completa pide un modo de EXPERIMENTO reproducible
   (fijar población, variar una sola palanca) que hoy no existe — infra de
   medición, no lógica; (c) sigue intacta la deuda VISUAL acumulada (Sonnet).
+- 2026-07-04 · **Ciclo 16: DUELO (nueva lógica N3 — la sombra del vínculo)** ·
+  Tras varios ciclos tocando la economía/población (y aprendiendo lo sensible
+  que es), un ciclo HONDO y SEGURO que no la roza: cierra el acoplamiento
+  vida→necesidades que faltaba. Hasta ahora, cuando moría una pareja el
+  superviviente quedaba con `partnerId=null` y seguía como si nada — lo MENOS
+  humano posible. Modelo (duelo real en una frase): perder un vínculo íntimo
+  deja un peso en el ánimo que apaga la alegría un tiempo y se va pasando; no es
+  una herida física, es que "nada te levanta el ánimo" unos días. Traducción al
+  motor: `grief` [0,1] (nuevo campo puro del ciudadano) SALTA al perder a la
+  pareja (0.85) o a un amigo íntimo (0.35, afinidad ≥ 0.55), por MUERTE (ciclo
+  3) o EMIGRACIÓN (ciclo 14) — el pueblo pena por quien se va, no solo por quien
+  muere; `griefTick` lo hace decaer en ~10 días y, mientras dura, DRENA la
+  diversión (a pleno duelo la alegría se escurre a 1/14 por hora: por eso a un
+  doliente no le levanta nada) y algo la vida social. Deliberadamente NO toca la
+  salud ni la mortalidad: el duelo pesa en el ánimo, no mata — así no perturba
+  la dinámica demográfica (ya de por sí caóticamente sensible, lección de los
+  ciclos 5/15). Emergió, y se VE: en 40 días de seed 42, los dolientes tienen
+  una diversión media de 0.62 frente a 0.79 del resto de la ciudad — una brecha
+  clara y observable, con decenas de dolientes activos a la vez según van
+  pasando muertes y marchas. Reflejo en el INSPECTOR (la ventana de la
+  autonomía, T3.10): una barra "duelo" que solo aparece cuando pesa — un
+  doliente es reconocible de un vistazo. Nueva entrada en el manifiesto (`grief`,
+  N3, acopla life+social+needs; `life.couples` += `grief`). Contrato del
+  inspector ampliado (protocol.ts CitizenInfoMsg += grief), replicado en el
+  mismo commit. 146/146 tests.
+  Carencias observadas para próximos ciclos: (a) el duelo hoy solo APAGA; en la
+  realidad también une (los dolientes se arriman, se consuelan) — un
+  acoplamiento duelo→social donde dos que penan se buscan sería precioso y muy
+  humano; (b) no hay duelo por los HIJOS ni por los padres (solo pareja y
+  amigos íntimos) — la familia extensa no se modela como vínculo aparte todavía;
+  (c) la Crónica podría narrar la viudez de un fundador como un hito emocional
+  ("año 22: muere Vera, Tomás queda solo") — memoria afectiva, no solo
+  contadores; (d) el duelo es puro ánimo: si algún día se quisiera el "morir de
+  pena" (duelo→salud) habría que medir con MUCHO cuidado su efecto demográfico.

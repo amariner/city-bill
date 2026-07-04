@@ -14,6 +14,7 @@ import { FOOD_PRICE } from './economy';
 import { weatherAt } from './weather';
 import { deathChance, lifeYear, OLD_AGE, ADULT_AGE } from './lifecycle';
 import { CLINIC_RECOVERY_PER_HOUR } from './health';
+import { bereave, griefTick, GRIEF_PARTNER } from './grief';
 import { townAttractiveness, householdHardship, updateEmigrationPressure, EMIGRATE_PRESSURE_LIMIT } from '../world/growth';
 import { ACTIVITY_BY_KIND, SimContext } from './citizens/activities';
 import { Weather } from './weather';
@@ -349,7 +350,7 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
     needs: { energy: 1, food: 1, social: 1, fun: 1, purpose: 1 },
     home: { ax: 0, az: 0, buildingId: 'house' }, work: null,
     x: 0, z: 0, heading: 0, phase: { kind: 'deciding' }, activity: 'none',
-    partnerId: null, education: 0, health, friends: new Map(), lastChatTick: -1, inside: false,
+    partnerId: null, education: 0, health, grief: 0, friends: new Map(), lastChatTick: -1, inside: false,
   });
   const cohort = (health: number): number => {
     const m = new Map<number, Citizen>();
@@ -494,7 +495,7 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
     needs: { energy: 1, food: 1, social: 1, fun: 1, purpose: 1 },
     home: { ax: 0, az: 0, buildingId: 'house' }, work: null,
     x: 0, z: 0, heading: 0, phase: { kind: 'deciding' }, activity: 'none',
-    partnerId: null, education: 0, health, friends: new Map(), lastChatTick: -1, inside: false,
+    partnerId: null, education: 0, health, grief: 0, friends: new Map(), lastChatTick: -1, inside: false,
   });
   const cohortDeaths = (health: number): number => {
     const m = new Map<number, Citizen>();
@@ -508,6 +509,56 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
     treated < untreated / 2,
     `→ curados ${treated} vs sin atender ${untreated} muertes de 400`,
   );
+}
+
+// Ciclo 16 RESEARCH.md — DUELO (N3, la sombra del vínculo): perder a la pareja o
+// a un amigo íntimo (muerte del ciclo 3 o emigración del 14) deja al
+// superviviente en duelo — apaga la alegría unos días y luego se pasa. Honra
+// §6.2 (los vínculos importan; nadie sigue como si nada tras una pérdida).
+{
+  const mkPerson = (grief: number): Citizen => ({
+    id: 1, name: 'D', age: 40,
+    personality: { sociable: 0.5, trabajador: 0.5, hogareño: 0.5 },
+    needs: { energy: 1, food: 1, social: 0.8, fun: 0.8, purpose: 1 },
+    home: { ax: 0, az: 0, buildingId: 'house' }, work: null,
+    x: 0, z: 0, heading: 0, phase: { kind: 'deciding' }, activity: 'none',
+    partnerId: null, education: 0, health: 1, grief, friends: new Map(), lastChatTick: -1, inside: false,
+  });
+
+  // (a) Mecanismo puro: el golpe se acumula y se acota; el duelo apaga la
+  //     diversión y decae con el tiempo.
+  const g = mkPerson(0);
+  bereave(g, GRIEF_PARTNER);
+  check('duelo: perder a la pareja golpea fuerte', g.grief === GRIEF_PARTNER, `→ ${g.grief}`);
+  bereave(g, GRIEF_PARTNER);
+  check('duelo: nunca pasa de 1', g.grief === 1);
+
+  const grieving = mkPerson(1);
+  const serene = mkPerson(0);
+  for (let h = 0; h < 24; h++) { griefTick(grieving, 1); griefTick(serene, 1); }
+  check('duelo: apaga la alegría del doliente', grieving.needs.fun < serene.needs.fun, `→ ${grieving.needs.fun.toFixed(2)} vs ${serene.needs.fun.toFixed(2)}`);
+  check('duelo: quien no está de duelo no pierde alegría por ello', serene.needs.fun === 0.8);
+
+  const fading = mkPerson(1);
+  for (let h = 0; h < 24 * 11; h++) griefTick(fading, 1);
+  check('duelo: se pasa en ~10 días (la vida sigue)', fading.grief === 0, `→ ${fading.grief.toFixed(2)}`);
+
+  // (b) Emergencia integrada: en una ciudad con muertes y emigración, LOS
+  //     DOLIENTES DISFRUTAN MENOS que el resto — observable, no un mecanismo.
+  {
+    const sim = new Simulation(seedWorld(), 42);
+    let anyGrieved = false;
+    let gSum = 0, gN = 0, nSum = 0, nN = 0;
+    for (let t = 0; t < TICKS_PER_DAY * 30; t++) {
+      sim.step();
+      for (const c of sim.citizens.values()) {
+        if (c.grief > 0) anyGrieved = true;
+        if (c.grief > 0.1) { gSum += c.needs.fun; gN++; } else { nSum += c.needs.fun; nN++; }
+      }
+    }
+    check('duelo: la muerte/emigración deja dolientes (el vínculo se siente)', anyGrieved);
+    check('duelo: los dolientes disfrutan menos que el resto de la ciudad', gN > 0 && gSum / gN < nSum / nN, `→ dolientes ${gN ? (gSum / gN).toFixed(2) : 'n/a'} vs resto ${(nSum / nN).toFixed(2)}`);
+  }
 }
 
 // Determinismo: mismo snapshot final con la misma semilla.

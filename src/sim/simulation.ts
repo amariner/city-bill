@@ -31,6 +31,7 @@ import { lifeYear, ADULT_AGE, OLD_AGE } from './lifecycle';
 import { STARTING_MONEY, SHOP_TREAT_PRICE, PENSION_PER_DAY } from './economy';
 import { catalogData, Tier } from '../world/catalogData';
 import { healthTick, CLINIC_RECOVERY_PER_HOUR, WORK_BLOCK_HEALTH } from './health';
+import { griefTick, bereave, GRIEF_PARTNER, GRIEF_FRIEND, GRIEF_FRIEND_AFFINITY } from './grief';
 import { weatherAt, Weather } from './weather';
 
 /** Velocidad al caminar, en celdas por tick (0.25 s reales a vel. 1). */
@@ -184,6 +185,7 @@ export class Simulation {
       // Los adultos fundadores llegan con estudios variados; los niños, de cero.
       education: age === undefined ? this.rng.range(0.2, 0.9) : 0,
       health: this.rng.range(0.75, 1),
+      grief: 0,
       x: door[0] + 0.5,
       z: door[1] + 0.5,
       heading: this.rng.range(0, Math.PI * 2),
@@ -259,6 +261,7 @@ export class Simulation {
     for (const c of this.citizens.values()) {
       decayNeeds(c.needs, c.personality, hours);
       healthTick(c, hours); // lógica de salud: fondo, no una actividad
+      griefTick(c, hours); // lógica de duelo (ciclo 16): apaga la alegría del doliente
       // Estatus (ciclo 9): una vivienda mejorada es más agradable — quien
       // está EN CASA (durmiendo, comiendo) recupera algo más de ánimo.
       if (c.inside && (c.activity === 'sleep' || c.activity === 'eat' || c.activity === 'none')) {
@@ -343,6 +346,7 @@ export class Simulation {
     for (const d of life.deaths) {
       const partner = d.partnerId !== null ? this.citizens.get(d.partnerId) : undefined;
       if (partner) partner.partnerId = null;
+      this.mournFor(d); // duelo (ciclo 16): la pareja y los amigos íntimos penan
       this.citizens.delete(d.id);
       this.leaving.delete(d.id);
       const k = `${d.home.ax},${d.home.az}`;
@@ -407,6 +411,7 @@ export class Simulation {
       if (!this.citizens.has(c.id)) continue;
       const partner = c.partnerId !== null ? this.citizens.get(c.partnerId) : undefined;
       if (partner) partner.partnerId = null;
+      this.mournFor(c); // el pueblo pena por quien se marcha (ciclo 16)
       this.citizens.delete(c.id);
       this.leaving.delete(c.id);
       const k = `${c.home.ax},${c.home.az}`;
@@ -418,6 +423,20 @@ export class Simulation {
     }
     this.departed = [];
     this.economy.rebuild(this.index, this.citizens);
+  }
+
+  /** Duelo (ciclo 16): cuando alguien se va (muere o emigra), su pareja sufre el
+   * mayor golpe y sus amigos ÍNTIMOS (afinidad alta) también penan, menos. */
+  private mournFor(gone: Citizen): void {
+    if (gone.partnerId !== null) {
+      const partner = this.citizens.get(gone.partnerId);
+      if (partner) bereave(partner, GRIEF_PARTNER);
+    }
+    for (const [id, aff] of gone.friends) {
+      if (id === gone.partnerId || aff < GRIEF_FRIEND_AFFINITY) continue;
+      const f = this.citizens.get(id);
+      if (f) bereave(f, GRIEF_FRIEND);
+    }
   }
 
   // --- Crecimiento autónomo (T4.1-T4.3) ---------------------------------------
@@ -698,7 +717,7 @@ export class Simulation {
   }
 
   /** Estado legible de un ciudadano (inspector T3.10). */
-  describe(id: number): { name: string; activity: ActivityKind; activityLabel: string; needs: Record<string, number>; home: [number, number]; work?: [number, number]; health: number; wallet: number; pantry: number; prestige: number } | null {
+  describe(id: number): { name: string; activity: ActivityKind; activityLabel: string; needs: Record<string, number>; home: [number, number]; work?: [number, number]; health: number; grief: number; wallet: number; pantry: number; prestige: number } | null {
     const c = this.citizens.get(id);
     if (!c) return null;
     const homeKey = `${c.home.ax},${c.home.az}`;
@@ -710,6 +729,7 @@ export class Simulation {
       home: [c.home.ax, c.home.az],
       work: c.work ? [c.work.ax, c.work.az] : undefined,
       health: c.health,
+      grief: c.grief,
       wallet: this.economy.walletOf(homeKey),
       pantry: this.pantry.get(homeKey) ?? 0,
       prestige: this.economy.prestigeOf(homeKey),

@@ -160,6 +160,8 @@ export class CitizenInspector {
       .join('\n');
     const meta = [
       `salud   ${bar(info.health)}`,
+      // Duelo (ciclo 16): solo se muestra cuando pesa — un doliente reconocible.
+      ...(info.grief > 0.05 ? [`duelo   ${bar(info.grief)}`] : []),
       `dinero  ${info.wallet.toFixed(0)}`,
       `despensa ${info.pantry.toFixed(0)} uds`,
       `hogar   ${bar(info.prestige)}`,
