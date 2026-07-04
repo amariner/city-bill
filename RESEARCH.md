@@ -441,4 +441,11 @@ una simulación, y los tratamos como tales:
   recientes. El rango nunca baja de 0.6 (mínimo garantizado: 1 adulto
   siempre, ni el peor duelo colectivo deja una vivienda vacía). En
   `avgPrestige=avgGrief=0` sigue siendo exactamente la curva original.
-  139/139 tests. Quedan (a) y (c) de la entrada anterior.
+  139/139 tests. Queda (a) de la entrada anterior.
+- 2026-07-04 · **Duelo→fiestas** (cierra la carencia (c)): la idoneidad de
+  `festival` pierde hasta la mitad a duelo pleno — no la anula (la vida
+  sigue, y urgencia/personalidad ya deciden el resto), pero a quien está de
+  luto la fiesta del pueblo le apetece bastante menos. Mismo patrón que
+  work/visit (ciclo 11 original): un factor continuo sobre `c.grief`, cero
+  horario ni excepción especial. 139/139 tests.
+  Queda (a): sin reflejo visual del duelo en el mundo todavía.

@@ -299,10 +299,13 @@ export const ACTIVITIES: ActivityDef[] = [
     // tenía el fun muy bajo (personality lo hace irresistible al sociable).
     restorePerHour: { fun: 1.3, social: 1.0 },
     durationH: [1.5, 3],
-    suitability: (ctx) => {
+    suitability: (ctx, c) => {
       if (!isFestivalDay(ctx.day)) return 0; // fuera de la fecha, no existe
       if (ctx.weather.rain) return 0.15; // hasta las fiestas se deslucen con lluvia
-      return Math.max(0.2, 1 - ctx.darkness * 0.9); // dura toda la tarde-noche
+      // Duelo (ciclo 11): a quien está de luto la fiesta le apetece bastante
+      // menos — hasta la mitad de idoneidad a duelo pleno. No la anula del
+      // todo (la vida sigue, y personality/urgencia ya deciden el resto).
+      return Math.max(0.2, 1 - ctx.darkness * 0.9) * (1 - 0.5 * c.grief);
     },
     findTarget: (ctx, c) => {
       const plaza = nearestOfRole(ctx, c, 'civic');
