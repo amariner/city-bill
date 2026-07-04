@@ -14,8 +14,9 @@ import { FOOD_PRICE } from './economy';
 import { weatherAt } from './weather';
 import { deathChance } from './lifecycle';
 import { weatherSpeedFactor, familySize } from './simulation';
-import { computeDemand } from '../world/growth';
+import { computeDemand, extendRoad, paintRoadExtension } from '../world/growth';
 import { createRng } from '../rng';
+import { Grid } from '../world/grid';
 
 let passed = 0;
 let failed = 0;
@@ -365,6 +366,57 @@ check(
   }
   check('prestigio→inmigración: prestigio 0 da familias 1-3 (curva original)', totalNone / N >= 1 && totalNone / N <= 3);
   check('prestigio→inmigración: más prestigio atrae familias más grandes', totalFull > totalNone, `→ media ${(totalNone / N).toFixed(2)} vs ${(totalFull / N).toFixed(2)}`);
+}
+
+// T4.4 (modo autónomo) — cuando no hay parcela servible junto a una vía
+// existente, la ciudad se abre un ramal nuevo antes de rendirse. Grid de
+// prueba: una vía horizontal larga sobre un campo vacío.
+function buildRoadTestGrid(): Grid {
+  const grid = new Grid();
+  // Ancho generoso: el barrido en anillos de nearestRoadCell (igual que
+  // findParcel) encuentra el PRIMER acierto del anillo, no el más cercano
+  // en línea recta — para una vía horizontal "infinita" eso es el extremo
+  // (centro.x - r, ...), así que el hueco de prueba debe cubrir ese extremo
+  // con margen de sobra, no solo la zona alrededor del centro.
+  for (let cx = -50; cx <= 50; cx++) {
+    for (const cz of [6, 7, 11, 12]) grid.setTerrain(cx, cz, 'grass');
+    for (let cz = 8; cz <= 10; cz++) grid.setTerrain(cx, cz, 'road');
+  }
+  for (let cx = -50; cx <= 50; cx++) {
+    for (let cz = -30; cz <= 40; cz++) {
+      if (!grid.get(cx, cz)) grid.setTerrain(cx, cz, 'field');
+    }
+  }
+  return grid;
+}
+{
+  const grid = buildRoadTestGrid();
+  const ext = extendRoad(grid, [10, 30], createRng(1)); // centro lejos, al sur de la vía
+  check('T4.4: se abre un ramal cuando no hay parcela servible cerca', ext !== null);
+  if (ext) {
+    check('T4.4: el ramal es ortogonal (perpendicular a la vía horizontal)', ext.axis === 'x');
+    // Repetir con los MISMOS argumentos en un grid limpio debe pintar
+    // exactamente igual — es la garantía que necesita el hilo principal
+    // para replicar el ramal en su grid espejo sin recibir el rng
+    // compartido de la sim (evento `roadBuilt`, ver main.ts).
+    const grid2 = buildRoadTestGrid();
+    const box2 = paintRoadExtension(grid2, ext.rx, ext.rz, ext.axis, ext.dir, ext.length);
+    check(
+      'T4.4: paintRoadExtension es repetible (mismo cuadro) en otro grid',
+      !!box2 && box2.cx0 === ext.cx0 && box2.cz0 === ext.cz0 && box2.cx1 === ext.cx1 && box2.cz1 === ext.cz1,
+    );
+    let mismatch = 0;
+    for (let x = ext.cx0; x <= ext.cx1; x++) {
+      for (let z = ext.cz0; z <= ext.cz1; z++) {
+        if (grid.get(x, z)?.terrain !== grid2.get(x, z)?.terrain) mismatch++;
+        if (grid.get(x, z)?.prop?.id !== grid2.get(x, z)?.prop?.id) mismatch++;
+      }
+    }
+    check('T4.4: terreno y arbolado idénticos en ambos grids', mismatch === 0, `→ ${mismatch} celdas distintas`);
+  }
+  const farGrid = new Grid();
+  farGrid.fillTerrain(-5, -5, 5, 5, 'field');
+  check('T4.4: sin ninguna vía a mano, no hay ramal', extendRoad(farGrid, [0, 0], createRng(1)) === null);
 }
 
 // Ciclo 10 RESEARCH.md — fiestas de barrio (N5, cierra la pirámide completa

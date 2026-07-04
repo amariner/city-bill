@@ -113,7 +113,8 @@ export interface SimEventMsg {
     | 'coupleFormed'
     | 'festivalDay'
     | 'homePrestige'
-    | 'cultivationChanged';
+    | 'cultivationChanged'
+    | 'roadBuilt';
   data?: Record<string, unknown>;
 }
 

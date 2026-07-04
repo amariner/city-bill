@@ -15,6 +15,8 @@ import { SimClient, AgentView } from './sim/client';
 import { CitizenView } from './world/render/citizens';
 import { DAY_GAME_SECONDS } from './sim/clock';
 import { isFestivalDay } from './sim/citizens/activities';
+import { paintRoadExtension } from './world/growth';
+import { CHUNK } from './world/grid';
 import { Speed } from './sim/protocol';
 import { CitizenInspector } from './ui/inspector';
 import { Chronicle } from './ui/chronicle';
@@ -60,6 +62,19 @@ if (sceneName === 'buildings') {
     } else if (name === 'cultivationChanged') {
       const { level } = data as { level: number };
       worldView.setCultivation(level);
+    } else if (name === 'roadBuilt') {
+      // T4.4: repite EXACTAMENTE la misma pintura en el grid espejo del
+      // render (misma función pura, mismos argumentos — ver growth.ts).
+      const { rx, rz, axis, dir, length } = data as { rx: number; rz: number; axis: 'x' | 'z'; dir: 1 | -1; length: number };
+      const box = paintRoadExtension(worldGrid, rx, rz, axis, dir, length);
+      if (!box) return;
+      const chx0 = Math.floor(box.cx0 / CHUNK);
+      const chx1 = Math.floor(box.cx1 / CHUNK);
+      const chz0 = Math.floor(box.cz0 / CHUNK);
+      const chz1 = Math.floor(box.cz1 / CHUNK);
+      for (let chx = chx0; chx <= chx1; chx++) {
+        for (let chz = chz0; chz <= chz1; chz++) worldView.refreshChunkAt(chx * CHUNK, chz * CHUNK);
+      }
     }
   };
   window.addEventListener('keydown', (e) => {

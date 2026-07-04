@@ -22,7 +22,7 @@ import { chooseActivity } from './citizens/brain';
 import { ACTIVITY_BY_KIND, SimContext, activityLabel, EDU_PER_HOUR, CLINIC_FEE, isFestivalDay } from './citizens/activities';
 import { SocialSystem } from './citizens/social';
 import { AgentState, ActivityKind, activityId, AGENT_STRIDE, TravelModeCode } from './protocol';
-import { computeDemand, itemForDemand, findParcel, townCenter, GrowthPlacement } from '../world/growth';
+import { computeDemand, itemForDemand, findParcel, townCenter, GrowthPlacement, extendRoad } from '../world/growth';
 import { lifeYear } from './lifecycle';
 import { STARTING_MONEY, SHOP_TREAT_PRICE, PENSION_PER_DAY } from './economy';
 import { catalogData, Tier } from '../world/catalogData';
@@ -78,7 +78,8 @@ export interface SimEvent {
     | 'coupleFormed'
     | 'festivalDay'
     | 'homePrestige'
-    | 'cultivationChanged';
+    | 'cultivationChanged'
+    | 'roadBuilt';
   data: Record<string, unknown>;
 }
 
@@ -403,8 +404,16 @@ export class Simulation {
     const center = townCenter(
       this.index.buildings.filter((b) => b.data.role !== 'nature').map((b) => [b.ax, b.az]),
     );
-    const p = findParcel(this.grid, id, center, this.rng);
-    if (!p) return;
+    let p = findParcel(this.grid, id, center, this.rng);
+    if (!p) {
+      // T4.4 — modo autónomo: sin parcela servible junto a una vía existente,
+      // la ciudad se abre un ramal nuevo antes de rendirse este intento.
+      const ext = extendRoad(this.grid, center, this.rng);
+      if (!ext) return;
+      this.events.push({ name: 'roadBuilt', data: { rx: ext.rx, rz: ext.rz, axis: ext.axis, dir: ext.dir, length: ext.length } });
+      p = findParcel(this.grid, id, center, this.rng);
+      if (!p) return;
+    }
     this.applyGrowth(p);
   }
 

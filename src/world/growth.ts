@@ -10,9 +10,9 @@
  * El worker aplica la colocación a SU grid y emite `cityGrew`; el main
  * replica la colocación en el grid de render (misma llamada, mismo resultado).
  */
-import { Grid, Rot } from './grid';
+import { Grid, Rot, Terrain } from './grid';
 import { catalogData, CATALOG_DATA, Tier } from './catalogData';
-import { Rng } from '../rng';
+import { Rng, createRng } from '../rng';
 
 export interface GrowthPlacement {
   id: string;
@@ -169,4 +169,143 @@ export function townCenter(anchors: Array<[number, number]>): [number, number] {
     sz += z;
   }
   return [Math.round(sx / anchors.length), Math.round(sz / anchors.length)];
+}
+
+// ---------------------------------------------------------------------------
+// T4.4 — Modo autónomo: cuando ya no hay parcela servible junto a una vía
+// existente, la ciudad se abre un RAMAL nuevo (siempre ortogonal, con el
+// mismo margen verde arbolado que las vías sembradas — ver seed.ts) en vez
+// de quedarse parada. Es la pieza que falta para "un pueblo que se traza
+// sus propias calles".
+// ---------------------------------------------------------------------------
+
+/** Celda de vía (o camino) más cercana al centro, o null si no hay ninguna
+ * a `searchRadius` celdas (mismo barrido en anillos que `findParcel`). */
+function nearestRoadCell(grid: Grid, center: [number, number], searchRadius: number): [number, number] | null {
+  const [ccx, ccz] = center;
+  for (let r = 0; r <= searchRadius; r++) {
+    for (let i = -r; i <= r; i++) {
+      for (const [cx, cz] of [
+        [ccx + i, ccz - r],
+        [ccx + i, ccz + r],
+        [ccx - r, ccz + i],
+        [ccx + r, ccz + i],
+      ] as Array<[number, number]>) {
+        const cell = grid.get(cx, cz);
+        if (cell && (cell.terrain === 'road' || cell.terrain === 'path')) return [cx, cz];
+      }
+    }
+  }
+  return null;
+}
+
+/** ¿La vía que pasa por (cx,cz) corre en X (horizontal) o en Z (vertical)?
+ * Cuenta vía en ambos ejes a corta distancia: el eje con más aciertos es
+ * el de la calle (la franja solo mide 3 celdas de ancho en el eje corto). */
+function roadAxis(grid: Grid, cx: number, cz: number): 'x' | 'z' {
+  let xCount = 0;
+  let zCount = 0;
+  for (let d = 1; d <= 3; d++) {
+    if (grid.get(cx + d, cz)?.terrain === 'road' || grid.get(cx - d, cz)?.terrain === 'road') xCount++;
+    if (grid.get(cx, cz + d)?.terrain === 'road' || grid.get(cx, cz - d)?.terrain === 'road') zCount++;
+  }
+  return xCount >= zCount ? 'x' : 'z';
+}
+
+export interface RoadExtension {
+  cx0: number;
+  cz0: number;
+  cx1: number;
+  cz1: number;
+}
+
+/**
+ * Pinta un ramal nuevo perpendicular a la vía encontrada en (rx,rz), hacia
+ * el lado `dir` de su eje `axis`, con el mismo perfil que las vías
+ * sembradas: 3 celdas de vía + 2 de margen verde a cada lado, arbolado con
+ * huecos. PURA salvo por la mutación del grid — sin rng externo: el
+ * arbolado sale de un rng propio sembrado por las coordenadas, así el hilo
+ * principal puede repetir EXACTAMENTE la misma pintura en su grid espejo
+ * (evento `roadBuilt`) con solo estos argumentos, sin recibir el estado del
+ * rng compartido de la sim (la lección de esta sesión: no perturbar el rng
+ * compartido con algo que no necesita estar sincronizado bit a bit).
+ * Devuelve null si el hueco (vía+márgenes, `length` celdas) no está libre.
+ */
+export function paintRoadExtension(grid: Grid, rx: number, rz: number, axis: 'x' | 'z', dir: 1 | -1, length: number): RoadExtension | null {
+  const alongIsZ = axis === 'x'; // vía horizontal → ramal vertical (a lo largo de Z)
+  const acrossCenter = alongIsZ ? rx : rz;
+  const alongStart0 = alongIsZ ? rz : rx;
+
+  const at = (along: number, across: number): [number, number] => (alongIsZ ? [across, along] : [along, across]);
+
+  // Borde exterior del margen YA existente en la dirección dir (hasta 10
+  // celdas: vía(3)+margen(2) más un margen de seguridad).
+  let alongEdge = alongStart0;
+  for (let steps = 0; steps < 10; steps++) {
+    const probe = alongEdge + dir;
+    const [x, z] = at(probe, acrossCenter);
+    const cell = grid.get(x, z);
+    if (!cell || (cell.terrain !== 'road' && cell.terrain !== 'grass')) break;
+    alongEdge = probe;
+  }
+  const roadStart = alongEdge + dir; // primera celda del ramal nuevo, tocando el margen viejo
+
+  // El hueco entero (vía + márgenes a ambos lados) debe estar libre.
+  for (let a = 0; a < length; a++) {
+    const along = roadStart + dir * a;
+    for (let c = -3; c <= 3; c++) {
+      const [x, z] = at(along, acrossCenter + c);
+      const cell = grid.get(x, z);
+      if (!cell || cell.building || cell.terrain === 'water') return null;
+    }
+  }
+
+  const treeRng = createRng((roadStart * 92821 + acrossCenter * 68917 + dir * 7) | 0);
+  for (let a = 0; a < length; a++) {
+    const along = roadStart + dir * a;
+    for (let c = -3; c <= 3; c++) {
+      const terrain: Terrain = Math.abs(c) <= 1 ? 'road' : 'grass';
+      const [x, z] = at(along, acrossCenter + c);
+      grid.setTerrain(x, z, terrain);
+      if (terrain === 'road') grid.setProp(x, z, undefined); // nada de árboles en el asfalto
+    }
+    // Arbolado con huecos en los márgenes exteriores (mismo patrón que seed.ts).
+    if (treeRng.next() >= 0.35) {
+      for (const c of [-3, 3]) {
+        const [x, z] = at(along, acrossCenter + c);
+        const id = treeRng.next() < 0.6 ? 'tree-cypress' : 'tree-blob';
+        grid.setProp(x, z, { id, variant: Math.floor(treeRng.next() * 1e9) });
+      }
+    }
+  }
+
+  const alongMin = Math.min(roadStart, roadStart + dir * (length - 1));
+  const alongMax = Math.max(roadStart, roadStart + dir * (length - 1));
+  const [cx0, cz0] = at(alongMin, acrossCenter - 3);
+  const [cx1, cz1] = at(alongMax, acrossCenter + 3);
+  return { cx0: Math.min(cx0, cx1), cz0: Math.min(cz0, cz1), cx1: Math.max(cx0, cx1), cz1: Math.max(cz0, cz1) };
+}
+
+/** Busca la vía más cercana al centro de crecimiento y le abre un ramal
+ * nuevo (probando los dos lados posibles) — T4.4, modo autónomo. `rng`
+ * SOLO decide qué lado probar primero (empate entre dos opciones igual de
+ * válidas); toda la pintura es determinista dados (rx,rz,axis,dir,length).
+ * null si no hay ninguna vía cerca o ningún lado tiene sitio. */
+export function extendRoad(
+  grid: Grid,
+  center: [number, number],
+  rng: Rng,
+  length = 16,
+  searchRadius = 60,
+): (RoadExtension & { rx: number; rz: number; axis: 'x' | 'z'; dir: 1 | -1; length: number }) | null {
+  const found = nearestRoadCell(grid, center, searchRadius);
+  if (!found) return null;
+  const [rx, rz] = found;
+  const axis = roadAxis(grid, rx, rz);
+  const firstDir: 1 | -1 = rng.next() < 0.5 ? 1 : -1;
+  for (const dir of [firstDir, (firstDir * -1) as 1 | -1]) {
+    const box = paintRoadExtension(grid, rx, rz, axis, dir, length);
+    if (box) return { ...box, rx, rz, axis, dir, length };
+  }
+  return null;
 }

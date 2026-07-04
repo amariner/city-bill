@@ -224,11 +224,16 @@ repetido, arbolado automático en márgenes de carretera (rasgo de identidad).
   adosados → bloque, según densidad local. Cada edificio nuevo genera/atrae ciudadanos.
 - [~] **T4.3 Inmigración/emigración.** Familias llegan si hay vivienda+empleo+felicidad;
   se van si no. La población es consecuencia, no un slider.
-- [ ] **T4.4 Modo autónomo.** Toggle: la ciudad también traza carreteras nuevas
-  (extensiones del grafo hacia demanda no servida, siempre ortogonales y arboladas).
-  Con el juego en marcha y sin input, en 30 min de juego debe emerger un pueblo
-  coherente y bonito desde una sola granja. **Este es el test de aceptación estrella
-  del proyecto** — grabarlo con screenshots periódicos.
+- [~] **T4.4 Modo autónomo.** Mecanismo hecho: `world/growth.ts` traza ramales
+  nuevos (extensiones del grafo hacia demanda no servida, siempre ortogonales y
+  arboladas, mismo aspecto que las vías sembradas) cuando `findParcel` no
+  encuentra sitio junto a una vía existente. Activo por defecto (mismo flag
+  `autonomousGrowth` que el resto del crecimiento; sin toggle de UI todavía,
+  como el resto de T4.1-T4.3). Falta el TEST DE ACEPTACIÓN completo: con el
+  juego en marcha y sin input, en 30 min de juego debe emerger un pueblo
+  coherente y bonito **desde una sola granja** (escenario semilla nuevo, no el
+  pueblo con cruce actual) — **sigue siendo el test estrella del proyecto**,
+  pendiente de grabar con screenshots periódicos en una sesión dedicada.
 - [~] **T4.5 Hitos y tiers.** Población desbloquea tiers del catálogo (T1→T4) con una
   tarjeta de celebración discreta. El tier T4 introduce la estética Zlín (bloques de
   ladrillo, fábrica, tren) — ver CATALOG.md.
@@ -278,6 +283,35 @@ aprieta, T3.8-T3.10 y la Fase 4 valen más que cualquier cosa de la Fase 5.
 
 ## 6. Diario del agente (rellenar al trabajar)
 > Anota aquí: fecha, tarea, decisiones no obvias, deuda técnica, conflictos con §1.
+
+- 2026-07-04 (misma sesión Sonnet, continuación) — T4.4 (modo autónomo):
+  mecanismo de ramales nuevos en `world/growth.ts`. Cuando `findParcel` no
+  encuentra sitio junto a una vía existente, `extendRoad` localiza la vía
+  más cercana (mismo barrido en anillos que `findParcel`), detecta su eje
+  contando vía en X vs Z a corta distancia, y `paintRoadExtension` traza un
+  ramal PERPENDICULAR con el mismo perfil que las vías sembradas (3 celdas
+  de vía + 2 de margen verde a cada lado, arbolado con huecos) — siempre
+  ortogonal por construcción. `maybeGrow` lo intenta como fallback antes de
+  rendirse, y reintenta `findParcel` una vez abierto el ramal.
+  · Decisión clave (aplica la lección de la sesión sobre sensibilidad del
+    RNG compartido, ver RESEARCH.md): `paintRoadExtension` es PURA salvo la
+    mutación del grid — el arbolado sale de un rng propio sembrado por las
+    coordenadas (`rx,rz,dir`), no del `this.rng` de la sim. Esto permite que
+    el hilo principal repita EXACTAMENTE la misma pintura en su grid espejo
+    recibiendo solo `{rx,rz,axis,dir,length}` por el evento `roadBuilt` — ni
+    transmite el rng compartido ni lo perturba. Test dedicado que verifica
+    la repetibilidad byte a byte (terreno + árboles) en un segundo grid.
+  · Bug de test encontrado al verificar: `nearestRoadCell` (mismo algoritmo
+    de anillos que `findParcel`) no devuelve el punto más cercano en línea
+    recta sino el PRIMER acierto del anillo — para una vía "infinita" eso es
+    el extremo `(centro.x - r, ...)`, no el punto directamente encima del
+    centro. No es un bug del mecanismo (ya era así en `findParcel`, aceptado
+    en producción porque el mundo sembrado es mucho más ancho que cualquier
+    radio de búsqueda razonable) pero sí lo era de mi primer grid de prueba,
+    demasiado estrecho — lo ensanché y el test pasó a ser determinista.
+  · Marcado `[~]` en vez de `[x]`: falta el test de aceptación completo
+    (30 min desde una sola granja, escenario semilla nuevo) — ver nota en la
+    tarea. 126/126 tests, `tsc` limpio.
 
 - 2026-07-04 (sesión Sonnet, pulido visual) — Empieza el barrido de los 4 TODOs
   de mesh que RESEARCH.md dejó pendientes tras cerrar la pirámide N0-N5
