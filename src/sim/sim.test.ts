@@ -16,7 +16,7 @@ import { deathChance, lifeYear, OLD_AGE, ADULT_AGE } from './lifecycle';
 import { CLINIC_RECOVERY_PER_HOUR } from './health';
 import { bereave, griefTick, consoleGrief, consoleGriefBy, GRIEF_PARTNER } from './grief';
 import { chatBond } from './citizens/social';
-import { chronicleText } from '../ui/chronicle';
+import { chronicleText, summarizeYear, compactChronicle, ChronEvent } from '../ui/chronicle';
 import { townAttractiveness, householdHardship, updateEmigrationPressure, EMIGRATE_PRESSURE_LIMIT } from '../world/growth';
 import { ACTIVITY_BY_KIND, SimContext } from './citizens/activities';
 import { Weather } from './weather';
@@ -692,6 +692,39 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
   });
   check('luto une: dos dolientes estrechan más lazo que una charla normal', chatBond(p(0.5), p(0.6)) > chatBond(p(0), p(0)));
   check('luto une: si solo uno pena, la charla es normal', chatBond(p(0.5), p(0)) === chatBond(p(0), p(0)));
+}
+
+// Ciclo 21 RESEARCH.md §5 — MEMORIA POR NIVELES: los años viejos de la Crónica
+// se recuerdan RESUMIDOS (no borrados ni intactos), como la memoria humana.
+{
+  const y = 12;
+  const evs = [
+    { year: y, text: 'nace Vera', kind: 'birth' as const },
+    { year: y, text: 'nace Jan', kind: 'birth' as const },
+    { year: y, text: 'nace Alba', kind: 'birth' as const },
+    { year: y, text: 'muere Tomás (80 años)', kind: 'death' as const },
+    { year: y, text: 'la ciudad construye: school', kind: 'milestone' as const },
+  ];
+  const s = summarizeYear(y, evs);
+  check('memoria: el resumen cuenta lo rutinario', s.text === 'año 12: 3 nacimientos, 1 muerte, la ciudad construye: school', `→ "${s.text}"`);
+  check('memoria: el resumen preserva los hitos (la escuela)', s.text.includes('school'));
+  check('memoria: el resumen es de tipo summary (no se re-resume)', s.kind === 'summary');
+
+  // Compactación: años viejos → una línea; años recientes intactos.
+  let events: ChronEvent[] = [
+    { year: 1, text: 'nace A', kind: 'birth' },
+    { year: 1, text: 'nace B', kind: 'birth' },
+    { year: 1, text: '¡hito! tier 2', kind: 'milestone' },
+    { year: 9, text: 'nace Z', kind: 'birth' }, // año reciente
+  ];
+  events = compactChronicle(events, 10); // año actual 10, RETAIN 4 → cutoff 6
+  const year1 = events.filter((e) => e.year === 1);
+  check('memoria: un año viejo queda en UNA línea-resumen', year1.length === 1 && year1[0].kind === 'summary', `→ ${year1.length} líneas`);
+  check('memoria: el resumen del año viejo conserva el hito', year1[0].text.includes('tier 2'));
+  check('memoria: los años recientes NO se tocan', events.some((e) => e.year === 9 && e.kind === 'birth'));
+  // Idempotente: recompactar no vuelve a resumir lo ya resumido.
+  const again = compactChronicle(events, 10);
+  check('memoria: compactar es idempotente', again.filter((e) => e.year === 1).length === 1);
 }
 
 // Determinismo: mismo snapshot final con la misma semilla.

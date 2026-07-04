@@ -14,14 +14,68 @@ import { ILLNESS_HEALTH, OLD_AGE } from '../sim/lifecycle';
 /** Lógicas integradas — la fuente de verdad es sim/logics.ts (manifiesto). */
 const ACTIVE_LOGICS = activeLogicNames();
 
+/** Tipo de evento para la compactación por años (RESEARCH §5). */
+export type ChronKind = 'birth' | 'death' | 'emigrated' | 'couple' | 'milestone' | 'summary';
+
+export interface ChronEvent {
+  year: number;
+  text: string;
+  kind?: ChronKind;
+}
+
 interface ChronicleData {
   /** [año, población, edificios] por año de la ciudad. */
   series: Array<[number, number, number]>;
-  events: Array<{ year: number; text: string }>;
+  events: ChronEvent[];
   counters: { births: number; deaths: number; couples: number; emigrated?: number };
 }
 
-const MAX_EVENTS = 60;
+/** Cuántos años recientes se guardan en DETALLE antes de resumirse. */
+const RETAIN_DETAIL_YEARS = 4;
+/** Tope duro de líneas (con compactación, rara vez se toca). */
+const MAX_EVENTS = 120;
+
+/**
+ * Compacta los eventos de UN año en una sola línea-resumen (RESEARCH §5:
+ * "memoria por niveles como los humanos" — los años viejos se recuerdan
+ * resumidos, no borrados). Cuenta lo rutinario (nacimientos, muertes…) y
+ * PRESERVA lo memorable (hitos: escuela, tier, fiesta). Pura y testeable.
+ */
+export function summarizeYear(year: number, events: ChronEvent[]): ChronEvent {
+  let births = 0, deaths = 0, emigrated = 0, couples = 0;
+  const notes: string[] = [];
+  for (const e of events) {
+    if (e.kind === 'birth') births++;
+    else if (e.kind === 'death') deaths++;
+    else if (e.kind === 'emigrated') emigrated++;
+    else if (e.kind === 'couple') couples++;
+    else notes.push(e.text); // hitos y eventos sin tipo: se preservan verbatim
+  }
+  const parts: string[] = [];
+  if (births) parts.push(`${births} ${births === 1 ? 'nacimiento' : 'nacimientos'}`);
+  if (couples) parts.push(`${couples} ${couples === 1 ? 'pareja' : 'parejas'}`);
+  if (deaths) parts.push(`${deaths} ${deaths === 1 ? 'muerte' : 'muertes'}`);
+  if (emigrated) parts.push(`${emigrated} se ${emigrated === 1 ? 'marchó' : 'marcharon'}`);
+  parts.push(...notes);
+  return { year, text: `año ${year}: ${parts.join(', ') || 'sin novedades'}`, kind: 'summary' };
+}
+
+/** Reemplaza el detalle de los años ya "viejos" (≤ currentYear − RETAIN) por una
+ * línea-resumen cada uno. Idempotente: un año ya resumido (kind 'summary') no se
+ * vuelve a tocar. Devuelve la nueva lista de eventos. */
+export function compactChronicle(events: ChronEvent[], currentYear: number): ChronEvent[] {
+  const cutoff = currentYear - RETAIN_DETAIL_YEARS;
+  const detailByYear = new Map<number, ChronEvent[]>();
+  for (const e of events) {
+    if (e.year <= cutoff && e.kind !== 'summary') {
+      (detailByYear.get(e.year) ?? detailByYear.set(e.year, []).get(e.year)!).push(e);
+    }
+  }
+  if (detailByYear.size === 0) return events;
+  const kept = events.filter((e) => !(e.year <= cutoff && e.kind !== 'summary'));
+  const summaries = [...detailByYear.entries()].map(([y, evs]) => summarizeYear(y, evs));
+  return [...kept, ...summaries].sort((a, b) => a.year - b.year);
+}
 
 /** Edad a partir de la cual una muerte se narra como "una vida larga". */
 const LONG_LIFE_AGE = 85;
@@ -148,7 +202,12 @@ export class Chronicle {
     }
     const text = chronicleText(name, data);
     if (!text) return;
-    this.data.events.push({ year, text });
+    const kind: ChronKind =
+      name === 'citizenBorn' ? 'birth'
+      : name === 'coupleFormed' ? 'couple'
+      : name === 'citizenLeft' ? (data?.reason === 'emigrated' ? 'emigrated' : 'death')
+      : 'milestone';
+    this.data.events.push({ year, text, kind });
     if (this.data.events.length > MAX_EVENTS) this.data.events.splice(0, this.data.events.length - MAX_EVENTS);
     this.dirty = true;
   }
@@ -160,6 +219,9 @@ export class Chronicle {
       this.lastYear = year;
       const last = this.data.series[this.data.series.length - 1];
       if (!last || last[0] !== year) this.data.series.push([year, population, buildings]);
+      // Memoria por niveles (ciclo 21 / RESEARCH §5): al pasar de año, los años
+      // ya viejos se recuerdan resumidos en una línea, no borrados ni intactos.
+      this.data.events = compactChronicle(this.data.events, year);
       this.dirty = true;
       if (this.visible) this.render();
     } else if (this.data.series.length > 0) {

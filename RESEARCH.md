@@ -622,3 +622,23 @@ una simulación, y los tratamos como tales:
   re-ocupación/remesas/retorno, y robustece el test estrella T4.4 del ROADMAP),
   o (b) una veta emocional nueva en OTRA esfera (p.ej. el TRABAJO: orgullo de
   oficio, jubilación como pérdida de propósito) para no sobre-ajustar el duelo.
+- 2026-07-04 · **Ciclo 21: memoria por niveles (Crónica, RESEARCH §5)** · Cambio
+  de esfera tras agotar el duelo: cierra la carencia (b) del ciclo 18 y la deuda
+  explícita de §5 ("años viejos RESUMIDOS, no borrados"). Antes la Crónica
+  capaba a 60 eventos y BORRABA los viejos (perdía la historia); ahora, al pasar
+  de año, los años más allá de los 4 recientes se COMPACTAN en una línea-resumen
+  ("año 12: 3 nacimientos, 1 muerte, la ciudad construye: school") — como la
+  memoria humana: lo reciente en detalle, lo viejo en titulares, PRESERVANDO los
+  hitos verbatim. `summarizeYear` y `compactChronicle` son puras e idempotentes
+  (un año ya resumido no se re-resume), testeadas headless. Cada evento se
+  etiqueta con su tipo (birth/death/emigrated/couple/milestone) para contar sin
+  parsear prosa. Nota de descarte: probé la veta "jubilación→propósito" pero la
+  medición mostró 0 jubilados a día 40 (la mortalidad del ciclo 11 mantiene
+  joven la población) — no es un gap observable, bien descartarlo por medición.
+  168/168 tests, build OK.
+  Carencias observadas: (a) la compactación reciente-vs-vieja podría tener un
+  tercer nivel (décadas MUY viejas → "años 1-10: la fundación", un solo titular)
+  para partidas de siglos; (b) el diario de VIDA por ciudadano (primer empleo,
+  boda, nietos) sigue pendiente — la memoria hoy es de la CIUDAD, no de las
+  personas; (c) sin cambios en la disyuntiva de fondo: domar el crecimiento
+  (reabre lógicas de población + robustece T4.4) sigue siendo el mayor salto.
