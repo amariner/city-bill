@@ -718,7 +718,7 @@ export class Simulation {
             // Cadena de alimento: los granjeros en faena llenan el granero.
             if (employer?.role === 'agriculture') this.economy.produceFood(`${c.home.ax},${c.home.az}`, hours);
             // Dinero: cada hora trabajada es salario para el hogar.
-            this.economy.payWage(`${c.home.ax},${c.home.az}`, hours, employer?.tier ?? 0);
+            this.economy.payWage(`${c.home.ax},${c.home.az}`, hours, employer?.tier ?? 0, c.education);
           }
         }
         if (this.clock.time >= c.phase.until) {

@@ -769,3 +769,21 @@ una simulación, y los tratamos como tales:
   esfera: la ECONOMÍA sigue siendo la más plana (solo el alimento se comercia;
   no hay alquiler/vivienda de pago, ni variedad de oficios) — probable próxima
   veta de realismo.
+- 2026-07-04 · **Ciclo 28: retorno a la educación (economía — primer paso)** ·
+  Empieza a profundizar la esfera más plana. Hasta ahora el salario dependía SOLO
+  del tier del empleador; la educación abría empleos de tier alto pero no subía
+  la paga. Ahora `payWage` factoriza la CUALIFICACIÓN del trabajador
+  (`WAGE_SKILL_BONUS=0.6`): a igual empleo, un plenamente cualificado cobra ~60%
+  más que uno sin estudios — desigualdad realista y la educación por fin PAGA
+  directamente (refuerza el incentivo a escolarizarse, acopla education↔money).
+  Verificado a nivel de mecanismo (unit sobre payWage). No rompió el balance
+  monetario (205/205 tests; los tests de dinero/circular/gobierno siguen verdes,
+  la subida es proporcional y el 20% de impuesto la absorbe). La correlación
+  educación→riqueza a nivel de hogar aún no se ve limpia porque la educación de
+  los fundadores es bastante uniforme (0.2-0.9) y promediar por hogar la centra
+  — se verá más con generaciones y escuela.
+  Carencia observada: la economía sigue pidiendo (a) ALQUILER/vivienda de pago
+  (el mayor gasto real de un hogar, hoy inexistente — la vivienda es gratis) y
+  (b) VARIEDAD de bienes más allá del alimento. El alquiler es el más realista
+  pero el más delicado (puede vaciar bolsillos → emigración): hará falta cuidado
+  y medición, como con el crecimiento.

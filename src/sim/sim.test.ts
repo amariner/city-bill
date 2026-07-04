@@ -10,7 +10,7 @@
 import { seedWorld, seedFarm } from '../world/seed';
 import { Simulation } from './simulation';
 import { TICK_GAME_S, DAY_GAME_SECONDS } from './clock';
-import { FOOD_PRICE } from './economy';
+import { FOOD_PRICE, Economy } from './economy';
 import { weatherAt, seasonalWarmth, seasonalFestivalName } from './weather';
 import { deathChance, lifeYear, OLD_AGE, ADULT_AGE } from './lifecycle';
 import { CLINIC_RECOVERY_PER_HOUR } from './health';
@@ -909,6 +909,22 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
   const c = { home: { ax: 0, az: 0, buildingId: 'house' }, sick: 0 } as unknown as Citizen;
   check('salud pública: en día de fiesta normal, la fiesta se celebra', festival.suitability(festCtx(false), c) > 0);
   check('salud pública: en epidemia, el gobierno suspende la fiesta', festival.suitability(festCtx(true), c) === 0);
+}
+
+// Ciclo 28 RESEARCH.md — RETORNO A LA EDUCACIÓN (economía): el salario depende
+// también de la CUALIFICACIÓN del trabajador, no solo del tier del empleador →
+// la educación por fin PAGA (además de abrir empleos), y emerge desigualdad.
+{
+  // Mismo empleo (mismo tier, mismas horas), distinta cualificación: cobra más
+  // el que estudió. Desigualdad realista por educación.
+  const e = new Economy();
+  e.payWage('cualificado', 5, 0, 1); // education 1
+  e.payWage('sin-estudios', 5, 0, 0); // education 0
+  const skilled = e.walletOf('cualificado');
+  const unskilled = e.walletOf('sin-estudios');
+  check('educación paga: a igual empleo, el cualificado cobra más', skilled > unskilled, `→ ${skilled.toFixed(0)} vs ${unskilled.toFixed(0)}`);
+  check('educación paga: la brecha es sustancial (~+60% a plena cualificación)', skilled > unskilled * 1.5, `→ ×${(skilled / unskilled).toFixed(2)}`);
+  check('educación paga: sin estudios aún se cobra un salario digno', unskilled > 0);
 }
 
 // Determinismo: mismo snapshot final con la misma semilla.

@@ -25,6 +25,10 @@ export const FOOD_PER_FARMER_HOUR = 4;
 /** Salario base por hora trabajada; los tiers altos pagan más. */
 export const WAGE_PER_HOUR = 10;
 export const WAGE_TIER_BONUS = 4; // por nivel de tier del empleador
+/** Retorno a la educación (ciclo 28): un trabajador plenamente cualificado
+ * (education 1) cobra este % más que uno sin estudios — desigualdad realista y
+ * la educación por fin PAGA (además de abrir empleos de tier alto). */
+export const WAGE_SKILL_BONUS = 0.6;
 /** Precio de la unidad de comida. */
 export const FOOD_PRICE = 2;
 /** Gasto de capricho al ir de compras (si el hogar puede permitírselo). */
@@ -88,8 +92,9 @@ export class Economy {
   /** Nómina: el trabajo mete dinero en el hogar del trabajador, menos la
    * parte que va al tesoro municipal (impuesto sobre la renta, lógica de
    * gobierno). El tesoro es lo que luego paga pensiones. */
-  payWage(homeKey: string, hours: number, employerTier: number): void {
-    const gross = (WAGE_PER_HOUR + WAGE_TIER_BONUS * employerTier) * hours;
+  payWage(homeKey: string, hours: number, employerTier: number, skill = 0): void {
+    const skillMult = 1 + WAGE_SKILL_BONUS * Math.min(1, Math.max(0, skill));
+    const gross = (WAGE_PER_HOUR + WAGE_TIER_BONUS * employerTier) * skillMult * hours;
     const tax = gross * TAX_RATE;
     const net = gross - tax;
     this.wallets.set(homeKey, (this.wallets.get(homeKey) ?? 0) + net);
