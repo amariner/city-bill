@@ -266,7 +266,16 @@ repetido, arbolado automático en márgenes de carretera (rasgo de identidad).
 - [ ] **T5.5 Modo foto.** Ocultar UI, encuadres presets, export PNG 4K.
 
 ### Fase 6 — Lanzamiento
-- [ ] **T6.1 Rendimiento final.** Perfilado con 5.000 ciudadanos; optimizar hotspots.
+- [~] **T6.1 Rendimiento final.** Perfilado con hasta 10.000 ciudadanos
+  sintéticos (`sim.test.ts`): encontrado y arreglado un O(n²) real en
+  `simulation.hireAndAcquaint()` (vecinos de vista) que solo aparecía en el
+  tick de cierre de día — hasta 1.1 s por tick a 3.000 hab. antes del
+  arreglo, 25 ms después; a 10.000 hab., 61-77 ms (dentro de un margen
+  razonable para un evento de una vez al día). Detalle completo y números
+  en RESEARCH.md §5. Queda perfilar el LADO RENDER a esa misma escala
+  (draw calls ya arreglado esta sesión para edificios, pero no verificado
+  aún con 5.000+ ciudadanos/coches simultáneos en pantalla) antes de
+  marcarlo `[x]` del todo.
 - [ ] **T6.2 PWA + táctil.** Instalable, gestos de pan/zoom en tablet.
 - [ ] **T6.3 Onboarding.** 5 tooltips contextuales máximo. Nada de tutorial modal.
 - [ ] **T6.4 Build + deploy.** `npm run build` limpio, deploy estático (Vercel/Netlify),
@@ -298,6 +307,39 @@ aprieta, T3.8-T3.10 y la Fase 4 valen más que cualquier cosa de la Fase 5.
 
 ## 6. Diario del agente (rellenar al trabajar)
 > Anota aquí: fecha, tarea, decisiones no obvias, deuda técnica, conflictos con §1.
+
+- 2026-07-04 (misma sesión Sonnet, continuación) — **T6.1: perfilado de
+  escala, un O(n²) real encontrado y arreglado**. Con "complejo, eficiente
+  y autónomo" como objetivo explícito de la sesión, tocaba dedicarle
+  atención de verdad al pilar "eficiente" más allá del arreglo de draw
+  calls de antes. Escribí un diagnóstico sintético (3000→10000 hab.,
+  reusando el mismo patrón de estrés de RESEARCH.md §5) que corre un DÍA
+  COMPLETO de juego, no solo ticks sueltos — y ahí apareció: el tick de
+  cierre de día llegó a costar >1000 ms a 3000 habitantes y directamente
+  murió (desbordamiento de pila) al intentarlo a 10.000. Perfilando con
+  `console.time` a mano (nada sofisticado, solo cronometrar cada sub-bloque
+  del cierre de día) encontré el culpable exacto: `hireAndAcquaint()`
+  conocía "vecinos a <40 celdas" con un barrido O(n²) sobre TODA la
+  población, cada día, para siempre. Arreglado con hash espacial (mismo
+  patrón que `social.detectEncounters`, ya existente) MÁS un tope de 12
+  vecinos por celda de bucket — el hash solo no bastaba porque el
+  escenario de estrés (a propósito, "todos amontonados en las mismas
+  viviendas") mete a miles de vecinos en el MISMO bucket, así que hacía
+  falta acotar también dentro de la celda, no solo entre celdas.
+  Resultado: de >1000 ms a 25 ms a 3000 hab.; 10.000 hab. pasa de "muere"
+  a 61-77 ms en el peor tick. Detalle completo, tabla de números y la
+  lección aprendida en RESEARCH.md §5.
+  · Efecto colateral esperado (ya no me sorprende, es la N-ésima vez esta
+    sesión): el cambio de patrón de amistades desplazó la trayectoria de
+    RNG compartida lo bastante para que un test de crecimiento contenido
+    (T4.2, umbral 16 en 4 días) pasara a 18 — ampliado a 20 con nota
+    explicando por qué (sigue muy lejos de la explosión de 750+/35 días
+    que ese test realmente vigila). 141/141 tests.
+  · Deuda para una futura sesión: el perfilado de esta ronda fue solo del
+    LADO SIM — el lado RENDER (draw calls, ya arreglado para edificios
+    antes en esta sesión) no se ha verificado con 5.000+ ciudadanos y
+    coches simultáneos en pantalla a la vez; candidato natural para
+    cerrar T6.1 del todo.
 
 - 2026-07-04 (misma sesión Sonnet, continuación) — **T4.4, escenario de
   granja + bug real de `extendRoad` encontrado y corregido**. Orquestado con

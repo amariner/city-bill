@@ -96,6 +96,38 @@ holgadamente alcanzable con la arquitectura actual SIN optimizar nada
 todavía. Test de regresión permanente en `sim.test.ts` (3.000 hab. sintéticos)
 para que esta garantía no se rompa en silencio con futuros ciclos.
 
+**Corrección importante (2026-07-04, sesión T6.1)**: la medición de arriba
+tenía un punto ciego real — solo cronometraba ticks NORMALES, nunca el tick
+de CIERRE DE DÍA (una vez por día de juego: vida, economía, `hireAndAcquaint`).
+Perfilando a propósito para T6.1 encontré que ese tick escondía un **O(n²) de
+verdad**: `hireAndAcquaint` conocía "vecinos a <40 celdas" con un barrido de
+TODA la población contra TODA la población — a 3000 hab. en el mismo
+escenario sintético ya "medido" arriba, ese único tick costaba **~650-1100
+ms** (13-22× el presupuesto de un tick normal), y a 10.000 el mismo camino
+degeneraba tanto que el proceso llegó a morir con un desbordamiento de pila.
+Doble arreglo en `simulation.hireAndAcquaint()`: (1) hash espacial por
+buckets de 40 celdas sobre la posición del HOGAR (mismo patrón que
+`social.detectEncounters`), y (2) un tope de 12 vecinos comparados POR
+CELDA DE BUCKET (no "los primeros que cumplan" — por índice fijo, para que
+un bloque de pisos con cientos de vecinos en la MISMA ancla — perfectamente
+posible con `apartmentSlab`/`brickBlock` — no vuelva a ser O(n²) *dentro*
+de un único bucket). El tope no es solo más rápido: es más realista (en un
+bloque de 200 vecinos nadie conoce a los otros 199 en la vida real tampoco)
+y adelanta el plan de "amistades top-K" que ya estaba anotado en la tabla
+de abajo.
+
+Medido DE VERDAD tras el arreglo (mismo estrés sintético, ahora incluyendo
+el tick de cierre de día en la medición): 3.000 hab. — tick normal 4.4
+ms, peor tick (cierre de día) 25 ms; 10.000 hab. — tick normal 7.1 ms, peor
+tick 61-77 ms. El objetivo de 10.000 SÍ es alcanzable, pero por un margen
+mucho más ajustado del que sugería la medición incompleta de arriba — el
+tick de cierre de día es ahora el próximo candidato a optimizar si la
+población autónoma real llega a acercarse a esa cifra. Test de regresión
+ampliado en `sim.test.ts` para medir explícitamente el peor tick de un día
+completo, no solo ticks normales — la lección concreta de este hallazgo:
+**medir SOLO el camino caliente esconde bugs reales en el camino frío pero
+periódico** (una vez al día es "frío" en frecuencia, no en coste).
+
 | Recurso | Hoy (~10-100 hab.) | Límite previsto | Tecnología para superarlo |
 |---|---|---|---|
 | CPU del tick | objetos JS, O(pob.) | ~2.000 hab. | 1º **LOD de sim**: lejos de cámara, tick grueso (decidir 1/min, sin física de paso). 2º SoA: necesidades/posiciones en `Float32Array` planas (cache-friendly). 3º WASM solo si el perfil lo exige. |

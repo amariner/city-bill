@@ -256,14 +256,55 @@ export class Simulation {
           if (a && b) SocialSystem.acquaint(a, b, 0.3);
         }
     }
-    // Vecinos a < 12 celdas se conocen de vista.
-    const all = [...this.citizens.values()];
-    for (let i = 0; i < all.length; i++)
-      for (let j = i + 1; j < all.length; j++) {
-        const a = all[i];
-        const b = all[j];
-        if (manhattan([a.home.ax, a.home.az], [b.home.ax, b.home.az]) < 40) SocialSystem.acquaint(a, b);
+    // Vecinos a < 40 celdas se conocen de vista. Hash espacial por buckets
+    // de 40 celdas sobre la posición del HOGAR (estable, no cambia tick a
+    // tick) — mismo patrón que `social.detectEncounters`. Antes era un
+    // barrido O(n²) sobre TODA la población: medido, ~650 ms YA a 3000
+    // habitantes (muy por encima del presupuesto de 50 ms/tick, y el
+    // verdadero cuello de botella que impedía llegar a los 10.000 de
+    // RESEARCH.md §5 pese a que los ticks normales sí escalaban bien).
+    // Bucket=40=umbral: dos hogares con distancia Manhattan <40 SIEMPRE
+    // caen en buckets iguales o adyacentes en cada eje (floor(x/40) solo
+    // puede diferir en más de 1 si |dx|>40), así que mirar el 3×3 vecino no
+    // pierde ningún par real.
+    //
+    // SEGUNDO cuello de botella real, encontrado midiendo el primero: un
+    // bloque de pisos denso (apartmentSlab/brickBlock, decenas de familias
+    // en la MISMA ancla) mete a cientos de vecinos en un solo bucket — el
+    // hash por celda no ayuda si la concentración está DENTRO de la celda,
+    // no entre celdas. HOME_NEIGHBOR_CAP acota cuántos vecinos de bucket se
+    // procesan por persona (determinista: siempre los primeros del bucket,
+    // orden estable). Es además más realista, no solo más rápido: en un
+    // bloque de 200 vecinos nadie conoce a los 199 restantes en la vida
+    // real tampoco — mismo espíritu que el tope de amistades "máx 12" ya
+    // anotado como plan en RESEARCH.md §5.
+    const HOME_NEIGHBOR_RANGE = 40;
+    const HOME_NEIGHBOR_CAP = 12;
+    const bkey = (x: number, z: number) => (Math.floor(x / HOME_NEIGHBOR_RANGE) + 4096) * 8192 + (Math.floor(z / HOME_NEIGHBOR_RANGE) + 4096);
+    const homeBuckets = new Map<number, Citizen[]>();
+    for (const c of this.citizens.values()) {
+      const k = bkey(c.home.ax, c.home.az);
+      (homeBuckets.get(k) ?? homeBuckets.set(k, []).get(k)!).push(c);
+    }
+    // El tope se aplica por ÍNDICE del bucket (los primeros K), no por
+    // "primeros que cumplan" — así el coste por persona está acotado de
+    // verdad SIEMPRE, sin importar cuántos vecinos con id mayor/menor haya
+    // delante (con id habría que recorrer el bucket entero para los últimos
+    // en llegar, volviendo a ser O(n) por persona en el caso denso).
+    for (const a of this.citizens.values()) {
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dz = -1; dz <= 1; dz++) {
+          const cell = homeBuckets.get(bkey(a.home.ax + dx * HOME_NEIGHBOR_RANGE, a.home.az + dz * HOME_NEIGHBOR_RANGE));
+          if (!cell) continue;
+          const limit = Math.min(cell.length, HOME_NEIGHBOR_CAP);
+          for (let k = 0; k < limit; k++) {
+            const b = cell[k];
+            if (b.id === a.id) continue;
+            if (manhattan([a.home.ax, a.home.az], [b.home.ax, b.home.az]) < HOME_NEIGHBOR_RANGE) SocialSystem.acquaint(a, b);
+          }
+        }
       }
+    }
   }
 
   // --- Tick -------------------------------------------------------------------
