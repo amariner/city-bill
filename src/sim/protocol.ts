@@ -112,7 +112,8 @@ export interface SimEventMsg {
     | 'tierUnlocked'
     | 'coupleFormed'
     | 'festivalDay'
-    | 'roadExtended';
+    | 'roadExtended'
+    | 'epidemic';
   data?: Record<string, unknown>;
 }
 
@@ -138,6 +139,8 @@ export interface CitizenInfoMsg {
   prestige: number;
   /** Duelo [0,1] — ciclo 16. Solo el inspector lo pinta cuando pesa. */
   grief: number;
+  /** Enfermedad contagiosa [0,1] — ciclo 25. El inspector la pinta si está enfermo. */
+  sick: number;
 }
 
 export type WorkerToMain = SnapshotMsg | SimEventMsg | CitizenInfoMsg;

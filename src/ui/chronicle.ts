@@ -111,6 +111,8 @@ export function chronicleText(name: string, data?: Record<string, unknown>): str
       return `¡hito! tier ${data?.tier} desbloqueado (${data?.population} hab.)`;
     case 'festivalDay':
       return typeof data?.name === 'string' ? data.name : 'fiesta mayor del pueblo';
+    case 'epidemic':
+      return `una epidemia recorre la ciudad (${data?.sick ?? '?'} enfermos)`;
     default:
       return null;
   }

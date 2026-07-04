@@ -32,6 +32,7 @@ import { STARTING_MONEY, SHOP_TREAT_PRICE, PENSION_PER_DAY } from './economy';
 import { catalogData, Tier } from '../world/catalogData';
 import { healthTick, CLINIC_RECOVERY_PER_HOUR, WORK_BLOCK_HEALTH } from './health';
 import { griefTick, consoleGrief, bereave, GRIEF_PARTNER, GRIEF_FRIEND, GRIEF_FRIEND_AFFINITY } from './grief';
+import { sickenTick, treatSick, SICK_ONSET } from './contagion';
 import { weatherAt, seasonalFestivalName, Weather } from './weather';
 
 /** Velocidad al caminar, en celdas por tick (0.25 s reales a vel. 1). */
@@ -58,7 +59,7 @@ const COMFORT_FUN_PER_HOUR = 0.15;
 const BOUNTIFUL_GRANARY = 40;
 
 export interface SimEvent {
-  name: 'citizenBorn' | 'citizenLeft' | 'jobTaken' | 'chatStarted' | 'cityGrew' | 'tierUnlocked' | 'coupleFormed' | 'festivalDay' | 'roadExtended';
+  name: 'citizenBorn' | 'citizenLeft' | 'jobTaken' | 'chatStarted' | 'cityGrew' | 'tierUnlocked' | 'coupleFormed' | 'festivalDay' | 'roadExtended' | 'epidemic';
   data: Record<string, unknown>;
 }
 
@@ -193,6 +194,8 @@ export class Simulation {
       education: age === undefined ? this.rng.range(0.2, 0.9) : 0,
       health: this.rng.range(0.75, 1),
       grief: 0,
+      sick: 0,
+      immune: 0,
       x: door[0] + 0.5,
       z: door[1] + 0.5,
       heading: this.rng.range(0, Math.PI * 2),
@@ -269,6 +272,7 @@ export class Simulation {
       decayNeeds(c.needs, c.personality, hours);
       healthTick(c, hours); // lógica de salud: fondo, no una actividad
       griefTick(c, hours); // lógica de duelo (ciclo 16): apaga la alegría del doliente
+      sickenTick(c, hours); // contagio (ciclo 25): la enfermedad aguda mella y se pasa
       // Estatus (ciclo 9): una vivienda mejorada es más agradable — quien
       // está EN CASA (durmiendo, comiendo) recupera algo más de ánimo.
       if (c.inside && (c.activity === 'sleep' || c.activity === 'eat' || c.activity === 'none')) {
@@ -315,6 +319,7 @@ export class Simulation {
       this.stepLife();
       this.economy.endOfDay();
       this.payPensions();
+      this.stepOutbreak(); // ciclo 25: en invierno, algún resfriado prende y se propaga
       this.stepEmigration(); // ciclo 14: tras la red de pensiones (última bala)
       this.economy.investInHomes(this.households.keys()); // estatus, ciclo 9
       this.hireAndAcquaint();
@@ -436,6 +441,35 @@ export class Simulation {
     }
     this.departed = [];
     this.economy.rebuild(this.index, this.citizens);
+  }
+
+  /** true mientras una oleada supera el umbral epidémico (para narrar una sola vez). */
+  private inEpidemic = false;
+
+  /** Contagio (ciclo 25): en el frío del invierno, con cierta probabilidad
+   * prende un resfriado en alguien sano (caso índice). A partir de ahí se
+   * propaga solo en los encuentros (social.ts). Además, VIGILA la oleada: si más
+   * de ~1/4 de la ciudad enferma, la Crónica narra la epidemia (una vez). */
+  private stepOutbreak(): void {
+    const pop = this.citizens.size;
+    if (pop >= 6) {
+      // Vigilancia de la oleada (para la Crónica).
+      let sick = 0;
+      for (const c of this.citizens.values()) if (c.sick > 0.1) sick++;
+      const frac = sick / pop;
+      if (!this.inEpidemic && frac > 0.25) {
+        this.inEpidemic = true;
+        this.events.push({ name: 'epidemic', data: { sick, population: pop } });
+      } else if (this.inEpidemic && frac < 0.1) {
+        this.inEpidemic = false;
+      }
+      // Caso índice espontáneo en invierno.
+      if (this.weather.season === 'invierno' && this.rng.next() < 0.12) {
+        const arr = [...this.citizens.values()];
+        const c = arr[Math.floor(this.rng.next() * arr.length)];
+        if (c && c.sick <= 0 && c.immune <= 0) c.sick = SICK_ONSET;
+      }
+    }
   }
 
   /** Duelo (ciclo 16): cuando alguien se va (muere o emigra), su pareja sufre el
@@ -668,7 +702,10 @@ export class Simulation {
           // club, fiesta — mucha restauración social) alivian el duelo.
           if ((def.restorePerHour.social ?? 0) >= 0.5) consoleGrief(c, hours);
           if (c.activity === 'school') c.education = Math.min(1, c.education + EDU_PER_HOUR * hours);
-          if (c.activity === 'clinic' && this.clinicHealing) c.health = Math.min(1, c.health + CLINIC_RECOVERY_PER_HOUR * hours);
+          if (c.activity === 'clinic' && this.clinicHealing) {
+            c.health = Math.min(1, c.health + CLINIC_RECOVERY_PER_HOUR * hours);
+            treatSick(c, hours); // contagio (ciclo 25): la clínica también cura la enfermedad aguda
+          }
           if (c.activity === 'work' && c.work) {
             const employer = catalogData(c.work.buildingId);
             // Cadena de alimento: los granjeros en faena llenan el granero.
@@ -811,7 +848,7 @@ export class Simulation {
   }
 
   /** Estado legible de un ciudadano (inspector T3.10). */
-  describe(id: number): { name: string; age: number; lifeStage: string; partnerName?: string; activity: ActivityKind; activityLabel: string; needs: Record<string, number>; home: [number, number]; work?: [number, number]; health: number; grief: number; wallet: number; pantry: number; prestige: number } | null {
+  describe(id: number): { name: string; age: number; lifeStage: string; partnerName?: string; activity: ActivityKind; activityLabel: string; needs: Record<string, number>; home: [number, number]; work?: [number, number]; health: number; grief: number; sick: number; wallet: number; pantry: number; prestige: number } | null {
     const c = this.citizens.get(id);
     if (!c) return null;
     const homeKey = `${c.home.ax},${c.home.az}`;
@@ -831,6 +868,7 @@ export class Simulation {
       work: c.work ? [c.work.ax, c.work.az] : undefined,
       health: c.health,
       grief: c.grief,
+      sick: c.sick,
       wallet: this.economy.walletOf(homeKey),
       pantry: this.pantry.get(homeKey) ?? 0,
       prestige: this.economy.prestigeOf(homeKey),

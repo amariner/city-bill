@@ -703,3 +703,29 @@ una simulación, y los tratamos como tales:
   tupido harían falta reservar corredores o construir con retranqueo mayor cerca
   de los extremos. Pero el corazón de T4.4 —"de una granja, un pueblo sin
   input"— ya late.
+- 2026-07-04 · **Ciclo 25: CONTAGIO (epidemias en oleadas, modelo SIRS)** ·
+  Observación: mi sociedad tenía enfermedad CRÓNICA (salud, ciclo 5) pero la
+  enfermedad real es AGUDA y CONTAGIOSA y viene en OLEADAS — una carencia de
+  realismo evidente. Modelo (epidemiología, SIRS): Susceptible → Infectado (se
+  pega en los encuentros cara a cara de social.ts, o brota espontáneo en el frío
+  del invierno) → Recuperado con INMUNIDAD temporal → la inmunidad decae en ~una
+  estación → susceptible otra vez. `sim/contagion.ts` (puro): `sickenTick`
+  (mella salud/energía leve, se cura en ~5 días, deja inmune), `maybeInfect`
+  (contagio en charla si el otro es susceptible), `treatSick` (la clínica cura
+  antes). Acopla con salud→mortalidad (ciclo 11): las oleadas se ceban en los
+  frágiles/ancianos, como en la vida real, pero SUAVE y recuperable (nada de
+  espiral de muerte). Ajuste clave por diagnóstico: sin inmunidad, R0 alto daba
+  epidemia PERPETUA al 80% (endémica, no oleadas); con inmunidad SIRS emergen
+  oleadas de verdad — sube, colectiviza inmunidad, baja, la inmunidad decae y
+  vuelve otra ola mayor cuando la población creció y se hizo susceptible (medido:
+  ola pequeña día 12, gran ola día 84 con 90 enfermos de 360, 35 muertes en 90
+  días sin colapso, pob 441). Observable: evento `epidemic` narrado en la
+  Crónica ("una epidemia recorre la ciudad, N enfermos") y barra "enfermo" en el
+  inspector. Nueva entrada en el manifiesto (`contagion`, N2, acopla
+  health+social). Contratos ampliados (SimEventMsg += `epidemic`, CitizenInfoMsg
+  += `sick`), replicados en el mismo commit. 196/196 tests.
+  Carencia observada: (a) la enfermedad no distingue TIPOS (resfriado leve vs
+  peste grave) — un parámetro de letalidad por cepa daría eventos memorables;
+  (b) no hay CUARENTENA ni conducta de evitación (la gente sigue socializando
+  igual con enfermos) — un "quedarse en casa si enfermo" bajaría R0 y sería
+  realista; (c) la vacuna/clínica podría PREVENIR (inmunizar) además de curar.

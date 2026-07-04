@@ -71,6 +71,13 @@ export interface Citizen {
   /** Duelo [0,1] (lógica de duelo, ciclo 16). Salta al perder a la pareja o a
    * un amigo íntimo (muerte/emigración); apaga la alegría y decae en ~días. */
   grief: number;
+  /** Enfermedad CONTAGIOSA [0,1] (contagio, ciclo 25). Se pega en los
+   * encuentros, mella la salud mientras dura y se pasa en unos días (antes en
+   * la clínica). Distinta de `health` (fondo crónico): esto es agudo y contagioso. */
+  sick: number;
+  /** Inmunidad [0,1] tras pasar la enfermedad (contagio, ciclo 25). Protege del
+   * recontagio y decae en ~una estación → de ahí las OLEADAS (modelo SIRS). */
+  immune: number;
   /** Afinidad por id de conocido [0,1]. Se refuerza con encuentros. */
   friends: Map<number, number>;
   /** Tick en que terminó su última charla (histéresis anti-bucle). */

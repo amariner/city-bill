@@ -15,6 +15,7 @@ import { weatherAt, seasonalWarmth, seasonalFestivalName } from './weather';
 import { deathChance, lifeYear, OLD_AGE, ADULT_AGE } from './lifecycle';
 import { CLINIC_RECOVERY_PER_HOUR } from './health';
 import { bereave, griefTick, consoleGrief, consoleGriefBy, GRIEF_PARTNER } from './grief';
+import { maybeInfect, sickenTick, SICK_ONSET } from './contagion';
 import { chatBond } from './citizens/social';
 import { chronicleText, summarizeYear, compactChronicle, ChronEvent } from '../ui/chronicle';
 import { townAttractiveness, householdHardship, updateEmigrationPressure, EMIGRATE_PRESSURE_LIMIT } from '../world/growth';
@@ -359,7 +360,7 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
     needs: { energy: 1, food: 1, social: 1, fun: 1, purpose: 1 },
     home: { ax: 0, az: 0, buildingId: 'house' }, work: null,
     x: 0, z: 0, heading: 0, phase: { kind: 'deciding' }, activity: 'none',
-    partnerId: null, education: 0, health, grief: 0, friends: new Map(), lastChatTick: -1, inside: false,
+    partnerId: null, education: 0, health, grief: 0, sick: 0, immune: 0, friends: new Map(), lastChatTick: -1, inside: false,
   });
   const cohort = (health: number): number => {
     const m = new Map<number, Citizen>();
@@ -504,7 +505,7 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
     needs: { energy: 1, food: 1, social: 1, fun: 1, purpose: 1 },
     home: { ax: 0, az: 0, buildingId: 'house' }, work: null,
     x: 0, z: 0, heading: 0, phase: { kind: 'deciding' }, activity: 'none',
-    partnerId: null, education: 0, health, grief: 0, friends: new Map(), lastChatTick: -1, inside: false,
+    partnerId: null, education: 0, health, grief: 0, sick: 0, immune: 0, friends: new Map(), lastChatTick: -1, inside: false,
   });
   const cohortDeaths = (health: number): number => {
     const m = new Map<number, Citizen>();
@@ -531,7 +532,7 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
     needs: { energy: 1, food: 1, social: 0.8, fun: 0.8, purpose: 1 },
     home: { ax: 0, az: 0, buildingId: 'house' }, work: null,
     x: 0, z: 0, heading: 0, phase: { kind: 'deciding' }, activity: 'none',
-    partnerId: null, education: 0, health: 1, grief, friends: new Map(), lastChatTick: -1, inside: false,
+    partnerId: null, education: 0, health: 1, grief, sick: 0, immune: 0, friends: new Map(), lastChatTick: -1, inside: false,
   });
 
   // (a) Mecanismo puro: el golpe se acumula y se acota; el duelo apaga la
@@ -581,7 +582,7 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
     needs: { energy: 1, food: 1, social: 0.8, fun: 0.8, purpose: 1 },
     home: { ax: 0, az: 0, buildingId: 'house' }, work: null,
     x: 0, z: 0, heading: 0, phase: { kind: 'deciding' }, activity: 'none',
-    partnerId: null, education: 0, health: 1, grief, friends: new Map(), lastChatTick: -1, inside: false,
+    partnerId: null, education: 0, health: 1, grief, sick: 0, immune: 0, friends: new Map(), lastChatTick: -1, inside: false,
   });
 
   // (a) Puro: en la misma hora, quien está acompañado alivia MÁS que quien pasa
@@ -654,7 +655,7 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
     needs: { energy: 1, food: 1, social: 1, fun: 1, purpose: 1 },
     home: { ax: 0, az: 0, buildingId: 'house' }, work: null,
     x: 0, z: 0, heading: 0, phase: { kind: 'deciding' }, activity: 'none',
-    partnerId: null, education: 0, health: 1, grief, friends: new Map(friends), lastChatTick: -1, inside: false,
+    partnerId: null, education: 0, health: 1, grief, sick: 0, immune: 0, friends: new Map(friends), lastChatTick: -1, inside: false,
   });
   // Un íntimo (afinidad 0.9) consuela más que un desconocido de vista (0.05).
   const byIntimate = person(1, 0.8, [[2, 0.9]]);
@@ -688,7 +689,7 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
     needs: { energy: 1, food: 1, social: 1, fun: 1, purpose: 1 },
     home: { ax: 0, az: 0, buildingId: 'house' }, work: null,
     x: 0, z: 0, heading: 0, phase: { kind: 'deciding' }, activity: 'none',
-    partnerId: null, education: 0, health: 1, grief, friends: new Map(), lastChatTick: -1, inside: false,
+    partnerId: null, education: 0, health: 1, grief, sick: 0, immune: 0, friends: new Map(), lastChatTick: -1, inside: false,
   });
   check('luto une: dos dolientes estrechan más lazo que una charla normal', chatBond(p(0.5), p(0.6)) > chatBond(p(0), p(0)));
   check('luto une: si solo uno pena, la charla es normal', chatBond(p(0.5), p(0)) === chatBond(p(0), p(0)));
@@ -805,6 +806,59 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
   let moving = 0;
   for (let t = 0; t < 200; t++) { sim.step(); for (const c of sim.citizens.values()) if (c.phase.kind === 'moving') moving++; }
   check('autónomo: hay vida circulando por las calles trazadas', moving > 0, `→ ${moving} ticks-moving`);
+}
+
+// Ciclo 25 RESEARCH.md — CONTAGIO (epidemias en oleadas, SIRS): la enfermedad no
+// es solo un fondo crónico, es AGUDA y CONTAGIOSA. Se pega en los encuentros,
+// da inmunidad temporal al pasarla, y viene en OLEADAS (acopla salud↔social).
+{
+  const person = (sick: number, immune: number): Citizen => ({
+    id: 1, name: 'S', age: 40,
+    personality: { sociable: 0.5, trabajador: 0.5, hogareño: 0.5 },
+    needs: { energy: 1, food: 1, social: 1, fun: 1, purpose: 1 },
+    home: { ax: 0, az: 0, buildingId: 'house' }, work: null,
+    x: 0, z: 0, heading: 0, phase: { kind: 'deciding' }, activity: 'none',
+    partnerId: null, education: 0, health: 1, grief: 0, sick, immune, friends: new Map(), lastChatTick: -1, inside: false,
+  });
+  const alwaysInfect = { next: () => 0 }; // rng que siempre contagia
+
+  // (a) Transmisión pura: un infeccioso pega a un susceptible; no a un inmune;
+  //     dos sanos no generan enfermedad de la nada.
+  const sicko = person(SICK_ONSET, 0); const susceptible = person(0, 0);
+  maybeInfect(sicko, susceptible, alwaysInfect);
+  check('contagio: un enfermo pega la enfermedad a un sano', susceptible.sick > 0, `→ ${susceptible.sick}`);
+  const immune = person(0, 1);
+  maybeInfect(person(SICK_ONSET, 0), immune, alwaysInfect);
+  check('contagio: un inmune NO se recontagia', immune.sick === 0);
+  const h1 = person(0, 0), h2 = person(0, 0);
+  maybeInfect(h1, h2, alwaysInfect);
+  check('contagio: dos sanos no enferman de la nada', h1.sick === 0 && h2.sick === 0);
+
+  // (b) Curso de la enfermedad: se pasa en unos días y DEJA inmunidad, que luego
+  //     decae (modelo SIRS → oleadas recurrentes).
+  const c = person(SICK_ONSET, 0);
+  for (let h = 0; h < 24 * 6; h++) sickenTick(c, 1);
+  check('contagio: la enfermedad se pasa en unos días', c.sick === 0, `→ ${c.sick.toFixed(2)}`);
+  check('contagio: al pasarla queda inmunidad', c.immune > 0.5, `→ ${c.immune.toFixed(2)}`);
+  for (let h = 0; h < 24 * 25; h++) sickenTick(c, 1);
+  check('contagio: la inmunidad decae con el tiempo (permite nuevas oleadas)', c.immune === 0, `→ ${c.immune.toFixed(2)}`);
+
+  // (c) Emergencia integrada: en una ciudad hay OLEADAS (mucha gente enferma a la
+  //     vez, con evento de epidemia narrado) y la sociedad SOBREVIVE (recuperable).
+  {
+    const sim = new Simulation(seedWorld(), 42);
+    let peakSick = 0, epidemicEvents = 0, everSick = new Set<number>();
+    for (let t = 0; t < TICKS_PER_DAY * 90; t++) {
+      sim.step();
+      for (const e of sim.takeEvents()) if (e.name === 'epidemic') epidemicEvents++;
+      let s = 0; for (const cz of sim.citizens.values()) { if (cz.sick > 0.1) { s++; everSick.add(cz.id); } }
+      peakSick = Math.max(peakSick, s);
+    }
+    check('contagio: emergen oleadas (mucha gente enferma a la vez)', peakSick >= 8, `→ pico ${peakSick} enfermos`);
+    check('contagio: la Crónica narra la epidemia', epidemicEvents > 0, `→ ${epidemicEvents} eventos`);
+    check('contagio: mucha gente pasa la enfermedad a lo largo del tiempo', everSick.size >= 15, `→ ${everSick.size}`);
+    check('contagio: la sociedad SOBREVIVE la epidemia (no es espiral de muerte)', sim.citizens.size >= 30, `→ ${sim.citizens.size} hab.`);
+  }
 }
 
 // Determinismo: mismo snapshot final con la misma semilla.
