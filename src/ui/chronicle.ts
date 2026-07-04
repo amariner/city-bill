@@ -17,7 +17,7 @@ interface ChronicleData {
   /** [año, población, edificios] por año de la ciudad. */
   series: Array<[number, number, number]>;
   events: Array<{ year: number; text: string }>;
-  counters: { births: number; deaths: number; couples: number };
+  counters: { births: number; deaths: number; couples: number; retirements: number };
 }
 
 const MAX_EVENTS = 60;
@@ -73,11 +73,15 @@ export class Chronicle {
   private load(): ChronicleData {
     try {
       const raw = localStorage.getItem(this.key);
-      if (raw) return JSON.parse(raw) as ChronicleData;
+      if (raw) {
+        const parsed = JSON.parse(raw) as ChronicleData;
+        parsed.counters.retirements ??= 0; // crónicas guardadas antes de la lógica de jubilación
+        return parsed;
+      }
     } catch {
       /* corrupto: se empieza crónica nueva */
     }
-    return { series: [], events: [], counters: { births: 0, deaths: 0, couples: 0 } };
+    return { series: [], events: [], counters: { births: 0, deaths: 0, couples: 0, retirements: 0 } };
   }
 
   private save(): void {
@@ -114,6 +118,10 @@ export class Chronicle {
         break;
       case 'festivalDay':
         text = 'fiesta mayor del pueblo';
+        break;
+      case 'citizenRetired':
+        text = `${data?.name ?? 'alguien'} se jubila`;
+        this.data.counters.retirements++;
         break;
       default:
         return;
@@ -153,7 +161,8 @@ export class Chronicle {
     const head =
       `CRÓNICA DE LA CIUDAD — año ${last[0]}\n` +
       `población ${last[1]} · edificios ${last[2]}\n` +
-      `nacimientos ${d.counters.births} · muertes ${d.counters.deaths} · parejas ${d.counters.couples}`;
+      `nacimientos ${d.counters.births} · muertes ${d.counters.deaths} · parejas ${d.counters.couples}\n` +
+      `jubilaciones ${d.counters.retirements}`;
 
     const feed = d.events
       .slice(-14)

@@ -23,7 +23,7 @@ import { ACTIVITY_BY_KIND, SimContext, activityLabel, EDU_PER_HOUR, CLINIC_FEE, 
 import { SocialSystem } from './citizens/social';
 import { AgentState, ActivityKind, activityId, AGENT_STRIDE, TravelModeCode } from './protocol';
 import { computeDemand, itemForDemand, findParcel, townCenter, GrowthPlacement, extendRoad } from '../world/growth';
-import { lifeYear } from './lifecycle';
+import { lifeYear, RETIREMENT_AGE } from './lifecycle';
 import { STARTING_MONEY, SHOP_TREAT_PRICE, PENSION_PER_DAY } from './economy';
 import { catalogData, Tier } from '../world/catalogData';
 import { healthTick, CLINIC_RECOVERY_PER_HOUR, WORK_BLOCK_HEALTH } from './health';
@@ -91,6 +91,30 @@ export function familySize(rng: Rng, avgPrestige: number, avgGrief = 0): number 
 /** Bonus de 'fun' por hora en casa, a prestigio máximo (se escala por él). */
 const COMFORT_FUN_PER_HOUR = 0.15;
 
+// --- Lógica de jubilación (carencia observada: los ancianos trabajaban
+// hasta morir, sin ningún límite de edad) --------------------------------
+/** Ritmo al que un jubilado reconstruye 'purpose' FUERA del trabajo, PROPORCIONAL
+ * al déficit: `k·(1 - purpose)` por hora. La forma importa tanto como el número.
+ *
+ * Un primer intento usó un restore PLANO (una constante por hora, como el resto
+ * de needs.ts). Pero un jubilado no tiene ninguna actividad que restaure
+ * 'purpose' — 'work' es la única y `assignJobs` lo excluye —, así que ese
+ * restore plano competía cada hora contra un decay TAMBIÉN plano
+ * (decayRate('purpose', p) = (1/12)·(0.5 + trabajador) ∈ [0.042, 0.125]/h). Dos
+ * ritmos planos no tienen equilibrio intermedio: quien decae más despacio que la
+ * constante satura a 1 y quien decae más rápido cae a 0 y se queda ahí de por
+ * vida — la población de jubilados se partía en dos castas permanentes (~70% en
+ * 1, ~30% en 0). El test agregado (media > 0.1) no lo veía porque solo mira el
+ * promedio, no al individuo (revisión adversarial de esta sesión).
+ *
+ * Hacerlo proporcional al déficit le da al sistema un ATRACTOR por persona:
+ * v* = 1 - d/k (donde d es el decay propio). Con k = 1/5, cada jubilado se
+ * estabiliza entre 0.375 (el más 'trabajador', a quien más le cuesta el retiro)
+ * y 0.79 (el más hogareño, que lo abraza) — un continuo suave, nunca 0 ni 1,
+ * siempre por debajo de lo que da un empleo real. k debe superar el decay máximo
+ * (0.125) para que hasta el más trabajador tenga un punto fijo positivo. */
+const RETIREMENT_PURPOSE_RECOVERY = 1 / 5;
+
 export interface SimEvent {
   name:
     | 'citizenBorn'
@@ -103,7 +127,8 @@ export interface SimEvent {
     | 'festivalDay'
     | 'homePrestige'
     | 'cultivationChanged'
-    | 'roadBuilt';
+    | 'roadBuilt'
+    | 'citizenRetired';
   data: Record<string, unknown>;
 }
 
@@ -357,6 +382,17 @@ export class Simulation {
         const prestige = this.economy.prestigeOf(`${c.home.ax},${c.home.az}`);
         if (prestige > 0) restore(c.needs, 'fun', prestige * COMFORT_FUN_PER_HOUR * hours);
       }
+      // Jubilación: sin trabajo que restaure 'purpose' (solo 'work' lo
+      // hace), un jubilado sentiría una presión de propósito CRECIENTE Y
+      // PERPETUA sin ninguna salida — ya no busca empleo, así que nunca se
+      // resolvería. Encuentra sentido fuera del trabajo (aficiones, familia,
+      // ayudar) PROPORCIONAL a lo que le falta: mucho cuando está vacío, poco
+      // cuando ya se siente pleno. Eso le da un equilibrio estable por
+      // persona (ver RETIREMENT_PURPOSE_RECOVERY) en vez de saturar o
+      // colapsar — no sustituye el empleo, pero evita la desesperación sin fin.
+      if (c.age >= RETIREMENT_AGE) {
+        restore(c.needs, 'purpose', RETIREMENT_PURPOSE_RECOVERY * (1 - c.needs.purpose) * hours);
+      }
       if (this.social.isChatting(c.id)) {
         c.activity = 'chat';
         continue; // parado charlando; social.ts le restaura
@@ -463,7 +499,14 @@ export class Simulation {
       SocialSystem.acquaint(child, b.parents[0], 0.8);
       SocialSystem.acquaint(child, b.parents[1], 0.8);
     }
-    if (life.deaths.length > 0) this.economy.rebuild(this.index, this.citizens);
+    for (const r of life.retirements) {
+      this.events.push({ name: 'citizenRetired', data: { id: r.id, name: r.name } });
+    }
+    // La jubilación también libera un puesto (igual que una muerte): sin
+    // esto, el hueco quedaría fantasma en workplaces[].workers hasta la
+    // próxima muerte o construcción, retrasando la contratación de quien
+    // sí lo busca.
+    if (life.deaths.length > 0 || life.retirements.length > 0) this.economy.rebuild(this.index, this.citizens);
   }
 
   // --- Crecimiento autónomo (T4.1-T4.3) ---------------------------------------

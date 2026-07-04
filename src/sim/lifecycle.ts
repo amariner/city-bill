@@ -13,6 +13,12 @@ import { SocialSystem } from './citizens/social';
 import { Rng } from '../rng';
 
 export const ADULT_AGE = 18;
+/** Edad de jubilación: deja el empleo y no vuelve a ser contratado (ver
+ * `economy.assignJobs`). Antes de esto no existía ningún límite — un
+ * anciano de 90 años seguía siendo "parado" activo y competía por
+ * vacantes igual que uno de 20, lo cual no es cómo funciona la vida real
+ * ni cómo se pretendía que funcionara esta simulación. */
+export const RETIREMENT_AGE = 65;
 /** Edad desde la que la muerte empieza a rondar (y la salud, ciclo 5, decae más). */
 export const OLD_AGE = 72;
 /**
@@ -40,19 +46,33 @@ export interface LifeEvents {
   deaths: Citizen[];
   births: Array<{ home: Citizen['home']; parents: [Citizen, Citizen] }>;
   couples: Array<[Citizen, Citizen]>;
+  retirements: Citizen[];
 }
 
 /**
  * Un año de vida para todos. NO muta población (nacer/morir): devuelve los
  * hechos y el orquestador los aplica (spawn/despawn tocan índices que esta
- * lógica no debe conocer).
+ * lógica no debe conocer). La jubilación SÍ se muta aquí directamente
+ * (como `partnerId` en el emparejamiento de abajo): no cambia quién existe
+ * en la población, solo libera `c.work` — mismo criterio que ya se aplica
+ * al resto de mutaciones de esta función.
  */
 export function lifeYear(citizens: Map<number, Citizen>, rng: Rng): LifeEvents {
-  const out: LifeEvents = { deaths: [], births: [], couples: [] };
+  const out: LifeEvents = { deaths: [], births: [], couples: [], retirements: [] };
 
   for (const c of citizens.values()) {
     c.age += 1;
     if (rng.next() < deathChance(c.age, c.health)) out.deaths.push(c);
+    // >= (no ===): un fundador de la partida puede nacer YA por encima de
+    // RETIREMENT_AGE (los adultos iniciales se sortean entre 18 y 72 años,
+    // ver Simulation.spawnCitizen) y jamás cruzaría el umbral exacto si
+    // solo comparásemos igualdad — se quedaría trabajando para siempre. El
+    // propio `c.work !== null` hace que esto dispare UNA sola vez por
+    // persona: en cuanto se jubila, la condición deja de cumplirse.
+    else if (c.age >= RETIREMENT_AGE && c.work !== null) {
+      c.work = null;
+      out.retirements.push(c);
+    }
   }
   const dead = new Set(out.deaths.map((d) => d.id));
 

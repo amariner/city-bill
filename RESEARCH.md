@@ -517,3 +517,55 @@ una simulación, y los tratamos como tales:
   confirmación en vivo pendiente para quien tenga una sesión más larga.
   **Con esto, el ciclo 11 (duelo) está completo: lógica, tres
   acoplamientos (needs/brain, inmigración, fiestas) y reflejo visual.**
+- 2026-07-04 · **Ciclo 12: Jubilación (N2 seguridad/trabajo)** · OBSERVAR:
+  un anciano de 90 años seguía "parado" activo, compitiendo por vacantes
+  igual que uno de 20 — ningún ciudadano dejaba nunca de trabajar salvo por
+  muerte. Modelo: `RETIREMENT_AGE=65` (lifecycle.ts); en `lifeYear()`,
+  `age >= RETIREMENT_AGE && work !== null` libera el puesto UNA vez (el
+  propio `work !== null` es el candado — sin fundador puede jubilarse dos
+  veces). `>=`, no `===`: los fundadores nacen con edad sorteada 18-72
+  (`Simulation.spawnCitizen`), así que algunos YA arrancan por encima del
+  umbral y jamás lo "cruzarían" con una igualdad exacta. `economy.assignJobs`
+  excluye a los jubilados del pool de parados (nunca vuelven al mercado). La
+  red de pensiones (`payPensions`, ciclo de gobierno) ya cubría "hogar sin
+  ingreso propio" desde antes — la jubilación encaja en un acoplamiento que
+  ya existía, sin tocarlo.
+  Dos bugs reales encontrados verificando esto (ninguno en la lógica de
+  jubilación en sí, ambos expuestos por ella — sensibilidad de acoplamiento,
+  no de trayectoria de RNG esta vez):
+  (1) `economy.stats()` contaba a los jubilados dentro de `adults`, el
+  denominador con el que `computeDemand` calcula el paro real de la ciudad.
+  Un jubilado nunca vuelve a buscar empleo, así que contarlo ahí inflaba el
+  paro artificialmente y disparaba demanda de `'work'` de sobra — el test
+  "T4.2: crecimiento contenido" saltó de ~16-20 a 42 edificios en 4 días.
+  Arreglado acotando `adults` al mismo rango que `assignJobs`
+  (`ADULT_AGE <= edad < RETIREMENT_AGE`): el mercado laboral y su medida de
+  paro ahora cuentan exactamente a la misma población.
+  (2) La necesidad `purpose` de un jubilado no tiene ninguna actividad que la
+  restaure (solo 'work' lo hace y `assignJobs` lo excluye), así que hubo que
+  darle una fuente propia. El PRIMER intento fue un restore PLANO (una
+  constante/hora, como el resto de needs.ts) compitiendo contra un decay
+  también plano (`decayRate('purpose', personalidad)` = `(1/12)·(0.5+trabajador)`
+  ∈ [0.042, 0.125]/h). Error de diseño: dos ritmos planos no tienen equilibrio
+  intermedio — quien decae más despacio que la constante satura a 1, quien
+  decae más rápido cae a 0 y se queda ahí de por vida. La población de
+  jubilados se partía en dos CASTAS permanentes (~70% en 1, ~30% en 0). El
+  test agregado (media > 0.1) no lo veía: solo mira el promedio, no al
+  individuo. Lo detectó una revisión adversarial multi-agente (17 agentes,
+  5 dimensiones × verificación por 2 lentes) montada con Workflow esta misma
+  sesión, con Monte Carlo del reparto por personalidad.
+  Arreglo correcto (no un simple retoque de la constante): restore PROPORCIONAL
+  AL DÉFICIT, `k·(1 - purpose)`/hora con `k = 1/5`. Eso convierte el sistema en
+  uno con ATRACTOR por persona: en equilibrio `d = k·(1-v*)` ⟹ `v* = 1 - d/k`,
+  que para todo el rango de personalidad cae en un continuo suave
+  `v* ∈ [0.375, 0.79]` — nunca 0 ni 1, siempre por debajo de lo que da un
+  empleo real. `k` debe superar el decay máximo (0.125) para que hasta el más
+  'trabajador' tenga punto fijo positivo. Los mismos verificadores confirmaron
+  la corrección en el working tree en vivo (matemática + tsc + tests). Test
+  reforzado: además de la media, ahora se comprueba que NINGÚN jubilado ya
+  asentado (jubilado hace ≥2 años; converge en <1 día) queda bajo 0.2 —
+  propiedad estructural, inmune a la trayectoria del RNG. 147/147 tests.
+  Lección: un restore PROPORCIONAL al déficit es el patrón correcto cuando una
+  necesidad tiene UNA sola fuente y ninguna actividad que la resuelva bajo
+  demanda — el patrón plano de needs.ts asume que la urgencia alta siempre
+  encuentra salida (actividad disponible), lo que no se cumple para un jubilado.

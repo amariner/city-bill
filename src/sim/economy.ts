@@ -10,7 +10,7 @@
 import { Citizen, PlaceRef } from './citizens/citizen';
 import { WorldIndex, SimBuilding } from './worldIndex';
 import { manhattan } from './geometry';
-import { ADULT_AGE } from './lifecycle';
+import { ADULT_AGE, RETIREMENT_AGE } from './lifecycle';
 
 export interface Workplace {
   building: SimBuilding;
@@ -182,8 +182,11 @@ export class Economy {
   /** Ofrece empleo a los parados. Determinista: orden por id. */
   assignJobs(citizens: Map<number, Citizen>): Array<{ citizen: number; work: PlaceRef }> {
     const hires: Array<{ citizen: number; work: PlaceRef }> = [];
+    // >= RETIREMENT_AGE nunca vuelve al mercado laboral (lógica de
+    // jubilación): sin esto, un jubilado sin trabajo contaría como "parado"
+    // y competiría por vacantes igual que un adulto cualquiera.
     const unemployed = [...citizens.values()]
-      .filter((c) => !c.work && c.age >= ADULT_AGE)
+      .filter((c) => !c.work && c.age >= ADULT_AGE && c.age < RETIREMENT_AGE)
       .sort((a, b) => a.id - b.id);
     for (const c of unemployed) {
       let best: Workplace | null = null;
@@ -308,7 +311,13 @@ export class Economy {
     let adults = 0;
     for (const c of citizens.values()) {
       if (c.work) employed++;
-      if (c.age >= ADULT_AGE) adults++;
+      // `adults` es el DENOMINADOR del mercado laboral (computeDemand calcula
+      // paro como (adults - employed) / adults): un jubilado nunca vuelve a
+      // buscar empleo (ver assignJobs), así que contarlo aquí infla el paro
+      // real y dispara demanda de 'work' sin motivo (visto en sim.test.ts:
+      // crecimiento contenido saltó a 42 edificios/4 días tras añadir la
+      // jubilación). Mismo corte de edad que assignJobs.
+      if (c.age >= ADULT_AGE && c.age < RETIREMENT_AGE) adults++;
     }
     const jobs = this.workplaces.reduce((n, w) => n + (w.building.data.jobs ?? 0), 0);
     return { population: citizens.size, adults, employed, jobs };

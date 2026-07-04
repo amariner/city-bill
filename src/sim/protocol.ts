@@ -114,7 +114,8 @@ export interface SimEventMsg {
     | 'festivalDay'
     | 'homePrestige'
     | 'cultivationChanged'
-    | 'roadBuilt';
+    | 'roadBuilt'
+    | 'citizenRetired';
   data?: Record<string, unknown>;
 }
 

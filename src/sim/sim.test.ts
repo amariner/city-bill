@@ -13,7 +13,7 @@ import { Simulation } from './simulation';
 import { TICK_GAME_S, DAY_GAME_SECONDS } from './clock';
 import { FOOD_PRICE } from './economy';
 import { weatherAt } from './weather';
-import { deathChance } from './lifecycle';
+import { deathChance, RETIREMENT_AGE } from './lifecycle';
 import { weatherSpeedFactor, familySize, griefDecay, FRIEND_GRIEF } from './simulation';
 import { computeDemand, extendRoad, paintRoadExtension } from '../world/growth';
 import { createRng } from '../rng';
@@ -135,6 +135,58 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
   check('vida: la sociedad sobrevive', cs.length >= 5, `→ ${cs.length}`);
   const kidsWorking = cs.filter((c) => c.age < 18 && c.work).length;
   check('vida: los niños no trabajan', kidsWorking === 0, `→ ${kidsWorking}`);
+}
+
+// Lógica de jubilación (carencia observada esta sesión: sin ningún límite
+// de edad, un anciano de 90 años seguía siendo "parado" activo compitiendo
+// por vacantes igual que uno de 20). Verificar sobre una sim normal, sin
+// forzar ninguna jubilación concreta — igual que el resto de tests de vida.
+{
+  const sim = new Simulation(seedWorld(), 3);
+  let retiredEvents = 0;
+  const retiredCountById = new Map<number, number>();
+  for (let t = 0; t < TICKS_PER_DAY * 50; t++) {
+    sim.step();
+    for (const e of sim.takeEvents()) {
+      if (e.name === 'citizenRetired') {
+        retiredEvents++;
+        const id = (e.data as { id: number }).id;
+        retiredCountById.set(id, (retiredCountById.get(id) ?? 0) + 1);
+      }
+    }
+  }
+  const cs = [...sim.citizens.values()];
+  const retirees = cs.filter((c) => c.age >= RETIREMENT_AGE);
+  check('jubilación: alguien llega a la edad de jubilarse en 50 años', retirees.length > 0, `→ ${retirees.length}`);
+  check('jubilación: se dispara el evento citizenRetired', retiredEvents > 0, `→ ${retiredEvents}`);
+  // La jubilación es un evento IRREVERSIBLE: cada persona se jubila como
+  // mucho una vez (el candado `work !== null` en lifeYear lo garantiza — una
+  // vez sin empleo, la condición no vuelve a cumplirse). Guarda contra una
+  // regresión donde un jubilado recuperase empleo y volviera a jubilarse.
+  const doubleRetired = [...retiredCountById.values()].filter((n) => n > 1).length;
+  check('jubilación: nadie se jubila dos veces', doubleRetired === 0, `→ ${doubleRetired} repetidos`);
+  const retireesWorking = retirees.filter((c) => c.work !== null).length;
+  check('jubilación: nadie por encima de la edad de jubilación tiene empleo', retireesWorking === 0, `→ ${retireesWorking}/${retirees.length}`);
+  // Sin alivio, 'purpose' bajaría a 0 y se quedaría ahí para siempre (nadie
+  // vuelve a contratar a un jubilado) — comprobar que encuentran ALGO de
+  // sentido fuera del trabajo, no que se hunden sin remedio.
+  if (retirees.length > 0) {
+    const avgPurpose = retirees.reduce((s, c) => s + c.needs.purpose, 0) / retirees.length;
+    check('jubilación: el propósito no se hunde sin remedio', avgPurpose > 0.1, `→ ${avgPurpose.toFixed(2)}`);
+  }
+  // El alivio de 'purpose' del jubilado es PROPORCIONAL al déficit, así que el
+  // sistema tiene un atractor positivo por persona (v* = 1 - decay/recovery,
+  // acotado en [0.375, 0.79] para todo el rango de personalidad) en vez de dos
+  // castas permanentes (0 y 1) como daría un restore plano. Un jubilado ya
+  // asentado (jubilado hace ≥2 años; converge en < 1 día de juego) NUNCA debe
+  // quedar atrapado en propósito ~nulo. Propiedad estructural: se cumple para
+  // TODA personalidad, así que es inmune a la sensibilidad de trayectoria del
+  // RNG. (Guarda la regresión bimodal que detectó la revisión adversarial.)
+  const settled = retirees.filter((c) => c.age >= RETIREMENT_AGE + 2);
+  if (settled.length > 0) {
+    const collapsed = settled.filter((c) => c.needs.purpose < 0.2).length;
+    check('jubilación: ningún jubilado asentado colapsa a propósito nulo', collapsed === 0, `→ ${collapsed}/${settled.length} por debajo de 0.2`);
+  }
 }
 
 // Lógica de duelo (carencia observada esta sesión: la muerte no afectaba a
