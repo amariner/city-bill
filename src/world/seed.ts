@@ -39,9 +39,9 @@ function scatterTrees(
   }
 }
 
-export function seedWorld(): Grid {
+export function seedWorld(seed: number = SEED): Grid {
   const grid = new Grid();
-  const rng = createRng(SEED);
+  const rng = createRng(seed);
 
   // --- Campos de fondo (patchwork) -----------------------------------------
   grid.fillTerrain(-EXTENT, -EXTENT, EXTENT, EXTENT, 'field');

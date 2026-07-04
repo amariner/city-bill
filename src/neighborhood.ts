@@ -9,6 +9,6 @@ import { Grid } from './world/grid';
 
 export const worldGrid: Grid = seedWorld();
 
-export function createWorldView(): WorldView {
-  return new WorldView(worldGrid);
+export function createWorldView(grid: Grid = worldGrid): WorldView {
+  return new WorldView(grid);
 }

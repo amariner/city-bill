@@ -340,3 +340,11 @@ aprieta, T3.8-T3.10 y la Fase 4 valen más que cualquier cosa de la Fase 5.
     puede quedar sobre campo vacío sin agentes, y el wheel de Playwright satura
     al límite de zoom — para verificar un mesh concreto, una escena de
     aislamiento es MUCHO más fiable que perseguir agentes en la sim.
+  · **T5.1 completa** (tinte de luz/cielo + NIEVE del terreno por estación, via
+    emissive de un material de terreno único). **T1.8 completa** (ciclo de luz).
+  · **Semilla del mundo aleatoria y PERSISTIDA** (`pickWorldSeed` en main.ts,
+    `seedWorld(seed)` parametrizado): cada jugador tiene SU pueblo (antes era el
+    mismo hardcodeado para todos) y perdura al recargar; `?seed=N` lo fuerza.
+    Verificado: seeds distintas → pueblos distintos, misma seed → mismo pueblo.
+    Es un primer paso de T2.6 (persiste el MUNDO; falta persistir el TIEMPO/
+    estado de sim — el guardado completo §1.4 sigue pendiente).

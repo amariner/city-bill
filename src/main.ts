@@ -8,7 +8,8 @@ import { Input } from './core/input';
 import { CameraController } from './core/cameraController';
 import { GameLoop } from './core/loop';
 import { DebugHud } from './core/debugHud';
-import { createWorldView, worldGrid } from './neighborhood';
+import { createWorldView } from './neighborhood';
+import { seedWorld } from './world/seed';
 import { catalogItem } from './world/catalog';
 import { buildShowcase } from './showcase';
 import { SimClient, AgentView } from './sim/client';
@@ -21,6 +22,20 @@ import { CitizenInspector } from './ui/inspector';
 import { Chronicle } from './ui/chronicle';
 
 const sceneName = new URLSearchParams(window.location.search).get('scene');
+
+/** Semilla del mundo: la guardada, o una nueva aleatoria que se persiste. Así el
+ * pueblo es único por jugador y sobrevive a las recargas. `?seed=N` la fuerza
+ * (útil para compartir un pueblo o reproducir un bug). */
+function pickWorldSeed(): number {
+  const KEY = 'city-bill:worldSeed';
+  const forced = new URLSearchParams(window.location.search).get('seed');
+  if (forced !== null && Number.isFinite(Number(forced))) return Number(forced) >>> 0;
+  const stored = localStorage.getItem(KEY);
+  if (stored !== null && Number.isFinite(Number(stored))) return Number(stored) >>> 0;
+  const seed = Math.floor(Math.random() * 0x7fffffff); // bootstrap de sesión, no lógica de sim
+  try { localStorage.setItem(KEY, String(seed)); } catch { /* localStorage lleno: mundo efímero */ }
+  return seed;
+}
 
 const stage = createStage();
 
@@ -35,24 +50,30 @@ if (sceneName === 'buildings') {
   stage.scene.add(buildShowcase());
   camera.setTarget(0, 0);
 } else {
-  worldView = createWorldView();
+  // Semilla del mundo: aleatoria la primera vez y PERSISTIDA — cada jugador
+  // tiene su propio pueblo (no el mismo para todos) y perdura al recargar.
+  // Math.random aquí es bootstrap de sesión (elegir partida), no lógica de
+  // mundo: a partir de la semilla, todo es 100% determinista.
+  const worldSeed = pickWorldSeed();
+  const grid = seedWorld(worldSeed);
+  worldView = createWorldView(grid);
   stage.scene.add(worldView.root);
   camera.setTarget(20, 20);
 
   // Simulación en worker (T3.1+). Velocidad con teclas 0-3.
-  simClient = new SimClient(20260703, worldGrid.serialize());
+  simClient = new SimClient(worldSeed, grid.serialize());
   citizenView = new CitizenView();
   stage.scene.add(citizenView.root);
   // Crecimiento autónomo (T4.2): el worker construye → replicamos en el
   // grid de render y refrescamos el chunk (misma colocación, mismo mundo).
-  chronicle = new Chronicle(20260703);
+  chronicle = new Chronicle(worldSeed);
   simClient.onEvent = (name, data) => {
     chronicle?.onEvent(name, data);
     if (name !== 'cityGrew' || !data || !worldView) return;
     const { id, cx, cz, rot } = data as { id: string; cx: number; cz: number; rot: 0 | 1 | 2 | 3 };
     const it = catalogItem(id);
     if (!it) return;
-    worldGrid.placeBuilding(id, it.w, it.d, cx, cz, rot);
+    grid.placeBuilding(id, it.w, it.d, cx, cz, rot);
     worldView.refreshChunkAt(cx, cz);
   };
   window.addEventListener('keydown', (e) => {
