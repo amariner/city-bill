@@ -71,6 +71,9 @@ export class Simulation {
   events: SimEvent[] = [];
   /** T4.4: la ciudad crece sola. Activado por defecto (es el alma del juego). */
   autonomousGrowth = true;
+  /** Sanidad activa (ciclo 15): si es false, la clínica no cura — permite medir
+   * cuánta vida SALVA la sanidad (escenario "sin sistema de salud"). */
+  clinicHealing = true;
   /** Tier desbloqueado (T4.5 lo ligará a población; fijo de momento). */
   tier: Tier = 1;
   /** Familias alojadas por vivienda ('ax,az') — para la demanda de techo. */
@@ -552,7 +555,7 @@ export class Simulation {
             if (r) restore(c.needs, k, r * hours);
           }
           if (c.activity === 'school') c.education = Math.min(1, c.education + EDU_PER_HOUR * hours);
-          if (c.activity === 'clinic') c.health = Math.min(1, c.health + CLINIC_RECOVERY_PER_HOUR * hours);
+          if (c.activity === 'clinic' && this.clinicHealing) c.health = Math.min(1, c.health + CLINIC_RECOVERY_PER_HOUR * hours);
           if (c.activity === 'work' && c.work) {
             const employer = catalogData(c.work.buildingId);
             // Cadena de alimento: los granjeros en faena llenan el granero.

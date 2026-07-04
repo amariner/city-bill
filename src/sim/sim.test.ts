@@ -13,6 +13,7 @@ import { TICK_GAME_S, DAY_GAME_SECONDS } from './clock';
 import { FOOD_PRICE } from './economy';
 import { weatherAt } from './weather';
 import { deathChance, lifeYear, OLD_AGE, ADULT_AGE } from './lifecycle';
+import { CLINIC_RECOVERY_PER_HOUR } from './health';
 import { townAttractiveness, householdHardship, updateEmigrationPressure, EMIGRATE_PRESSURE_LIMIT } from '../world/growth';
 import { ACTIVITY_BY_KIND, SimContext } from './citizens/activities';
 import { Weather } from './weather';
@@ -470,6 +471,43 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
     check('emigración: un hogar sin sustento sostenido acaba marchándose', sim.emigrations > 0, `→ ${sim.emigrations}`);
     check('emigración: la marcha se NARRA (no es un despawn silencioso)', emigratedEvents > 0, `→ ${emigratedEvents} eventos`);
   }
+}
+
+// Ciclo 15 RESEARCH.md — la CLÍNICA alarga la vida (MEDIDO): cierra la carencia
+// (c) del ciclo 11. El acoplamiento inverso salud→vida (curarse baja la
+// mortalidad) existía por construcción pero nunca se había MEDIDO: aquí se
+// cuantifica que la sanidad SALVA vidas, no solo repara una barra.
+{
+  const CLINIC_SESSION_H = 8; // una jornada de consulta
+  const frail = 0.3;
+  const healed = Math.min(1, frail + CLINIC_RECOVERY_PER_HOUR * CLINIC_SESSION_H);
+  check('clínica: una jornada de consulta saca al frágil del peligro', healed > 0.9, `→ ${healed.toFixed(2)}`);
+  // A los 80 la base por edad (0.32) ya es alta, así que curar no puede bajar de
+  // ahí; aun así recorta el riesgo en casi la mitad (0.60 → 0.32).
+  check('clínica: la salud recuperada recorta el riesgo de muerte en más de un tercio', deathChance(80, healed) < deathChance(80, frail) * 0.6, `→ ${deathChance(80, healed).toFixed(3)} vs ${deathChance(80, frail).toFixed(3)}`);
+
+  // Cohortes idénticas de frágiles (78 años, salud 0.3): una recibe la cura de
+  // la clínica, la otra no. Mismo RNG → aislamos el efecto de la sanidad.
+  const makeFrail = (id: number, health: number): Citizen => ({
+    id, name: `F${id}`, age: 78,
+    personality: { sociable: 0.5, trabajador: 0.5, hogareño: 0.5 },
+    needs: { energy: 1, food: 1, social: 1, fun: 1, purpose: 1 },
+    home: { ax: 0, az: 0, buildingId: 'house' }, work: null,
+    x: 0, z: 0, heading: 0, phase: { kind: 'deciding' }, activity: 'none',
+    partnerId: null, education: 0, health, friends: new Map(), lastChatTick: -1, inside: false,
+  });
+  const cohortDeaths = (health: number): number => {
+    const m = new Map<number, Citizen>();
+    for (let i = 0; i < 400; i++) m.set(i, makeFrail(i, health));
+    return lifeYear(m, createRng(77)).deaths.length;
+  };
+  const treated = cohortDeaths(healed);
+  const untreated = cohortDeaths(frail);
+  check(
+    'clínica: una cohorte curada sobrevive mucho más que una sin atender',
+    treated < untreated / 2,
+    `→ curados ${treated} vs sin atender ${untreated} muertes de 400`,
+  );
 }
 
 // Determinismo: mismo snapshot final con la misma semilla.

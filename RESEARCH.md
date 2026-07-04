@@ -467,3 +467,43 @@ una simulación, y los tratamos como tales:
   en la re-ocupación de vacantes (que un pueblo que mejora vuelva a llenar las
   casas medio vacías) y en el reflejo VISUAL acumulado (la deuda de Sonnet:
   nieve/estaciones, meshes de clínica/escuela/coche/plaza/jardín de prestigio).
+- 2026-07-04 · **Ciclo 15: la clínica alarga la vida (MEDIDO) + LECCIÓN de la
+  re-ocupación revertida** · Dos cosas, una enviada y una aprendida.
+  (1) ENVIADO — cierra la carencia (c) del ciclo 11: el acoplamiento inverso
+  salud→vida (curarse REBAJA la mortalidad) existía por construcción pero nunca
+  se había MEDIDO. Ahora sí: una jornada de clínica (8 h × CLINIC_RECOVERY) saca
+  a un frágil (salud 0.3) fuera de peligro (→1.0), lo que recorta su deathChance
+  a los 80 de 0.60 a 0.32; y en cohortes idénticas de 400 frágiles con el MISMO
+  RNG, la curada sobrevive MÁS DEL DOBLE que la sin atender. Añadido un flag
+  `clinicHealing` (gate sobre una sola línea) que apaga la sanidad — escenario
+  "sin sistema de salud", útil para el juego y para el estudio; medí con él la
+  A/B en sim completa (con sanidad 10 muertes frágiles vs 14 sin), pero la
+  trayectoria diverge demasiado entre runs para un test robusto, así que el test
+  MIDE con cohortes controladas (limpio y determinista) y el flag queda como
+  herramienta. 139/139 tests.
+  (2) LECCIÓN (revertido, como el episodio del ciclo 5) — intenté la
+  RE-OCUPACIÓN de vacantes (un pueblo próspero vuelve a llenar las casas que se
+  vaciaron): añadí `townAttractiveness` reutilizado + un paso diario que rellena
+  1 familia/día en la vivienda con hueco de más prestigio. EXPLOTÓ la población
+  (912 hab. en 46 días vs ~80 normales, suite de tests de segundos a >100 s, y
+  el test de fiestas roto por solapamiento). Diagnóstico fino: aun ACOTANDO la
+  re-ocupación a "vacantes reales por pérdida" (por debajo del máximo histórico
+  de ocupación, para no tocar la infra-ocupación del ciclo 12 que estrangula el
+  crecimiento), SOLO 3 disparos en 30 días bastaban para pasar de 38 a 228 hab.:
+  el sistema de crecimiento es CAÓTICAMENTE SENSIBLE — inyectar 3 familias
+  temprano adelanta los desbloqueos de tier y diverge exponencialmente. Revertí
+  entero: la re-ocupación, por "correcta" que sea, desestabiliza el crecimiento,
+  y su valor es marginal (los NACIMIENTOS ya repueblan las casas). **Lección
+  reforzada del ciclo 5: cualquier fuente NUEVA de población, por pequeña que
+  parezca, puede volcar el crecimiento — medir población a 46 días ANTES de dar
+  por bueno un cambio que toque vivienda/inmigración.** Si algún día se retoma,
+  hará falta primero domar la sensibilidad del crecimiento (amortiguar los
+  desbloqueos de tier, o hacer el ritmo de growth proporcional-inverso a la
+  población) — es un prerrequisito, no un detalle.
+  Carencias observadas: (a) la sensibilidad caótica del crecimiento es hoy el
+  mayor freno para cualquier lógica que toque población — domarla (growth
+  amortiguado) desbloquearía re-ocupación, remesas y migración de retorno de
+  golpe; candidato fuerte a un ciclo de "estabilidad del crecimiento"; (b) la
+  A/B de sanidad en sim completa pide un modo de EXPERIMENTO reproducible
+  (fijar población, variar una sola palanca) que hoy no existe — infra de
+  medición, no lógica; (c) sigue intacta la deuda VISUAL acumulada (Sonnet).
