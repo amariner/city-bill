@@ -23,6 +23,45 @@ interface ChronicleData {
 
 const MAX_EVENTS = 60;
 
+/** Edad a partir de la cual una muerte se narra como "una vida larga". */
+const LONG_LIFE_AGE = 85;
+
+/**
+ * Evento de sim → frase de la Crónica (PURA y testeable — ciclo 18). La Crónica
+ * es la memoria del juego (§3/§6.1: ganamos cuando cuenta historias que no
+ * escribimos nosotros), así que las despedidas se narran con contexto AFECTIVO:
+ * la causa (enfermedad/vejez), una vida larga, y sobre todo la VIUDEZ — quién
+ * queda sin su pareja (acopla con el duelo, ciclos 16/17). Devuelve null para
+ * los eventos que no narran.
+ */
+export function chronicleText(name: string, data?: Record<string, unknown>): string | null {
+  const who = (data?.name as string) ?? 'alguien';
+  switch (name) {
+    case 'citizenBorn':
+      return `nace ${who}`;
+    case 'citizenLeft': {
+      if (data?.reason === 'emigrated') return `${who} se marcha a otra ciudad`;
+      const h = typeof data?.health === 'number' ? data.health : 1;
+      const age = typeof data?.age === 'number' ? data.age : 0;
+      const partner = typeof data?.partnerName === 'string' ? data.partnerName : '';
+      const cause = h < ILLNESS_HEALTH && age < OLD_AGE ? ' por enfermedad' : '';
+      const longLife = !cause && age >= LONG_LIFE_AGE ? ', una vida larga' : '';
+      const widowing = partner ? ` — ${partner} pierde a su pareja` : '';
+      return `muere ${who} (${age || '?'} años)${cause}${longLife}${widowing}`;
+    }
+    case 'coupleFormed':
+      return `${data?.a} y ${data?.b} se emparejan`;
+    case 'cityGrew':
+      return `la ciudad construye: ${data?.id}`;
+    case 'tierUnlocked':
+      return `¡hito! tier ${data?.tier} desbloqueado (${data?.population} hab.)`;
+    case 'festivalDay':
+      return 'fiesta mayor del pueblo';
+    default:
+      return null;
+  }
+}
+
 export class Chronicle {
   private el: HTMLDivElement;
   private canvas: HTMLCanvasElement;
@@ -92,46 +131,23 @@ export class Chronicle {
   /** Evento de sim → texto de crónica. Devuelve null para los que no narran. */
   onEvent(name: string, data?: Record<string, unknown>): void {
     const year = this.lastYear < 0 ? 0 : this.lastYear;
-    let text: string | null = null;
+    // Fundadores: no inundar la crónica con el nacimiento inicial.
+    if (name === 'citizenBorn' && year === 0) return;
+    // Contadores (memoria numérica; la narración va aparte, en chronicleText).
     switch (name) {
       case 'citizenBorn':
-        if (year === 0) return; // fundadores: no inundar la crónica
-        text = `nace ${data?.name ?? 'alguien'}`;
         this.data.counters.births++;
         break;
-      case 'citizenLeft': {
-        if (data?.reason === 'emigrated') {
-          // Emigración digna (ciclo 14): quien no halló sustento se marcha a
-          // otra ciudad andando por la carretera — nunca un despawn silencioso.
-          text = `${data?.name ?? 'alguien'} se marcha a otra ciudad`;
-          this.data.counters.emigrated = (this.data.counters.emigrated ?? 0) + 1;
-          break;
-        }
-        // Acoplamiento salud→mortalidad (ciclo 11): la causa se lee de la salud
-        // con la que murió. Frágil y no muy viejo → enfermedad; si no → vejez.
-        const h = typeof data?.health === 'number' ? data.health : 1;
-        const age = typeof data?.age === 'number' ? data.age : 0;
-        const cause = h < ILLNESS_HEALTH && age < OLD_AGE ? ' por enfermedad' : '';
-        text = `muere ${data?.name ?? 'alguien'} (${data?.age ?? '?'} años)${cause}`;
-        this.data.counters.deaths++;
+      case 'citizenLeft':
+        if (data?.reason === 'emigrated') this.data.counters.emigrated = (this.data.counters.emigrated ?? 0) + 1;
+        else this.data.counters.deaths++;
         break;
-      }
       case 'coupleFormed':
-        text = `${data?.a} y ${data?.b} se emparejan`;
         this.data.counters.couples++;
         break;
-      case 'cityGrew':
-        text = `la ciudad construye: ${data?.id}`;
-        break;
-      case 'tierUnlocked':
-        text = `¡hito! tier ${data?.tier} desbloqueado (${data?.population} hab.)`;
-        break;
-      case 'festivalDay':
-        text = 'fiesta mayor del pueblo';
-        break;
-      default:
-        return;
     }
+    const text = chronicleText(name, data);
+    if (!text) return;
     this.data.events.push({ year, text });
     if (this.data.events.length > MAX_EVENTS) this.data.events.splice(0, this.data.events.length - MAX_EVENTS);
     this.dirty = true;

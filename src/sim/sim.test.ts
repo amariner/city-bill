@@ -15,6 +15,7 @@ import { weatherAt } from './weather';
 import { deathChance, lifeYear, OLD_AGE, ADULT_AGE } from './lifecycle';
 import { CLINIC_RECOVERY_PER_HOUR } from './health';
 import { bereave, griefTick, consoleGrief, GRIEF_PARTNER } from './grief';
+import { chronicleText } from '../ui/chronicle';
 import { townAttractiveness, householdHardship, updateEmigrationPressure, EMIGRATE_PRESSURE_LIMIT } from '../world/growth';
 import { ACTIVITY_BY_KIND, SimContext } from './citizens/activities';
 import { Weather } from './weather';
@@ -604,6 +605,42 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
   const acompañado = daysToHeal(2);
   check('consuelo: acompañado se supera el duelo antes que a solas', acompañado < solo, `→ acompañado ${acompañado} d vs solo ${solo} d`);
   check('consuelo: pero el duelo no se ignora (aun acompañado dura días)', acompañado >= 5, `→ ${acompañado} d`);
+}
+
+// Ciclo 18 RESEARCH.md — MEMORIA AFECTIVA de la Crónica (§6.1: ganamos cuando la
+// Crónica cuenta historias que no escribimos). El narrador es una función PURA
+// (chronicleText); las despedidas llevan contexto afectivo: causa, vida larga y
+// sobre todo la VIUDEZ (acopla con el duelo, ciclos 16/17).
+{
+  // (a) Narrador puro.
+  check('crónica: narra la viudez (quién queda sin su pareja)',
+    chronicleText('citizenLeft', { name: 'Irene', age: 76, health: 0.9, reason: 'death', partnerName: 'Vera' }) === 'muere Irene (76 años) — Vera pierde a su pareja');
+  check('crónica: una vida larga se reconoce',
+    (chronicleText('citizenLeft', { name: 'Emil', age: 90, health: 0.9, reason: 'death' }) ?? '').includes('una vida larga'));
+  check('crónica: una muerte joven y frágil se narra por enfermedad',
+    (chronicleText('citizenLeft', { name: 'Jan', age: 30, health: 0.05, reason: 'death' }) ?? '').includes('por enfermedad'));
+  check('crónica: la enfermedad no se confunde con vida larga',
+    !(chronicleText('citizenLeft', { name: 'Jan', age: 30, health: 0.05, reason: 'death' }) ?? '').includes('vida larga'));
+  check('crónica: la emigración se narra como marcha, no muerte',
+    chronicleText('citizenLeft', { name: 'Pau', reason: 'emigrated' }) === 'Pau se marcha a otra ciudad');
+  check('crónica: los eventos sin relato devuelven null', chronicleText('jobTaken', {}) === null);
+
+  // (b) Integración: en una ciudad con parejas y muertes, EMERGEN despedidas con
+  //     viudez narrada — historias que no escribió nadie.
+  {
+    const sim = new Simulation(seedWorld(), 42);
+    let widowings = 0;
+    for (let t = 0; t < TICKS_PER_DAY * 45; t++) {
+      sim.step();
+      for (const e of sim.takeEvents()) {
+        if (e.name === 'citizenLeft' && (e.data as { partnerName?: string }).partnerName) {
+          const line = chronicleText('citizenLeft', e.data) ?? '';
+          if (line.includes('pierde a su pareja')) widowings++;
+        }
+      }
+    }
+    check('crónica: emergen despedidas con viudez (el duelo tiene rostro)', widowings > 0, `→ ${widowings} viudeces narradas`);
+  }
 }
 
 // Determinismo: mismo snapshot final con la misma semilla.

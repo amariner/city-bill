@@ -569,3 +569,26 @@ una simulación, y los tratamos como tales:
   valor emocional podría subir a N4/N5 (una PÉRDIDA que cambia la vocación, o un
   legado) o, por fin, bajar a domar la sensibilidad del crecimiento para
   reabrir las lógicas de población.
+- 2026-07-04 · **Ciclo 18: memoria afectiva de la Crónica (§6.1, la CONDICIÓN DE
+  VICTORIA)** · Cierra la carencia (c) de los ciclos 16/17 y apunta al corazón
+  del proyecto: "ganamos cuando la Crónica cuenta historias que no escribimos
+  nosotros". Hasta ahora la Crónica narraba plano ("muere alguien (76 años)");
+  ahora las despedidas llevan CONTEXTO AFECTIVO, y sobre todo la VIUDEZ: quién
+  queda sin su pareja — el reverso narrativo del duelo (ciclos 16/17). Modelo:
+  el narrador se extrae a una función PURA `chronicleText(name, data)` (antes
+  era lógica enredada dentro del onEvent DOM), lo que además la hace TESTEABLE
+  headless; el evento de muerte pasa a llevar `partnerName`, y la frase compone
+  causa (enfermedad<0.2 y joven / vejez), "una vida larga" (≥85) y
+  "— X pierde a su pareja". Emergió, y son historias de verdad: en 45 años de
+  seed 42 salen 9 viudeces narradas, p.ej. *"muere Irene Bosch (76 años) — Vera
+  Bosch pierde a su pareja"* — nadie escribió esa frase, la produjo el cruce de
+  vida+parejas+mortalidad, y Vera además entra en duelo (ciclo 16) que se ve en
+  su inspector. Refactor limpio (contadores en onEvent, narración en la función
+  pura); build OK, 156/156 tests.
+  Carencias observadas: (a) la Crónica narra las despedidas pero aún no los
+  REENCUENTROS ni los hitos de una vida (primer empleo, boda con nombre, la
+  llegada de un nieto) — un "diario de vida" por ciudadano notable haría la
+  memoria aún más rica; (b) los eventos viejos siguen capados a 60 sin
+  RESUMIRSE por año (RESEARCH §5 lo pedía: "año 12: 3 nacimientos, llegó la
+  escuela") — compactación afectiva pendiente; (c) sigue en pie la disyuntiva
+  del ciclo 17: subir a N4/N5 (legado/vocación) o domar el crecimiento.
