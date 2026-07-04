@@ -547,10 +547,12 @@ export class Simulation {
           : (lengthIsX ? [{ dx: 1, dz: 0 }, { dx: -1, dz: 0 }] : [{ dx: 0, dz: 1 }, { dx: 0, dz: -1 }]);
         for (const dir of dirs) {
           if (strategy === 'extend' && this.isRoad(rx + dir.dx, rz + dir.dz)) continue; // no es extremo
-          // Ramificar exige margen ancho (una calle nueva con sus frentes);
-          // prolongar solo necesita punzar la calzada (±1) entre los edificios.
+          // Ramificar exige margen ancho (una calle nueva con sus frentes) pero
+          // menos LARGO (basta un corredor corto para arrancar una calle 2D);
+          // prolongar solo punza la calzada (±1) pero mira lejos (recto y libre).
           const halfWidth = strategy === 'branch' ? 2 : 1;
-          if (!this.branchIsClear(rx, rz, dir, 10, halfWidth)) continue;
+          const depth = strategy === 'branch' ? 6 : 10;
+          if (!this.branchIsClear(rx, rz, dir, depth, halfWidth)) continue;
           const laid = extendRoad(this.grid, [rx, rz], dir, 12, this.rng);
           if (laid.length < 8) continue;
           this.index.rebuild();
