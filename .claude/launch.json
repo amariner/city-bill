@@ -5,7 +5,7 @@
       "name": "city-bill",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
-      "port": 5173
+      "port": 8888
     }
   ]
 }

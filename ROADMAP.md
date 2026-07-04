@@ -279,6 +279,44 @@ aprieta, T3.8-T3.10 y la Fase 4 valen más que cualquier cosa de la Fase 5.
 ## 6. Diario del agente (rellenar al trabajar)
 > Anota aquí: fecha, tarea, decisiones no obvias, deuda técnica, conflictos con §1.
 
+- 2026-07-04 (sesión Sonnet, pulido visual) — Empieza el barrido de los 4 TODOs
+  de mesh que RESEARCH.md dejó pendientes tras cerrar la pirámide N0-N5
+  (ciclo 10): coche, consultorio, escuela, plaza de fiestas.
+  · **Mesh de coche** (`world/render/citizens.ts`): geometría fundida a mano
+    (sin `BufferGeometryUtils`, que no tiene tipos y rompería `tsc` bajo
+    `isolatedModules` — se construye igual que `render/terrain.ts`, copiando
+    arrays de posición/normal de cada primitiva ya transformada). Chasis+ruedas
+    en un InstancedMesh (blanco para tintar por instancia vía `setColorAt`,
+    ruedas en `PALETTE.carTire` que se oscurece igual al multiplicar) +
+    cabina de cristal en OTRO InstancedMesh de color fijo (`PALETTE.glass`,
+    mismo patrón que las tiras de vidrio de `officeBlock`). `CitizenView`
+    ahora reparte cada agente a peatón o coche según `AgentView.mode`
+    (columna del ciclo 8) con contadores de instancia separados (`nWalk`/
+    `nCar`); el fade de aparición/desaparición se comparte porque `mode`
+    nunca es 1 en estado `Inside` (solo durante `moving`). Verificado en
+    preview a ×3: coche visible en carretera con chasis+ruedas+cabina,
+    orientado con el heading. 4 draw calls totales para todos los agentes
+    (2 peatón + 2 coche), presupuesto intacto.
+  · **Consultorio y escuela** (`props.ts` + `catalog.ts`): mesh propio en vez
+    de reusar `civic()` (que desbordaba el lote — 16×9m sobre un footprint de
+    8×6m/12×8m). Consultorio: caja con tejado plano + cruz roja discreta
+    (dos listones de `PALETTE.signRed` cruzados sobre la puerta — a la
+    distancia de zoom máximo del juego se lee como un acento discreto, tal
+    como pedía RESEARCH.md). Escuela: aulas + patio cubierto con columnas +
+    torrecita con campana (reutiliza el perfil de tejado a cuatro aguas de
+    `civic()`). Ambos ajustados a su footprint real de catalogData (antes:
+    civic() sin ajustar).
+  · Bug de infraestructura encontrado de paso: `.claude/launch.json` fijaba
+    el puerto 5173, que Vite abandona silenciosamente si está ocupado (otra
+    sesión con el mismo repo abierta) — el proxy del preview quedaba
+    apuntando al puerto declarado, no al real, y daba `ERR_CONNECTION_REFUSED`
+    aunque el server sí arrancaba. Fix: `vite.config.ts` con
+    `server.port=8888` + `strictPort:true` (falla alto y claro en vez de
+    saltar de puerto en silencio) y `launch.json` a juego. Puerto fijo
+    acordado con el usuario para evitar este choque en el futuro.
+  · Pendientes de esta ronda: plaza/decoración de fiestas (ciclo 10) y
+    jardín/fachada de prestigio (ciclo 9) — siguiente en la cola.
+
 - 2026-07-03 — Fase 0 completada. Escenario semilla actual generado ad-hoc en
   `neighborhood.ts`; se migrará a grid en T1.4 (previsto, no es deuda).
 - 2026-07-03 — Adelanto de modelado urbano (ventaja para T1.3): `props.ts` ya incluye
