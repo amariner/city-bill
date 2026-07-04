@@ -13,6 +13,7 @@ import { TICK_GAME_S, DAY_GAME_SECONDS } from './clock';
 import { FOOD_PRICE } from './economy';
 import { weatherAt } from './weather';
 import { deathChance } from './lifecycle';
+import { weatherSpeedFactor } from './simulation';
 
 let passed = 0;
 let failed = 0;
@@ -137,6 +138,21 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
   check('salud→mortalidad: salud baja sube el riesgo', enfermo > medio && medio > sano, `→ ${sano.toFixed(3)} < ${medio.toFixed(3)} < ${enfermo.toFixed(3)}`);
   check('salud→mortalidad: sin vejez, la salud no mata', deathChance(50, 0) === 0);
   check('salud→mortalidad: nunca fuera de [0, 0.5]', [sano, medio, enfermo, deathChance(120, 0)].every((p) => p >= 0 && p <= 0.5));
+}
+
+// Acoplamiento clima→coche (carencia observada en el ciclo 6 de
+// RESEARCH.md: el mal tiempo penalizaba igual a quien iba en coche que a
+// quien iba a pie). A pie el mal tiempo debe pesar bastante más que en coche,
+// y el mejor tiempo posible (outdoor=1) nunca debe ir más lento que el peor.
+{
+  const footBad = weatherSpeedFactor('foot', 0.15);
+  const footGood = weatherSpeedFactor('foot', 1);
+  const carBad = weatherSpeedFactor('car', 0.15);
+  const carGood = weatherSpeedFactor('car', 1);
+  const footPenalty = 1 - footBad / footGood;
+  const carPenalty = 1 - carBad / carGood;
+  check('clima→coche: el mal tiempo penaliza más a pie que en coche', footPenalty > carPenalty * 2, `→ a pie ${(footPenalty * 100).toFixed(0)}% vs coche ${(carPenalty * 100).toFixed(0)}%`);
+  check('clima→coche: nunca ralentiza con mejor tiempo', footGood >= footBad && carGood >= carBad);
 }
 
 // Lógica de educación: con niños, la ciudad construye escuela, los niños

@@ -355,3 +355,15 @@ una simulación, y los tratamos como tales:
   atrae más gente todavía) y **clima→coche** (el mal tiempo penaliza igual
   a quien va en coche que a quien va a pie) — los dos acoplamientos que
   RESEARCH.md ya había anotado y que sobreviven a esta ronda.
+- 2026-07-04 · **Clima→coche** (`sim/simulation.ts`): `weatherSpeedFactor
+  (mode, outdoor)` — a pie el mal tiempo resta hasta un 40% de velocidad
+  (charcos, viento); en coche, protegido, como mucho un 8%. Cuidado de
+  rendimiento real durante la implementación: `speedAt` se llama por cada
+  peatón en cada sub-tick del bucle de `stepWalk` (presupuesto en
+  fracciones de tick, ver ciclo 8) — llamar a `this.weather` ahí dentro
+  habría recreado `weatherAt()` (con su propio `createRng`) muchas veces
+  por tick en vez de una. Se pasa `ctx.weather.outdoorFactor` ya calculado
+  desde `stepCitizen` hacia abajo en vez de recalcularlo. Test dedicado:
+  la penalización a pie es más del doble que en coche, y mejor tiempo
+  nunca ralentiza. 118/118 tests.
+  Queda **prestigio→inmigración** como último acoplamiento anotado.

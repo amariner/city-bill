@@ -45,6 +45,14 @@ const CAR_CELLS_PER_TICK_ROAD = 3.6;
  * similar al peatón, no vuela por el campo. */
 const CAR_CELLS_PER_TICK_OFFROAD = WALK_CELLS_PER_TICK;
 
+/** Acoplamiento clima↔vehículos (ciclo 6/8 de RESEARCH.md): cuánto exprime el
+ * mal tiempo la velocidad base según el modo. A pie se nota de verdad
+ * (charcos, viento); en coche, protegido, casi nada. Exportada (pura) para
+ * poder testearla sin levantar una Simulation entera. */
+export function weatherSpeedFactor(mode: 'foot' | 'car', outdoor: number): number {
+  return mode === 'foot' ? 0.6 + 0.4 * outdoor : 0.92 + 0.08 * outdoor;
+}
+
 // --- Lógica de estatus y propiedad (ciclo 9) ----------------------------------
 /** Bonus de 'fun' por hora en casa, a prestigio máximo (se escala por él). */
 const COMFORT_FUN_PER_HOUR = 0.15;
@@ -431,7 +439,7 @@ export class Simulation {
         return;
       }
       case 'moving': {
-        this.stepWalk(c);
+        this.stepWalk(c, ctx.weather.outdoorFactor);
         return;
       }
       case 'doing': {
@@ -513,15 +521,22 @@ export class Simulation {
     c.z = planned.cell[1] + 0.5;
   }
 
-  /** Celdas/tick en (cx,cz): a pie siempre igual; en coche depende del
-   * terreno (rápido en 'road', al ritmo de un peatón fuera de vía). */
-  private speedAt(cx: number, cz: number, mode: 'foot' | 'car'): number {
-    if (mode === 'foot') return WALK_CELLS_PER_TICK;
+  /** Celdas/tick en (cx,cz): a pie depende del terreno Y del tiempo (la
+   * lluvia/el frío calan de verdad al ir andando); en coche depende del
+   * terreno (rápido en 'road', al ritmo de un peatón fuera de vía) y el
+   * tiempo apenas se nota — acoplamiento clima↔vehículos (ciclo 6/8 de
+   * RESEARCH.md): quien va protegido dentro de un coche no camina bajo la
+   * lluvia. `outdoor` viene YA calculado del contexto del tick (ctx.weather):
+   * calcularlo aquí otra vez recrearía weatherAt() por cada peatón cada
+   * tick, rompiendo el presupuesto de 50 ms a escala. */
+  private speedAt(cx: number, cz: number, mode: 'foot' | 'car', outdoor: number): number {
+    if (mode === 'foot') return WALK_CELLS_PER_TICK * weatherSpeedFactor('foot', outdoor);
     const onRoad = this.grid.get(Math.round(cx), Math.round(cz))?.terrain === 'road';
-    return onRoad ? CAR_CELLS_PER_TICK_ROAD : CAR_CELLS_PER_TICK_OFFROAD;
+    const base = onRoad ? CAR_CELLS_PER_TICK_ROAD : CAR_CELLS_PER_TICK_OFFROAD;
+    return base * weatherSpeedFactor('car', outdoor);
   }
 
-  private stepWalk(c: Citizen): void {
+  private stepWalk(c: Citizen, outdoor: number): void {
     if (c.phase.kind !== 'moving') return;
     const ph = c.phase;
     // Presupuesto en FRACCIONES DE TICK (no celdas): así, si el trayecto
@@ -535,7 +550,7 @@ export class Simulation {
         this.beginDoing(c, ph.next);
         return;
       }
-      const speed = this.speedAt(a[0], a[1], ph.mode);
+      const speed = this.speedAt(a[0], a[1], ph.mode, outdoor);
       const segLen = manhattan(a, b);
       const cellsLeft = (1 - ph.t) * segLen;
       const ticksToFinish = speed > 0 ? cellsLeft / speed : Infinity;
