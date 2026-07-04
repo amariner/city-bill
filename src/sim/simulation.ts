@@ -50,7 +50,17 @@ const CAR_CELLS_PER_TICK_OFFROAD = WALK_CELLS_PER_TICK;
 const COMFORT_FUN_PER_HOUR = 0.15;
 
 export interface SimEvent {
-  name: 'citizenBorn' | 'citizenLeft' | 'jobTaken' | 'chatStarted' | 'cityGrew' | 'tierUnlocked' | 'coupleFormed' | 'festivalDay';
+  name:
+    | 'citizenBorn'
+    | 'citizenLeft'
+    | 'jobTaken'
+    | 'chatStarted'
+    | 'cityGrew'
+    | 'tierUnlocked'
+    | 'coupleFormed'
+    | 'festivalDay'
+    | 'homePrestige'
+    | 'cultivationChanged';
   data: Record<string, unknown>;
 }
 
@@ -268,8 +278,14 @@ export class Simulation {
       this.lastDay = this.clock.day;
       this.stepLife();
       this.economy.endOfDay();
+      this.events.push({ name: 'cultivationChanged', data: { level: this.economy.cultivation } });
       this.payPensions();
-      this.economy.investInHomes(this.households.keys()); // estatus, ciclo 9
+      // estatus, ciclo 9: cada hogar mejorado emite su evento para que el
+      // render decore ESA vivienda (jardín/fachada) sin re-sincronizar todo.
+      for (const u of this.economy.investInHomes(this.households.keys())) {
+        const [ax, az] = u.key.split(',').map(Number);
+        this.events.push({ name: 'homePrestige', data: { ax, az, prestige: u.prestige } });
+      }
       this.hireAndAcquaint();
       if (isFestivalDay(this.clock.day)) {
         this.events.push({ name: 'festivalDay', data: { day: this.clock.day } });

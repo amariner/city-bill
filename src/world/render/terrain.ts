@@ -45,13 +45,21 @@ function cellFromKey(key: number): [number, number] {
   return [Math.floor(key / 65536) - 32768, (key % 65536) - 32768];
 }
 
-function emitCell(buf: QuadBuffers, cx: number, cz: number, cell: Cell, c: THREE.Color): void {
+function emitCell(buf: QuadBuffers, cx: number, cz: number, cell: Cell, c: THREE.Color, cultivation: number): void {
   if (cell.terrain === 'none') return;
 
   // Color base por región (parches grandes) + jitter fino por celda.
   const shift = cell.terrain === 'field' ? 4 : cell.terrain === 'grass' ? 2 : 8;
   const regionRng = createRng(((cx >> shift) * 73856093) ^ ((cz >> shift) * 19349663));
   c.set(baseColor(cell.terrain, regionRng));
+  if (cell.terrain === 'field' && cultivation > 0) {
+    // Faena reciente (economy.cultivation): el barbecho vira a tonos de
+    // cultivo, con franjas por fila (surcos) que se marcan más cuanto más
+    // trabajado está el campo — cero horario fijo, solo el nivel agregado.
+    const worked = new THREE.Color(regionRng.pick(PALETTE.fieldsCultivated));
+    c.lerp(worked, cultivation);
+    if (((cz % 2) + 2) % 2 === 1) c.multiplyScalar(1 - cultivation * 0.12);
+  }
   const cellRng = createRng((cx * 83492791) ^ (cz * 29874321));
   c.multiplyScalar(0.97 + cellRng.next() * 0.06);
 
@@ -81,26 +89,27 @@ function finish(buf: QuadBuffers): THREE.Mesh {
   return mesh;
 }
 
-/** Malla de terreno de un solo chunk (o null si no tiene terreno). */
-export function buildTerrainMeshForChunk(chunk: Chunk): THREE.Mesh | null {
+/** Malla de terreno de un solo chunk (o null si no tiene terreno). `cultivation`
+ * [0,1]: cuánta faena agrícola reciente hay en la ciudad (economy.cultivation). */
+export function buildTerrainMeshForChunk(chunk: Chunk, cultivation = 0): THREE.Mesh | null {
   const buf: QuadBuffers = { positions: [], normals: [], colors: [] };
   const c = new THREE.Color();
   chunk.cells.forEach((cell, key) => {
     const [cx, cz] = cellFromKey(key);
-    emitCell(buf, cx, cz, cell, c);
+    emitCell(buf, cx, cz, cell, c, cultivation);
   });
   if (buf.positions.length === 0) return null;
   return finish(buf);
 }
 
 /** Malla de terreno de todo el grid (una sola geometría). */
-export function buildTerrainMesh(grid: Grid): THREE.Mesh {
+export function buildTerrainMesh(grid: Grid, cultivation = 0): THREE.Mesh {
   const buf: QuadBuffers = { positions: [], normals: [], colors: [] };
   const c = new THREE.Color();
   grid.forEachChunk((chunk) => {
     chunk.cells.forEach((cell, key) => {
       const [cx, cz] = cellFromKey(key);
-      emitCell(buf, cx, cz, cell, c);
+      emitCell(buf, cx, cz, cell, c, cultivation);
     });
   });
   return finish(buf);

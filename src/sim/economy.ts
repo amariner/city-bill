@@ -137,19 +137,30 @@ export class Economy {
    * determinista si dos hogares compiten (no compiten por nada compartido,
    * pero el orden de iteración de un Map tras deserializar puede variar).
    */
-  investInHomes(homeKeys: Iterable<string>): void {
+  investInHomes(homeKeys: Iterable<string>): Array<{ key: string; prestige: number }> {
+    const upgraded: Array<{ key: string; prestige: number }> = [];
     for (const k of [...homeKeys].sort()) {
       if (this.prestigeOf(k) >= 1) continue;
       if (this.walletOf(k) < PRESTIGE_SAVE_THRESHOLD) continue;
       this.spend(k, PRESTIGE_INVEST_COST);
-      this.prestige.set(k, Math.min(1, this.prestigeOf(k) + PRESTIGE_STEP));
+      const next = Math.min(1, this.prestigeOf(k) + PRESTIGE_STEP);
+      this.prestige.set(k, next);
       this.prestigeInvested += PRESTIGE_INVEST_COST;
+      upgraded.push({ key: k, prestige: next });
     }
+    return upgraded;
   }
   /** Clientes acumulados HOY por tienda ('ax,az'). */
   visitsToday = new Map<string, number>();
   /** Prosperidad [0,1] por tienda, media móvil de días. */
   prosperity = new Map<string, number>();
+
+  /** Campo trabajado [0,1] (deuda de T3.8): sube deprisa si hubo faena HOY,
+   * decae despacio si no — el campo se ve recién trabajado varios días
+   * después de la última jornada, como el barbecho real. Feedback 100%
+   * visual (render/terrain.ts), sin estado por parcela: el modelo actual no
+   * ata un granjero a UN campo concreto (ver RESEARCH.md ciclo 1). */
+  cultivation = 0;
 
   rebuild(index: WorldIndex, citizens: Map<number, Citizen>): void {
     const employed = new Map<string, number[]>();
@@ -284,6 +295,10 @@ export class Economy {
       this.prosperity.set(k, prev + (today - prev) / 3);
     }
     this.visitsToday.clear();
+    const farmedToday = [...this.farmerHoursToday.values()].some((h) => h > 0);
+    const target = farmedToday ? 1 : 0;
+    this.cultivation += (target - this.cultivation) * (farmedToday ? 0.35 : 0.12);
+    this.cultivation = Math.max(0, Math.min(1, this.cultivation));
     this.settleShops();
   }
 

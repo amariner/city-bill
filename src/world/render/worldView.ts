@@ -9,6 +9,7 @@ import { Grid, Chunk, CELL_SIZE, CHUNK, rotatedFootprint } from '../grid';
 import { catalogItem } from '../catalog';
 import { buildTerrainMeshForChunk } from './terrain';
 import { buildVegetationForChunk } from './instances';
+import { homeGarden, festivalDecor } from '../../props';
 
 function cellFromKey(key: number): [number, number] {
   return [Math.floor(key / 65536) - 32768, (key % 65536) - 32768];
@@ -26,6 +27,12 @@ export class WorldView {
   private byChunk = new Map<string, ChunkVisual>();
   private frustum = new THREE.Frustum();
   private mat = new THREE.Matrix4();
+  /** Prestigio [0,1] por vivienda ('ax,az') — ciclo 9, estatus y propiedad. */
+  private homePrestige = new Map<string, number>();
+  /** Faena agrícola reciente [0,1] (economy.cultivation) — deuda de T3.8. */
+  private cultivation = 0;
+  /** Fiesta de barrio en curso (ciclo 10) — decora los edificios cívicos. */
+  private festivalActive = false;
 
   constructor(private grid: Grid) {
     grid.forEachChunk((chunk) => {
@@ -61,11 +68,40 @@ export class WorldView {
     if (visual) this.addVisual(chunk, visual);
   }
 
+  /** Registra el nuevo prestigio de una vivienda y redecora su chunk (ciclo 9). */
+  setHomePrestige(ax: number, az: number, prestige: number): void {
+    this.homePrestige.set(`${ax},${az}`, prestige);
+    this.refreshChunkAt(ax, az);
+  }
+
+  /** Actualiza el nivel de faena agrícola y repinta el terreno (deuda T3.8).
+   * Se ignoran cambios minúsculos: repintar el terreno reconstruye TODOS los
+   * chunks (barato, pero no hace falta hacerlo por un 1% de diferencia). */
+  setCultivation(level: number): void {
+    if (Math.abs(level - this.cultivation) < 0.03) return;
+    this.cultivation = level;
+    this.rebuildAllChunks();
+  }
+
+  /** Activa o apaga la decoración de fiesta en los edificios cívicos (ciclo 10). */
+  setFestivalActive(active: boolean): void {
+    if (active === this.festivalActive) return;
+    this.festivalActive = active;
+    this.rebuildAllChunks();
+  }
+
+  private rebuildAllChunks(): void {
+    for (const chunk of [...this.byChunk.keys()]) {
+      const [chx, chz] = chunk.split(',').map(Number);
+      this.refreshChunkAt(chx * CHUNK, chz * CHUNK);
+    }
+  }
+
   private buildChunk(grid: Grid, chunk: Chunk): ChunkVisual | null {
     const group = new THREE.Group();
     group.name = `chunk_${chunk.chx}_${chunk.chz}`;
 
-    const terrain = buildTerrainMeshForChunk(chunk);
+    const terrain = buildTerrainMeshForChunk(chunk, this.cultivation);
     if (terrain) group.add(terrain);
 
     const veg = buildVegetationForChunk(chunk);
@@ -80,6 +116,16 @@ export class WorldView {
         const rot = cell.building.rot;
         const [fw, fd] = rotatedFootprint(it.w, it.d, rot);
         const mesh = it.build();
+        if (it.role === 'residential') {
+          const prestige = this.homePrestige.get(`${cx},${cz}`) ?? 0;
+          if (prestige > 0) {
+            const seed = (cx * 92821 + cz * 68917) | 0;
+            mesh.add(homeGarden(prestige, it.w * CELL_SIZE, it.d * CELL_SIZE, seed));
+          }
+        } else if (it.role === 'civic' && this.festivalActive) {
+          const seed = (cx * 92821 + cz * 68917) | 0;
+          mesh.add(festivalDecor(it.w * CELL_SIZE, it.d * CELL_SIZE, seed));
+        }
         mesh.position.set((cx + fw / 2) * CELL_SIZE, 0, (cz + fd / 2) * CELL_SIZE);
         mesh.rotation.y = (-rot * Math.PI) / 2;
         group.add(mesh);

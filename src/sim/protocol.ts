@@ -111,7 +111,9 @@ export interface SimEventMsg {
     | 'cityGrew'
     | 'tierUnlocked'
     | 'coupleFormed'
-    | 'festivalDay';
+    | 'festivalDay'
+    | 'homePrestige'
+    | 'cultivationChanged';
   data?: Record<string, unknown>;
 }
 

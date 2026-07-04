@@ -8,6 +8,10 @@ export const PALETTE = {
   groundBase: 0xd8cab0,
   fields: [0xdccfb5, 0xd3c4a9, 0xe0d4bc, 0xd7c9ae, 0xdbcdb2] as const,
   fieldAccents: [0xcbbcae, 0xc6b5a8, 0xd0c1b3] as const, // parches malva/rosados
+  // Campo en cultivo activo (T3.8 deuda): tonos más verdes/ricos que el
+  // barbecho de `fields`; el terreno interpola hacia esto según la faena
+  // agrícola reciente, con franjas por fila que leen como surcos.
+  fieldsCultivated: [0xb9c48a, 0xaebd80, 0xc3cd93, 0xa9b877, 0xbfc98d] as const,
 
   // Carreteras y caminos
   road: 0xeae0c8,
@@ -57,6 +61,10 @@ export const PALETTE = {
   // Vehículos (chasis en tonos apagados variados, ruedas casi negras)
   carBody: [0x8b96a6, 0xcdbb96, 0xab7f74, 0x8ea082] as const,
   carTire: 0x2c2a26,
+
+  // Jardines de estatus (ciclo 9): setos y flores discretas al invertir en casa
+  gardenHedge: 0x7a9457,
+  gardenFlowers: [0xc98fa0, 0xd6b869, 0xb9c98a] as const,
 
   // Agua y cielo
   pond: 0x86b7cd,

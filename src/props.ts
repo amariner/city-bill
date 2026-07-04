@@ -5,6 +5,7 @@
  */
 import * as THREE from 'three';
 import { PALETTE } from './palette';
+import { createRng } from './rng';
 
 const materialCache = new Map<number, THREE.MeshLambertMaterial>();
 
@@ -548,6 +549,97 @@ export function factory(): THREE.Group {
   const door = solid(new THREE.BoxGeometry(3.2, 3, 0.12), PALETTE.barnTrim);
   door.position.set(0, 1.5, d / 2 + 0.07);
   g.add(door);
+  return g;
+}
+
+/**
+ * Jardín/fachada de estatus (ciclo 9 de RESEARCH.md): decoración plantada en
+ * el borde frontal (+Z) de una vivienda cuando su hogar invierte ahorro de
+ * sobra. Escalonado por `prestige` [0,1] — más seto y flores cuanto más alto.
+ * `seed` fija la posición de las flores por vivienda (determinista, sin
+ * Math.random()).
+ */
+export function homeGarden(prestige: number, w: number, d: number, seed: number): THREE.Group {
+  const g = new THREE.Group();
+  if (prestige < 0.3) return g;
+  const rng = createRng(seed);
+  const frontZ = d / 2 + 0.25;
+
+  const hedgeCount = Math.max(2, Math.round(w / 1.1));
+  for (let i = 0; i < hedgeCount; i++) {
+    const x = -w / 2 + 0.5 + (i * (w - 1)) / Math.max(1, hedgeCount - 1);
+    const hedge = solid(new THREE.BoxGeometry(0.85, 0.32, 0.32), PALETTE.gardenHedge);
+    hedge.position.set(x, 0.16, frontZ);
+    hedge.castShadow = false;
+    g.add(hedge);
+  }
+
+  if (prestige >= 0.6) {
+    const flowerCount = Math.round(2 + prestige * 3);
+    for (let i = 0; i < flowerCount; i++) {
+      const bush = solid(new THREE.SphereGeometry(0.2, 6, 5), rng.pick(PALETTE.gardenFlowers));
+      bush.position.set(rng.range(-w / 2 + 0.4, w / 2 - 0.4), 0.2, frontZ + rng.range(0.35, 0.85));
+      bush.castShadow = false;
+      g.add(bush);
+    }
+  }
+
+  if (prestige >= 1) {
+    const pole = solid(new THREE.CylinderGeometry(0.035, 0.035, 1.5, 6), PALETTE.houseTrim);
+    pole.position.set(w * 0.32, 0.75, frontZ + 0.15);
+    g.add(pole);
+    const flag = solid(new THREE.BoxGeometry(0.42, 0.3, 0.04), rng.pick(PALETTE.gardenFlowers));
+    flag.castShadow = false;
+    flag.position.set(w * 0.32 + 0.22, 1.32, frontZ + 0.15);
+    g.add(flag);
+  }
+
+  return g;
+}
+
+/**
+ * Decoración de fiesta de barrio (ciclo 10 de RESEARCH.md): guirnalda de
+ * luces entre dos postes + un par de puestos de mercado frente al edificio
+ * cívico usado como plaza. Solo visible el día de fiesta (FESTIVAL_DAY_INTERVAL).
+ */
+export function festivalDecor(w: number, d: number, seed: number): THREE.Group {
+  const g = new THREE.Group();
+  const rng = createRng(seed);
+  const frontZ = d / 2 + 1.2;
+  const poleH = 2.6;
+
+  for (const px of [-w / 2 - 0.4, w / 2 + 0.4]) {
+    const pole = solid(new THREE.CylinderGeometry(0.05, 0.05, poleH, 6), PALETTE.houseTrim);
+    pole.position.set(px, poleH / 2, frontZ);
+    g.add(pole);
+  }
+  const lights = 7;
+  for (let i = 0; i < lights; i++) {
+    const t = i / (lights - 1);
+    const sag = Math.sin(t * Math.PI) * 0.5; // catenaria aproximada de la guirnalda
+    const bulb = solid(new THREE.SphereGeometry(0.09, 6, 5), PALETTE.windowLit);
+    bulb.castShadow = false;
+    bulb.position.set(-w / 2 - 0.4 + t * (w + 0.8), poleH - 0.3 - sag, frontZ);
+    g.add(bulb);
+  }
+
+  const stallColors = [PALETTE.signRed, PALETTE.signYellow];
+  for (let i = 0; i < 2; i++) {
+    const sx = (i - 0.5) * 2.6;
+    const sz = frontZ + 1.6 + rng.range(-0.2, 0.2);
+    const counter = solid(new THREE.BoxGeometry(1.6, 0.7, 0.7), PALETTE.porch);
+    counter.position.set(sx, 0.35, sz);
+    g.add(counter);
+    const canopy = solid(new THREE.BoxGeometry(1.9, 0.12, 1.4), rng.pick(stallColors));
+    canopy.position.set(sx, 1.5, sz);
+    g.add(canopy);
+    for (const px of [-0.8, 0.8]) {
+      const pole = solid(new THREE.CylinderGeometry(0.04, 0.04, 1.5, 6), PALETTE.houseTrim);
+      pole.position.set(sx + px, 0.75, sz + 0.5);
+      g.add(pole);
+    }
+  }
+
   return g;
 }
 

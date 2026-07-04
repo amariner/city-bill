@@ -14,6 +14,7 @@ import { buildShowcase } from './showcase';
 import { SimClient, AgentView } from './sim/client';
 import { CitizenView } from './world/render/citizens';
 import { DAY_GAME_SECONDS } from './sim/clock';
+import { isFestivalDay } from './sim/citizens/activities';
 import { Speed } from './sim/protocol';
 import { CitizenInspector } from './ui/inspector';
 import { Chronicle } from './ui/chronicle';
@@ -46,12 +47,20 @@ if (sceneName === 'buildings') {
   chronicle = new Chronicle(20260703);
   simClient.onEvent = (name, data) => {
     chronicle?.onEvent(name, data);
-    if (name !== 'cityGrew' || !data || !worldView) return;
-    const { id, cx, cz, rot } = data as { id: string; cx: number; cz: number; rot: 0 | 1 | 2 | 3 };
-    const it = catalogItem(id);
-    if (!it) return;
-    worldGrid.placeBuilding(id, it.w, it.d, cx, cz, rot);
-    worldView.refreshChunkAt(cx, cz);
+    if (!data || !worldView) return;
+    if (name === 'cityGrew') {
+      const { id, cx, cz, rot } = data as { id: string; cx: number; cz: number; rot: 0 | 1 | 2 | 3 };
+      const it = catalogItem(id);
+      if (!it) return;
+      worldGrid.placeBuilding(id, it.w, it.d, cx, cz, rot);
+      worldView.refreshChunkAt(cx, cz);
+    } else if (name === 'homePrestige') {
+      const { ax, az, prestige } = data as { ax: number; az: number; prestige: number };
+      worldView.setHomePrestige(ax, az, prestige);
+    } else if (name === 'cultivationChanged') {
+      const { level } = data as { level: number };
+      worldView.setCultivation(level);
+    }
   };
   window.addEventListener('keydown', (e) => {
     if (e.key >= '0' && e.key <= '3') simClient!.setSpeed(Number(e.key) as Speed);
@@ -89,6 +98,7 @@ loop.onUpdate((dt) => {
     const mm = String(Math.floor((h % 1) * 60)).padStart(2, '0');
     hud.setStats({ agents: n, clock: `${hh}:${mm} día ${day} ×${simClient.speed}` });
     chronicle?.update(t, simClient.population, simClient.buildings);
+    worldView?.setFestivalActive(isFestivalDay(day));
   }
   hud.update(dt);
 });

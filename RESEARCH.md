@@ -337,3 +337,21 @@ una simulación, y los tratamos como tales:
   para Sonnet (escuela, consultorio, coche, plaza — 4 TODOs de mesh
   pendientes). El algoritmo fractal sigue vivo: la siguiente pregunta no es
   "qué lógica falta" sino "qué acoplamiento falta entre las que ya hay".
+- 2026-07-04 · **Sesión de profundidad (Sonnet)**: cierra 3 de las 4 carencias
+  anotadas arriba. (a) Los 4 TODOs de mesh (coche, consultorio, escuela,
+  plaza de fiestas) — ver diario de ROADMAP.md §6 para el detalle técnico.
+  (b) T3.8 por fin tiene su feedback de terreno: `economy.cultivation` [0,1]
+  sube con faena agrícola reciente y decae despacio sin ella; `render/
+  terrain.ts` lo pinta como franjas (surcos) sobre el barbecho. Sigue sin
+  atar un granjero a UN campo (esa granularidad no existe en el modelo,
+  ver ciclo 1) — esto da la señal AGREGADA que T3.8 prometía, no más.
+  (c) **Salud→mortalidad** (`sim/lifecycle.ts`): `deathChance(age, health)`
+  ahora escala con la salud del anciano — sana (1) aguanta la mitad de
+  riesgo que la rampa base por edad; desatendida (0) lo sube un 50%; sigue
+  sin matar antes de OLD_AGE (la edad abre la puerta, la salud modula
+  dentro). Test dedicado (`sim.test.ts`): sano < medio < enfermo, cero
+  riesgo antes de vejez, nunca fuera de [0, 0.5]. 116/116 tests.
+  Queda pendiente: **prestigio→inmigración** (una calle "de posibles" no
+  atrae más gente todavía) y **clima→coche** (el mal tiempo penaliza igual
+  a quien va en coche que a quien va a pie) — los dos acoplamientos que
+  RESEARCH.md ya había anotado y que sobreviven a esta ronda.

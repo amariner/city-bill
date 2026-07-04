@@ -316,6 +316,56 @@ aprieta, T3.8-T3.10 y la Fase 4 valen más que cualquier cosa de la Fase 5.
     acordado con el usuario para evitar este choque en el futuro.
   · Pendientes de esta ronda: plaza/decoración de fiestas (ciclo 10) y
     jardín/fachada de prestigio (ciclo 9) — siguiente en la cola.
+  · **Cierra las 3 deudas restantes** (jardín de prestigio, plaza de fiestas,
+    franjas de cultivo T3.8). Las tres comparten el mismo problema: son
+    estado de la SIM (`sim/economy.ts`) que el render por chunks
+    (`world/render/worldView.ts`) no podía ver — los edificios se
+    construyen una vez desde `catalogItem.build()` sin margen para
+    "decoración según estado". Solución uniforme: el worker emite un
+    evento nuevo cuando el estado cambia (`homePrestige` al invertir en una
+    vivienda, `cultivationChanged` al cierre del día) y `WorldView` guarda
+    ese estado en un `Map`/escalar propio y reconstruye SOLO el chunk
+    afectado (`refreshChunkAt`) — mismo mecanismo que ya usaba `cityGrew`,
+    ninguna infraestructura nueva. La decoración se añade como hijo del
+    `mesh` del edificio ANTES de posicionarlo, así hereda su transform
+    (posición+rotación) gratis.
+    - `homeGarden(prestige, w, d, seed)` (`props.ts`): seto siempre que
+      prestige≥0.3, flores desde 0.6, banderín en 1 — todo en el borde +Z
+      (convención de "frente" del catálogo). `seed` determinista por ancla
+      (`ax*92821 + az*68917`), nunca `Math.random()`.
+    - `festivalDecor(w, d, seed)` (`props.ts`): guirnalda de luces
+      (`PALETTE.windowLit`, catenaria aproximada con `sin`) + 2 puestos de
+      mercado, en edificios `role==='civic'`. Activado/desactivado desde
+      `main.ts` comparando `isFestivalDay(day)` cada frame contra el estado
+      guardado en `WorldView` (la comparación es barata; solo dispara
+      reconstrucción en el flanco de cambio) — cero mensaje nuevo del
+      worker necesario porque `isFestivalDay` ya es una función pura
+      importable en el hilo principal.
+    - `economy.cultivation` [0,1]: sube deprisa (×0.35/día) si hubo faena
+      agrícola HOY, decae despacio (×0.12/día) si no — un campo se ve
+      trabajado varios días después de la última jornada, no de un día
+      para otro. `render/terrain.ts` interpola `PALETTE.fields` →
+      `PALETTE.fieldsCultivated` y oscurece filas pares un 12%×cultivation
+      (franjas/surcos). Sin estado por parcela: el modelo sigue sin atar un
+      granjero a UN campo concreto (deuda ya anotada en RESEARCH.md ciclo 1;
+      esto da el feedback agregado que T3.8 prometía, no granularidad nueva).
+    - Verificación: `festivalDecor` se lee a simple vista en `?scene=buildings`
+      (puestos grandes, colores saturados) y también en el mundo real sobre
+      el ayuntamiento/escuela. Las franjas de cultivo se confirmaron en el
+      mundo real (día 1-2, faena ya visible como mosaico verde/beige con
+      surcos). `homeGarden` se confirmó por conteo de nodos en el showcase
+      (hijos > 0 para los 5 tipos residenciales, seto+flores+banderín según
+      prestige) — el seto es pequeño y del mismo verde que el césped, así
+      que a la distancia de cámara fija es difícil de distinguir a simple
+      vista en captura; no llegó a observarse un hogar cruzando el umbral de
+      inversión (bolsillo≥80) en el tiempo de sesión disponible, así que la
+      confirmación 100% visual EN VIVO queda como deuda menor para la
+      próxima sesión (el mecanismo — evento `homePrestige` + reconstrucción
+      de chunk — es idéntico al de `festivalDecor`, que sí se vio, y al de
+      `cityGrew`, ya probado en producción). 116/116 tests, `tsc` limpio.
+  · De paso, un acoplamiento de lógica pura (sin render, no necesita
+    screenshot): **salud→mortalidad** en `sim/lifecycle.ts` — ver
+    RESEARCH.md §4 para el detalle (`deathChance` ahora lee `c.health`).
 
 - 2026-07-03 — Fase 0 completada. Escenario semilla actual generado ad-hoc en
   `neighborhood.ts`; se migrará a grid en T1.4 (previsto, no es deuda).
