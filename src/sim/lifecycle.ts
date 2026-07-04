@@ -15,10 +15,29 @@ import { Rng } from '../rng';
 export const ADULT_AGE = 18;
 /** Edad desde la que la muerte empieza a rondar (y la salud, ciclo 5, decae más). */
 export const OLD_AGE = 72;
-/** Prob. de muerte por año una vez mayor (rampa suave). */
-function deathChance(age: number): number {
-  if (age < OLD_AGE) return 0;
-  return Math.min(0.5, (age - OLD_AGE) / 25);
+
+// --- Acoplamiento salud→mortalidad (ciclo 11 de RESEARCH.md) ------------------
+// La edad marca el riesgo BASE; la fragilidad (mala salud) lo MULTIPLICA, y una
+// enfermedad crítica puede matar incluso al joven. Un cuerpo sano (health=1) no
+// altera la curva de siempre: el acoplamiento solo "muerde" a quien está frágil.
+/** Cuánto multiplica la peor salud el riesgo por edad (health 0 → ×(1+esto)). */
+const FRAILTY_STRENGTH = 2;
+/** Salud por debajo de la cual la enfermedad mata por sí sola (aún joven). */
+export const ILLNESS_HEALTH = 0.2;
+/** Prob. anual máxima de morir por enfermedad crítica (salud 0). */
+const ILLNESS_MAX = 0.08;
+
+/**
+ * Prob. de muerte por año. `health` [0,1] la modula (ciclo 11): la fragilidad
+ * multiplica el riesgo por edad y la enfermedad crítica añade su propio riesgo.
+ * Con salud plena equivale exactamente a la curva de edad original.
+ */
+export function deathChance(age: number, health = 1): number {
+  const h = Math.min(1, Math.max(0, health));
+  const base = age < OLD_AGE ? 0 : Math.min(0.5, (age - OLD_AGE) / 25);
+  const frailty = 1 + FRAILTY_STRENGTH * (1 - h);
+  const illness = h < ILLNESS_HEALTH ? (ILLNESS_MAX * (ILLNESS_HEALTH - h)) / ILLNESS_HEALTH : 0;
+  return Math.min(0.6, base * frailty + illness);
 }
 
 /** Afinidad mínima para emparejarse. */
@@ -43,7 +62,7 @@ export function lifeYear(citizens: Map<number, Citizen>, rng: Rng): LifeEvents {
 
   for (const c of citizens.values()) {
     c.age += 1;
-    if (rng.next() < deathChance(c.age)) out.deaths.push(c);
+    if (rng.next() < deathChance(c.age, c.health)) out.deaths.push(c);
   }
   const dead = new Set(out.deaths.map((d) => d.id));
 

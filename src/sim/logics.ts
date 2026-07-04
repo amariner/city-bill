@@ -28,7 +28,7 @@ export const LOGICS: LogicEntry[] = [
   { id: 'money', name: 'dinero (salario→ahorro→precios)', level: 2, files: ['economy.ts'], couples: ['jobs', 'food'] },
   { id: 'education', name: 'educación', level: 2, files: ['citizens/activities.ts', 'economy.ts'], couples: ['jobs', 'life'] },
   { id: 'social', name: 'social (charlas/afinidad)', level: 3, files: ['citizens/social.ts'], couples: ['needs', 'space'] },
-  { id: 'life', name: 'vida (generaciones)', level: 3, files: ['sim/lifecycle.ts'], couples: ['social', 'growth'] },
+  { id: 'life', name: 'vida (generaciones)', level: 3, files: ['sim/lifecycle.ts'], couples: ['social', 'growth', 'health'] },
   { id: 'growth', name: 'ciudad autónoma (demanda→construcción)', level: 2, files: ['world/growth.ts'], couples: ['jobs', 'life', 'food'] },
   { id: 'government', name: 'gobierno (impuestos y pensiones)', level: 2, files: ['economy.ts', 'simulation.ts'], couples: ['money', 'life'] },
   { id: 'circular-economy', name: 'economía circular (mayorista + caja de tienda)', level: 2, files: ['economy.ts'], couples: ['money', 'food', 'government'] },

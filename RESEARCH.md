@@ -337,3 +337,34 @@ una simulación, y los tratamos como tales:
   para Sonnet (escuela, consultorio, coche, plaza — 4 TODOs de mesh
   pendientes). El algoritmo fractal sigue vivo: la siguiente pregunta no es
   "qué lógica falta" sino "qué acoplamiento falta entre las que ya hay".
+- 2026-07-04 · **Ciclo 11: salud→mortalidad (PROFUNDIDAD, no lógica nueva)** ·
+  Primer ciclo del algoritmo tras cerrar la pirámide: cierra el acoplamiento
+  que la bitácora del ciclo 5 dejó anotado a propósito ("salud no acopla aún
+  con MORTALIDAD"). Modelo (epidemiología real en una frase): el riesgo de
+  morir tiene una LÍNEA BASE por edad, la FRAGILIDAD (mala salud) la MULTIPLICA
+  y una ENFERMEDAD crítica mata por sí sola incluso al joven. Traducción al
+  motor: `deathChance(age, health)` = base_edad × (1 + 2·(1−salud)) + riesgo_
+  enfermedad(salud<0.2), tope 0.6. Con salud plena equivale EXACTAMENTE a la
+  curva de edad de siempre → el acoplamiento solo "muerde" a quien está frágil,
+  sin desestabilizar los tests de vida ya verdes. Emergió (verificado con
+  cohortes sintéticas idénticas salvo la salud, mismo RNG: las frágiles pierden
+  ~4× más miembros en un año) y a escala de ciudad: de 45 muertes en 60 días,
+  24 fueron de personas frágiles (salud<0.5) pese a ser minoría. Efecto de
+  segundo orden NO buscado pero fascinante: al MORIR los frágiles, la salud
+  media de los VIVOS ya no baja, así que el disparador REACTIVO de la clínica
+  (ciclo 5, avgHealth<0.88) dejó de saltar → hubo que hacerlo también PROACTIVO
+  por tamaño de población (infraestructura pública, growth.ts): la clínica pasa
+  a existir para PREVENIR esas muertes, cerrando el bucle salud↔vida↔growth.
+  Reflejo en la Crónica: el evento de muerte lleva la salud y se narra "muere X
+  (n años) por enfermedad" cuando un no-anciano cae frágil. Registrado como
+  acoplamiento en el manifiesto (`life.couples` += `health`). 118/118 tests.
+  Carencias observadas para próximos ciclos: (a) sin una clínica CERCANA, un
+  frágil del extremo del pueblo no llega a curarse a tiempo — acopla con
+  vehículos/distancia (¿ambulancia? ¿varias clínicas por distrito?); (b) la
+  mortalidad no distingue aún CAUSA médica (accidente vs enfermedad crónica vs
+  vejez) — hoy todo es "fragilidad"; (c) el acoplamiento inverso —que la
+  clínica REDUZCA de verdad la mortalidad medible— existe por construcción
+  (curar sube salud → baja deathChance) pero no está MEDIDO en un test de
+  "ciudad con clínica vive más que sin ella": candidato natural a ciclo 12
+  junto con los otros dos acoplamientos pendientes (prestigio→inmigración,
+  clima→coche).

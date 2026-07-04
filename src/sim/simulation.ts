@@ -314,7 +314,7 @@ export class Simulation {
       if (![...this.citizens.values()].some((c) => c.home.ax === d.home.ax && c.home.az === d.home.az)) {
         this.households.set(k, Math.max(0, (this.households.get(k) ?? 1) - 1));
       }
-      this.events.push({ name: 'citizenLeft', data: { id: d.id, name: d.name, age: d.age } });
+      this.events.push({ name: 'citizenLeft', data: { id: d.id, name: d.name, age: d.age, health: d.health } });
     }
     for (const [a, b] of life.couples) {
       this.events.push({ name: 'coupleFormed', data: { a: a.name, b: b.name } });

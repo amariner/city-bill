@@ -9,6 +9,7 @@
  */
 import { DAY_GAME_SECONDS } from '../sim/clock';
 import { activeLogicNames } from '../sim/logics';
+import { ILLNESS_HEALTH, OLD_AGE } from '../sim/lifecycle';
 
 /** Lógicas integradas — la fuente de verdad es sim/logics.ts (manifiesto). */
 const ACTIVE_LOGICS = activeLogicNames();
@@ -98,10 +99,16 @@ export class Chronicle {
         text = `nace ${data?.name ?? 'alguien'}`;
         this.data.counters.births++;
         break;
-      case 'citizenLeft':
-        text = `muere ${data?.name ?? 'alguien'} (${data?.age ?? '?'} años)`;
+      case 'citizenLeft': {
+        // Acoplamiento salud→mortalidad (ciclo 11): la causa se lee de la salud
+        // con la que murió. Frágil y no muy viejo → enfermedad; si no → vejez.
+        const h = typeof data?.health === 'number' ? data.health : 1;
+        const age = typeof data?.age === 'number' ? data.age : 0;
+        const cause = h < ILLNESS_HEALTH && age < OLD_AGE ? ' por enfermedad' : '';
+        text = `muere ${data?.name ?? 'alguien'} (${data?.age ?? '?'} años)${cause}`;
         this.data.counters.deaths++;
         break;
+      }
       case 'coupleFormed':
         text = `${data?.a} y ${data?.b} se emparejan`;
         this.data.counters.couples++;

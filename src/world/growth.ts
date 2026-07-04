@@ -52,9 +52,11 @@ export function computeDemand(d: DemandInput): DemandKind {
   const unemployment = d.population > 0 ? (d.population - d.employed) / d.population : 0;
   // Niños sin plaza escolar → escuela (antes que nada: la escuela es sagrada).
   if (d.children > d.studentSlots && d.children >= 3) return 'school';
-  // Salud media baja y sin consultorio → clínica (una población enferma no
-  // rinde en el trabajo: atender esto es más urgente que más empleos).
-  if (!d.hasClinic && d.avgHealth < 0.88 && d.population >= 10) return 'clinic';
+  // Salud media baja → clínica reactiva; pero con la mortalidad (ciclo 11) los
+  // frágiles MUEREN y la media de los vivos ya no baja, así que un pueblo que
+  // crece también se dota de sanidad de forma PROACTIVA (infraestructura
+  // pública) — la clínica existe justamente para PREVENIR esas muertes.
+  if (!d.hasClinic && d.population >= 10 && (d.avgHealth < 0.88 || d.population >= 20)) return 'clinic';
   // Paro alto, o parados sin ninguna vacante → un lugar de trabajo.
   if (unemployment > 0.35 || (openJobs <= 0 && unemployment >= 0.15)) return 'work';
   // Gente queriendo venir (hay trabajo, o la ciudad va bien) y sin casas → vivienda.

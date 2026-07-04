@@ -12,6 +12,9 @@ import { Simulation } from './simulation';
 import { TICK_GAME_S, DAY_GAME_SECONDS } from './clock';
 import { FOOD_PRICE } from './economy';
 import { weatherAt } from './weather';
+import { deathChance, lifeYear, OLD_AGE } from './lifecycle';
+import { Citizen } from './citizens/citizen';
+import { createRng } from '../rng';
 
 let passed = 0;
 let failed = 0;
@@ -322,6 +325,40 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
   check('fiestas: caen en su fecha de calendario', festivalDays >= 3, `→ ${festivalDays} en 46 días`);
   check('fiestas: la gente asiste de verdad', festivalAttendance > 0, `→ ${festivalAttendance} ticks`);
   check('fiestas: NUNCA fuera de fecha (nada de guion suelto)', attendanceOnNonFestivalDay === 0, `→ ${attendanceOnNonFestivalDay}`);
+}
+
+// Ciclo 11 RESEARCH.md — acoplamiento salud→mortalidad: la salud deja de ser
+// solo "poder trabajar" y pasa a ser vida o muerte. La edad marca el riesgo
+// base; la fragilidad lo multiplica; la enfermedad crítica mata aun al joven.
+{
+  // (a) Forma de la curva — verificable sin sim: monótona en salud.
+  check('mortalidad: la fragilidad multiplica el riesgo por edad', deathChance(80, 0.1) > deathChance(80, 0.9));
+  check('mortalidad: la salud plena no altera la curva de edad original', deathChance(80, 1) === Math.min(0.5, (80 - OLD_AGE) / 25));
+  check('mortalidad: un cuerpo joven y sano nunca muere de vejez', deathChance(30, 1) === 0);
+  check('mortalidad: la enfermedad crítica mata incluso al joven', deathChance(30, 0.02) > 0);
+
+  // (b) Emergencia poblacional: dos cohortes idénticas salvo en salud; en un
+  //     año de vida, la frágil pierde más miembros. Mismo RNG → aislamos salud.
+  const makeElder = (id: number, health: number): Citizen => ({
+    id, name: `E${id}`, age: 78,
+    personality: { sociable: 0.5, trabajador: 0.5, hogareño: 0.5 },
+    needs: { energy: 1, food: 1, social: 1, fun: 1, purpose: 1 },
+    home: { ax: 0, az: 0, buildingId: 'house' }, work: null,
+    x: 0, z: 0, heading: 0, phase: { kind: 'deciding' }, activity: 'none',
+    partnerId: null, education: 0, health, friends: new Map(), lastChatTick: -1, inside: false,
+  });
+  const cohort = (health: number): number => {
+    const m = new Map<number, Citizen>();
+    for (let i = 0; i < 400; i++) m.set(i, makeElder(i, health));
+    return lifeYear(m, createRng(123)).deaths.length;
+  };
+  const frailDeaths = cohort(0.15);
+  const robustDeaths = cohort(0.95);
+  check(
+    'mortalidad: una cohorte frágil muere más que una robusta de la misma edad',
+    frailDeaths > robustDeaths,
+    `→ frágiles ${frailDeaths} vs robustos ${robustDeaths} de 400`,
+  );
 }
 
 // Determinismo: mismo snapshot final con la misma semilla.
