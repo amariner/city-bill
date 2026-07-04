@@ -12,8 +12,8 @@ import { Simulation } from './simulation';
 import { TICK_GAME_S, DAY_GAME_SECONDS } from './clock';
 import { FOOD_PRICE } from './economy';
 import { weatherAt } from './weather';
-import { deathChance, lifeYear, OLD_AGE } from './lifecycle';
-import { townAttractiveness } from '../world/growth';
+import { deathChance, lifeYear, OLD_AGE, ADULT_AGE } from './lifecycle';
+import { townAttractiveness, householdHardship, updateEmigrationPressure, EMIGRATE_PRESSURE_LIMIT } from '../world/growth';
 import { ACTIVITY_BY_KIND, SimContext } from './citizens/activities';
 import { Weather } from './weather';
 import { Citizen } from './citizens/citizen';
@@ -410,6 +410,66 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
   const strollRich = stroll.suitability(mkCtx(0.2, 100), c);
   const strollPoor = stroll.suitability(mkCtx(0.2, 0), c);
   check('clima→coche: el PASEO NO se resguarda (su sentido es estar fuera)', strollRich === strollPoor, `→ ${strollRich.toFixed(3)} vs ${strollPoor.toFixed(3)}`);
+}
+
+// Ciclo 14 RESEARCH.md — EMIGRACIÓN digna (cierra T4.3, honra §6.2): quien no
+// halla sustento en el pueblo, tras años de penuria SOSTENIDA y con la red de
+// pensiones agotada, se marcha andando a otra ciudad — narrado, NUNCA un
+// despawn silencioso. La población es consecuencia por ambos lados.
+{
+  // (a) Decisión pura — desesperanza ECONÓMICA (sin empleo ni colchón), no
+  //     hambre ya consumada; los jubilados no cuentan (los sostiene la pensión).
+  check('emigración: sin empleo y sin colchón = penuria', householdHardship({ workingAdults: 2, employed: 0, wallet: 1 }));
+  check('emigración: con alguien empleado NO hay penuria', !householdHardship({ workingAdults: 2, employed: 1, wallet: 0 }));
+  check('emigración: con colchón NO hay penuria', !householdHardship({ workingAdults: 2, employed: 0, wallet: 50 }));
+  check('emigración: un hogar solo de jubilados no emigra a buscar trabajo', !householdHardship({ workingAdults: 0, employed: 0, wallet: 0 }));
+
+  // (b) Histéresis: la penuria SOSTENIDA acumula; un año bueno alivia el doble
+  //     (la esperanza vuelve antes que se pierde) — no se huye por un mal año.
+  let p = 0;
+  for (let i = 0; i < EMIGRATE_PRESSURE_LIMIT; i++) p = updateEmigrationPressure(p, true);
+  check('emigración: la penuria sostenida alcanza el límite', p >= EMIGRATE_PRESSURE_LIMIT, `→ ${p}`);
+  check('emigración: un solo año malo no basta (histéresis)', updateEmigrationPressure(0, true) < EMIGRATE_PRESSURE_LIMIT);
+  check('emigración: un buen año alivia más que un mal año', updateEmigrationPressure(2, false) < updateEmigrationPressure(2, true) - 1);
+
+  // (c) Emergencia integrada: un pueblo sano NO expulsa a nadie (la válvula está
+  //     cerrada por defecto: emigrar es excepción, no rotación).
+  {
+    const sim = new Simulation(seedWorld(), 42);
+    for (let t = 0; t < TICKS_PER_DAY * 30; t++) sim.step();
+    check('emigración: un pueblo sano no expulsa a nadie', sim.emigrations === 0, `→ ${sim.emigrations}`);
+  }
+
+  // (d) Emergencia integrada: condena a un hogar concreto a paro sin sustento y
+  //     con la red agotada (tesoro a 0); tras la penuria sostenida, sus miembros
+  //     hacen las maletas y se marchan — con evento narrado (dignidad §6.2).
+  {
+    const sim = new Simulation(seedWorld(), 42) as unknown as {
+      citizens: Map<number, Citizen>;
+      economy: { treasury: number; wallets: Map<string, number> };
+      emigrations: number;
+      step: () => void;
+      takeEvents: () => Array<{ name: string; data: Record<string, unknown> }>;
+    };
+    for (let t = 0; t < TICKS_PER_DAY * 12; t++) sim.step(); // crece por encima del suelo
+    let vk: string | null = null;
+    const homes = new Map<string, Citizen[]>();
+    for (const c of sim.citizens.values()) {
+      const k = `${c.home.ax},${c.home.az}`;
+      (homes.get(k) ?? homes.set(k, []).get(k)!).push(c);
+    }
+    for (const [k, arr] of homes) if (arr.some((c) => c.age >= ADULT_AGE && c.age < OLD_AGE)) { vk = k; break; }
+    let emigratedEvents = 0;
+    for (let t = 0; t < TICKS_PER_DAY * 18 && vk; t++) {
+      sim.economy.treasury = 0; // la última bala (pensiones) falla
+      sim.economy.wallets.set(vk, 0); // sin colchón
+      for (const c of sim.citizens.values()) if (`${c.home.ax},${c.home.az}` === vk) c.work = null; // sin empleo
+      sim.step();
+      for (const e of sim.takeEvents()) if (e.name === 'citizenLeft' && e.data.reason === 'emigrated') emigratedEvents++;
+    }
+    check('emigración: un hogar sin sustento sostenido acaba marchándose', sim.emigrations > 0, `→ ${sim.emigrations}`);
+    check('emigración: la marcha se NARRA (no es un despawn silencioso)', emigratedEvents > 0, `→ ${emigratedEvents} eventos`);
+  }
 }
 
 // Determinismo: mismo snapshot final con la misma semilla.

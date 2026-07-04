@@ -425,3 +425,45 @@ una simulación, y los tratamos como tales:
   salto de PROFUNDIDAD más valioso es la EMIGRACIÓN digna por infelicidad
   sostenida (§6.2: quien sobra se VA andando, no se despawnea) — cierra T4.3 por
   completo y es el candidato fuerte a ciclo 14.
+- 2026-07-04 · **Ciclo 14: emigración digna (cierra T4.3, honra §6.2)** · La
+  otra mitad de la migración, y la pieza que faltaba para que la población sea
+  consecuencia por AMBOS lados (llega si el pueblo atrae — ciclo 12; se va si no
+  puede sostener a su gente). Modelo (migración real): quien no puede ganarse la
+  vida donde está, tras AGUANTAR unos años, se marcha a otra ciudad — y lo hace
+  ANTES de morirse de hambre, no después; emigrar es huir de la miseria, no su
+  desenlace. Traducción al motor: cada cierre de año, un hogar con adultos en
+  edad de trabajar, NINGUNO empleado y sin colchón de ahorro (`householdHardship`,
+  puro) acumula 1 de presión; un año bueno la alivia 2 (histéresis: la esperanza
+  vuelve antes que se pierde). Al llegar a 3 años de penuria SOSTENIDA, la
+  familia entera se marca `leaving`: caminan a la SALIDA del pueblo (la celda de
+  carretera más lejana del centro, `WorldIndex.townExit`) usando el mismo
+  pathfinding de siempre, y al llegar se despawnean con un evento narrado
+  ("X se marcha a otra ciudad") — NUNCA en silencio (§6.2). Guardrails: un
+  caserío (≤12 hab.) no se despuebla solo; una familia por día como mucho; corre
+  DESPUÉS de las pensiones (ciclo 3), que son la última bala — solo emigra quien
+  la red no alcanza a salvar. DESCUBRIMIENTO clave durante la verificación: la
+  emigración casi nunca se dispara SOLA porque la ciudad autónoma es RESILIENTE
+  — el crecimiento (growth) construye empleos para el excedente y las pensiones
+  cubren el bache; solo cuando AMBAS redes se agotan (sin suelo/growth Y sin
+  tesoro) la penuria se sostiene lo bastante. Es la lectura correcta: emigrar es
+  la EXCEPCIÓN, no la rotación — la válvula está cerrada en un pueblo sano
+  (test: 0 emigrados en 30 días de seed 42) y se abre solo en el colapso (test
+  integrado: un hogar condenado a paro+pobreza con el tesoro a 0 vacía sus
+  miembros por emigración narrada hacia el año 3). Sin RNG (determinista); sin
+  tocar el contrato de protocol.ts (los que se van caminan como cualquiera y se
+  desvanecen en el borde, como al entrar en un edificio). Crónica con contador
+  `emigrados` propio. Registrado en el manifiesto (`growth` ahora "demanda→
+  construcción + emigración", `growth.couples` += `money`). 136/136 tests.
+  Carencias observadas para próximos ciclos: (a) los que se marchan se
+  DESVANECEN en el borde en vez de recorrer la carretera hasta salir de cámara
+  — el walk existe pero el despawn es al llegar al nodo más lejano, no "fuera
+  del mapa"; pulido visual menor; (b) emigra la familia entera de golpe; en la
+  realidad a veces se va UN miembro a probar suerte y manda dinero a casa
+  (remesas) — dimensión más fina, candidata futura; (c) no hay memoria de los
+  que se fueron (¿vuelven si el pueblo prospera? ¿la Crónica recuerda el éxodo
+  de un mal año como un hito?) — la Crónica podría contar "el año 14, tres
+  familias se marcharon" como una cicatriz de la ciudad; (d) con inmigración
+  (12) y emigración (14) cerradas, T4.3 está COMPLETA — el siguiente valor está
+  en la re-ocupación de vacantes (que un pueblo que mejora vuelva a llenar las
+  casas medio vacías) y en el reflejo VISUAL acumulado (la deuda de Sonnet:
+  nieve/estaciones, meshes de clínica/escuela/coche/plaza/jardín de prestigio).

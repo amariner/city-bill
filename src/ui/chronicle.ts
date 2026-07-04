@@ -18,7 +18,7 @@ interface ChronicleData {
   /** [año, población, edificios] por año de la ciudad. */
   series: Array<[number, number, number]>;
   events: Array<{ year: number; text: string }>;
-  counters: { births: number; deaths: number; couples: number };
+  counters: { births: number; deaths: number; couples: number; emigrated?: number };
 }
 
 const MAX_EVENTS = 60;
@@ -100,6 +100,13 @@ export class Chronicle {
         this.data.counters.births++;
         break;
       case 'citizenLeft': {
+        if (data?.reason === 'emigrated') {
+          // Emigración digna (ciclo 14): quien no halló sustento se marcha a
+          // otra ciudad andando por la carretera — nunca un despawn silencioso.
+          text = `${data?.name ?? 'alguien'} se marcha a otra ciudad`;
+          this.data.counters.emigrated = (this.data.counters.emigrated ?? 0) + 1;
+          break;
+        }
         // Acoplamiento salud→mortalidad (ciclo 11): la causa se lee de la salud
         // con la que murió. Frágil y no muy viejo → enfermedad; si no → vejez.
         const h = typeof data?.health === 'number' ? data.health : 1;
@@ -160,7 +167,8 @@ export class Chronicle {
     const head =
       `CRÓNICA DE LA CIUDAD — año ${last[0]}\n` +
       `población ${last[1]} · edificios ${last[2]}\n` +
-      `nacimientos ${d.counters.births} · muertes ${d.counters.deaths} · parejas ${d.counters.couples}`;
+      `nacimientos ${d.counters.births} · muertes ${d.counters.deaths} · parejas ${d.counters.couples}` +
+      (d.counters.emigrated ? ` · emigrados ${d.counters.emigrated}` : '');
 
     const feed = d.events
       .slice(-14)

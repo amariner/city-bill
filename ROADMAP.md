@@ -222,8 +222,9 @@ repetido, arbolado automático en márgenes de carretera (rasgo de identidad).
   en modo autónomo total), la demanda materializa edificios por etapas con animación de
   construcción (andamio low-poly → pop). Parcela vacía → casita → casa con jardín →
   adosados → bloque, según densidad local. Cada edificio nuevo genera/atrae ciudadanos.
-- [~] **T4.3 Inmigración/emigración.** Familias llegan si hay vivienda+empleo+felicidad;
-  se van si no. La población es consecuencia, no un slider.
+- [x] **T4.3 Inmigración/emigración.** Familias llegan si hay vivienda+empleo+felicidad;
+  se van si no. La población es consecuencia, no un slider. (Inmigración modulada por
+  atractividad = ciclo 12; emigración digna por penuria sostenida = ciclo 14, RESEARCH.md.)
 - [ ] **T4.4 Modo autónomo.** Toggle: la ciudad también traza carreteras nuevas
   (extensiones del grafo hacia demanda no servida, siempre ortogonales y arboladas).
   Con el juego en marcha y sin input, en 30 min de juego debe emerger un pueblo

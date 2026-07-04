@@ -22,8 +22,12 @@ import { chooseActivity } from './citizens/brain';
 import { ACTIVITY_BY_KIND, SimContext, activityLabel, EDU_PER_HOUR, CLINIC_FEE, isFestivalDay } from './citizens/activities';
 import { SocialSystem } from './citizens/social';
 import { AgentState, ActivityKind, activityId, AGENT_STRIDE, TravelModeCode } from './protocol';
-import { computeDemand, itemForDemand, findParcel, townCenter, townAttractiveness, GrowthPlacement } from '../world/growth';
-import { lifeYear } from './lifecycle';
+import {
+  computeDemand, itemForDemand, findParcel, townCenter, townAttractiveness,
+  householdHardship, updateEmigrationPressure, EMIGRATE_POP_FLOOR, EMIGRATE_PRESSURE_LIMIT,
+  GrowthPlacement,
+} from '../world/growth';
+import { lifeYear, ADULT_AGE, OLD_AGE } from './lifecycle';
 import { STARTING_MONEY, SHOP_TREAT_PRICE, PENSION_PER_DAY } from './economy';
 import { catalogData, Tier } from '../world/catalogData';
 import { healthTick, CLINIC_RECOVERY_PER_HOUR, WORK_BLOCK_HEALTH } from './health';
@@ -75,6 +79,14 @@ export class Simulation {
   readonly pantry = new Map<string, number>();
   /** Trayectos en coche acumulados (ciclo 8 — métrica de tests/Crónica). */
   carTrips = 0;
+  /** Emigraciones acumuladas (ciclo 14 — métrica de tests/Crónica). */
+  emigrations = 0;
+  /** Presión migratoria por hogar ('ax,az') — penuria sostenida (ciclo 14). */
+  private emigrationPressure = new Map<string, number>();
+  /** Ciudadanos decididos a marcharse: caminan a la salida y despawnean allí. */
+  private leaving = new Set<number>();
+  /** Recogidos al LLEGAR a la salida este tick; se despawnean tras el bucle. */
+  private departed: Citizen[] = [];
 
   constructor(readonly grid: Grid, readonly seed: number) {
     this.rng = createRng(seed ^ 0x5f3759df);
@@ -273,6 +285,9 @@ export class Simulation {
       this.events.push({ name: 'chatStarted', data: { a: a.id, b: b.id } });
     }
 
+    // Los que llegaron a la salida este tick se marchan de verdad (ciclo 14).
+    if (this.departed.length > 0) this.processDepartures();
+
     // Crecimiento autónomo: un intento por hora de juego, solo de día
     // (los edificios "brotan" con luz — cosmética barata y determinista).
     if (this.autonomousGrowth && this.clock.tick % 100 === 0 && this.clock.darkness < 0.5) {
@@ -285,6 +300,7 @@ export class Simulation {
       this.stepLife();
       this.economy.endOfDay();
       this.payPensions();
+      this.stepEmigration(); // ciclo 14: tras la red de pensiones (última bala)
       this.economy.investInHomes(this.households.keys()); // estatus, ciclo 9
       this.hireAndAcquaint();
       if (isFestivalDay(this.clock.day)) {
@@ -325,12 +341,13 @@ export class Simulation {
       const partner = d.partnerId !== null ? this.citizens.get(d.partnerId) : undefined;
       if (partner) partner.partnerId = null;
       this.citizens.delete(d.id);
+      this.leaving.delete(d.id);
       const k = `${d.home.ax},${d.home.az}`;
       // Ojo: la familia sigue en la casa; solo liberamos el hueco si era el último.
       if (![...this.citizens.values()].some((c) => c.home.ax === d.home.ax && c.home.az === d.home.az)) {
         this.households.set(k, Math.max(0, (this.households.get(k) ?? 1) - 1));
       }
-      this.events.push({ name: 'citizenLeft', data: { id: d.id, name: d.name, age: d.age, health: d.health } });
+      this.events.push({ name: 'citizenLeft', data: { id: d.id, name: d.name, age: d.age, health: d.health, reason: 'death' } });
     }
     for (const [a, b] of life.couples) {
       this.events.push({ name: 'coupleFormed', data: { a: a.name, b: b.name } });
@@ -341,6 +358,63 @@ export class Simulation {
       SocialSystem.acquaint(child, b.parents[1], 0.8);
     }
     if (life.deaths.length > 0) this.economy.rebuild(this.index, this.citizens);
+  }
+
+  // --- Emigración digna (ciclo 14 — cierra T4.3, RESEARCH.md §6.2) --------------
+
+  /** Cierre de año: acumula la penuria de cada hogar; si alguno lleva años sin
+   * salida (y tras la red de pensiones), UNA familia decide marcharse (despacio,
+   * como el crecimiento). No se despawnea: se marca para caminar a la salida. */
+  private stepEmigration(): void {
+    interface Agg { workingAdults: number; employed: number; anyLeaving: boolean }
+    const byHome = new Map<string, Agg>();
+    for (const c of this.citizens.values()) {
+      const k = `${c.home.ax},${c.home.az}`;
+      let h = byHome.get(k);
+      if (!h) { h = { workingAdults: 0, employed: 0, anyLeaving: false }; byHome.set(k, h); }
+      if (c.age >= ADULT_AGE && c.age < OLD_AGE) { h.workingAdults++; if (c.work) h.employed++; }
+      if (this.leaving.has(c.id)) h.anyLeaving = true;
+    }
+
+    let worstKey: string | null = null;
+    let worstPressure = -1;
+    for (const [k, h] of byHome) {
+      const hardship = householdHardship({ workingAdults: h.workingAdults, employed: h.employed, wallet: this.economy.walletOf(k) });
+      const p = updateEmigrationPressure(this.emigrationPressure.get(k) ?? 0, hardship);
+      this.emigrationPressure.set(k, p);
+      // Un pueblo diminuto no se despuebla; y no re-elige a quien ya se marcha.
+      if (this.citizens.size <= EMIGRATE_POP_FLOOR || h.anyLeaving) continue;
+      if (p >= EMIGRATE_PRESSURE_LIMIT && p > worstPressure) { worstPressure = p; worstKey = k; }
+    }
+
+    if (!worstKey) return;
+    // Toda la familia hace las maletas: caminarán a la salida y se marcharán.
+    for (const c of this.citizens.values()) {
+      if (`${c.home.ax},${c.home.az}` !== worstKey) continue;
+      this.leaving.add(c.id);
+      c.phase = { kind: 'deciding' };
+    }
+    this.emigrationPressure.delete(worstKey);
+  }
+
+  /** Despawn DIGNO de quienes llegaron a la salida: se marchan a otra ciudad,
+   * narrado en la Crónica (nunca en silencio — RESEARCH.md §6.2). */
+  private processDepartures(): void {
+    for (const c of this.departed) {
+      if (!this.citizens.has(c.id)) continue;
+      const partner = c.partnerId !== null ? this.citizens.get(c.partnerId) : undefined;
+      if (partner) partner.partnerId = null;
+      this.citizens.delete(c.id);
+      this.leaving.delete(c.id);
+      const k = `${c.home.ax},${c.home.az}`;
+      if (![...this.citizens.values()].some((o) => o.home.ax === c.home.ax && o.home.az === c.home.az)) {
+        this.households.set(k, Math.max(0, (this.households.get(k) ?? 1) - 1));
+      }
+      this.emigrations++;
+      this.events.push({ name: 'citizenLeft', data: { id: c.id, name: c.name, age: c.age, reason: 'emigrated' } });
+    }
+    this.departed = [];
+    this.economy.rebuild(this.index, this.citizens);
   }
 
   // --- Crecimiento autónomo (T4.1-T4.3) ---------------------------------------
@@ -407,6 +481,22 @@ export class Simulation {
   }
 
   private stepCitizen(c: Citizen, ctx: SimContext): void {
+    // Emigración (ciclo 14): quien decidió marcharse ignora toda otra actividad
+    // y camina hacia la salida del pueblo. Al llegar (o si no hay ruta), se va.
+    if (this.leaving.has(c.id) && c.phase.kind === 'deciding') {
+      const center = townCenter(this.index.buildings.filter((b) => b.data.role !== 'nature').map((b) => [b.ax, b.az]));
+      const exit = this.index.townExit(center);
+      const from: CellXZ = [Math.round(c.x - 0.5), Math.round(c.z - 0.5)];
+      if (!exit || manhattan(from, exit) <= 1) {
+        this.departed.push(c);
+        return;
+      }
+      const ticket = this.paths.request(from, exit);
+      c.phase = { kind: 'waitingPath', ticket, next: { activity: 'none', target: null, cell: exit, duration: 0 } };
+      c.activity = 'none';
+      c.inside = false;
+      return;
+    }
     switch (c.phase.kind) {
       case 'deciding': {
         const next = chooseActivity(c, ctx);
@@ -425,6 +515,12 @@ export class Simulation {
         const res = this.paths.take(c.phase.ticket);
         if (!res) return; // aún calculando (presupuesto incremental)
         if (res.status === 'fail') {
+          // Si se marcha y no hay ruta a la salida, se va igualmente (no queda
+          // atrapado en un pueblo que ya no quiere): despawn digno, narrado.
+          if (this.leaving.has(c.id)) {
+            this.departed.push(c);
+            return;
+          }
           c.phase = { kind: 'deciding' };
           c.activity = 'none';
           return;
@@ -545,6 +641,11 @@ export class Simulation {
       const a = ph.path[ph.segment];
       const b = ph.path[ph.segment + 1];
       if (!b) {
+        // Llegó a la salida del pueblo: se marcha (ciclo 14).
+        if (this.leaving.has(c.id)) {
+          this.departed.push(c);
+          return;
+        }
         this.beginDoing(c, ph.next);
         return;
       }

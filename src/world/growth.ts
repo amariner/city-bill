@@ -106,6 +106,42 @@ export function townAttractiveness(a: {
   return Math.min(1, Math.max(0.5, raw));
 }
 
+// --- Emigración digna (ciclo 14 — cierra T4.3, honra RESEARCH.md §6.2) --------
+// La otra mitad de la migración: quien no encuentra sustento en el pueblo,
+// tras AGUANTAR unos años, se marcha andando por la carretera (no se despawnea
+// en silencio: se le ve salir y se narra en la Crónica). Con histéresis fuerte:
+// hace falta penuria SOSTENIDA, y el pueblo se recupera antes de que nadie huya
+// si las cosas mejoran. Un pueblo diminuto NO se disuelve (suelo de población).
+/** Por debajo de esta población nadie emigra (un caserío no se despuebla solo). */
+export const EMIGRATE_POP_FLOOR = 12;
+/** Años de penuria sostenida antes de hacer las maletas. Bajo a propósito: la
+ * gente se va ANTES de morir de hambre (el ciclo 11 mataría en ~5 años), no
+ * después — emigrar es huir de la miseria, no su desenlace. */
+export const EMIGRATE_PRESSURE_LIMIT = 3;
+/** Ahorro del hogar por debajo del cual no hay colchón (penuria económica). */
+export const EMIGRATE_SUBSISTENCE = 6;
+
+/** ¿Vive este hogar una penuria real ESTE año? Desesperanza ECONÓMICA: tiene
+ * adultos en edad de trabajar, NINGUNO tiene empleo y no hay colchón de ahorro
+ * — no pueden ganarse la vida aquí. Los jubilados NO cuentan (su hogar se
+ * sostiene con la pensión, ciclo 3, no emigra a buscar trabajo); la clave es la
+ * FALTA DE SUSTENTO, no el hambre ya consumada: se emigra para no llegar a ella.
+ * Pura y determinista. */
+export function householdHardship(a: {
+  workingAdults: number;
+  employed: number;
+  wallet: number;
+}): boolean {
+  return a.workingAdults > 0 && a.employed === 0 && a.wallet < EMIGRATE_SUBSISTENCE;
+}
+
+/** Actualiza la presión migratoria de un hogar: sube 1 por año de penuria, baja
+ * 2 por año bueno (la esperanza se recupera antes que se pierde). Acotada. */
+export function updateEmigrationPressure(prev: number, hardship: boolean): number {
+  const next = hardship ? prev + 1 : prev - 2;
+  return Math.max(0, Math.min(EMIGRATE_PRESSURE_LIMIT + 1, next));
+}
+
 /**
  * T4.2 — Busca parcela: celda con footprint libre, RETRANQUEADA 1 celda de una
  * vía (road/path), fachada hacia ella, y lo más cerca posible del centro de
