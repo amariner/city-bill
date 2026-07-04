@@ -54,6 +54,10 @@ export const PALETTE = {
   citizenClothes: [0x7d8fa6, 0xe8e2d2, 0x9a8a74, 0x8fa07e, 0xc09a92, 0x6f7d8c] as const,
   citizenSkin: 0xd9bfa8,
 
+  // Coches (ciclo 8/T3.9 — carrocerías en tonos apagados, cabina cristal frío)
+  carBodies: [0x8a9bab, 0xb7a99a, 0x9a8f7e, 0xa9736c, 0x8f9c86, 0xccc3b2] as const,
+  carCabin: 0x8fa0a6,
+
   // Agua y cielo
   pond: 0x86b7cd,
   sky: 0xddd0b8,

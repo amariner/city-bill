@@ -203,11 +203,11 @@ repetido, arbolado automático en márgenes de carretera (rasgo de identidad).
   requieren granjeros para pasar de barbecho a cultivo (feedback 100 % visual: el campo
   cambia de color por franjas). Dinero explícito añadido en RESEARCH.md
   ciclos 2/3/4 (salario, impuestos, economía circular) — ver `sim/economy.ts`.
-- [~] **T3.9 Vehículos** (lógica hecha en `sim/simulation.ts`, ciclo 8 de
-  RESEARCH.md; falta mesh de coche — TODO en `render/citizens.ts`). Coches
-  (T2+) para trayectos > 40 celdas: el ciudadano camina
-  a su coche, el coche recorre el grafo vial (velocidad por tipo de vía, pausa en
-  cruces ocupados), aparca cerca del destino. Tractores recorren campos en franjas.
+- [x] **T3.9 Vehículos** (lógica: ciclo 8 de RESEARCH.md; **mesh de coche hecho**
+  en `render/citizens.ts` — chasis + cabina instanciados, 2 draw calls, colores
+  de `palette.ts`; el peatón no se dibuja al ir en coche). Coches para trayectos
+  > 40 celdas: el coche recorre el grafo vial (velocidad por tipo de vía),
+  aparca cerca del destino. *Pendiente menor:* tractores en franjas de campo.
 - [x] **T3.10 Inspector de ciudadano.** Click en un ciudadano → tarjetita diegética:
   nombre, actividad actual ("Volviendo a casa"), necesidades como barritas mínimas.
   Cámara puede seguirle (tecla F). Es la ventana para VERIFICAR la autonomía.
@@ -313,3 +313,22 @@ aprieta, T3.8-T3.10 y la Fase 4 valen más que cualquier cosa de la Fase 5.
   · Saltadas de momento en T3.5: 'mirar escaparate' y 'sentarse' (triviales de añadir
     como entradas de ACTIVITIES cuando haya bancos/escaparates renderizados).
   · Teclas 0-3 = velocidad de sim. HUD F3 muestra reloj de juego y agentes.
+- 2026-07-04 (sesión Opus, profundidad de sim + primer render) — Ver la bitácora
+  de RESEARCH.md §4 para los ciclos 11-18 de LÓGICA (salud→mortalidad,
+  prestigio→inmigración, clima→coche, emigración digna, clínica medida, duelo,
+  consuelo, memoria afectiva de la Crónica). Con inmigración+emigración, **T4.3
+  queda COMPLETA**. En render: **T3.9 mesh de coche HECHO** (chasis+cabina
+  instanciados, `render/citizens.ts`; colores nuevos `carBodies`/`carCabin` en
+  `palette.ts`; el peatón no se dibuja en coche). Decisión de proceso importante:
+  · **Verificación visual headless establecida**: Chromium preinstalado
+    (`/opt/pw-browsers`) + `playwright-core` (instalado en el scratchpad, NO en el
+    proyecto) permiten arrancar `npm run dev` y capturar la escena con
+    `--use-gl=swiftshader`. El mesh de coche se verificó en una escena de
+    aislamiento temporal (borrada tras la captura): lee como cochecito low-poly,
+    proporción correcta vs peatón, paleta coherente, sombra. Este es el camino
+    para saldar la deuda visual acumulada (nieve/estaciones T5.1, plaza, jardín
+    de prestigio, franjas de campo T3.8) con screenshot obligatorio del §4.
+  · Trampa aprendida cazando el coche en el mundo vivo: a zoom máximo la cámara
+    puede quedar sobre campo vacío sin agentes, y el wheel de Playwright satura
+    al límite de zoom — para verificar un mesh concreto, una escena de
+    aislamiento es MUCHO más fiable que perseguir agentes en la sim.
