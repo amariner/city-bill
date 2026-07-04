@@ -156,8 +156,12 @@ repetido, arbolado automático en márgenes de carretera (rasgo de identidad).
 - [ ] **T2.5 HUD diegético mínimo.** Barra inferior translúcida: categorías del
   catálogo, iconos monocromos dibujados en canvas/SVG inline (nada de librerías UI).
   La estética manda: la UI no tapa la viñeta, tipografía pequeña y limpia.
-- [ ] **T2.6 Guardado/carga.** §1.4 completo + test de regresión: guardar, recargar
-  página, comprobar hash del grid idéntico.
+- [~] **T2.6 Guardado/carga.** Adelantada de orden esta sesión — ver decisión
+  2026-07-04 en §6: guardado COMPLETO (ciudadanos/economía/reloj/rng, no solo
+  el grid) en localStorage, autoguardado cada 10s + `beforeunload`. Falta lo
+  propio de Fase 2: `actions[]` (registro de acciones del jugador) no existe
+  todavía porque las herramientas de construcción (T2.1-T2.5) no existen — se
+  añadirá cuando lleguen.
 
 ### Fase 3 — NPCs autónomos ⭐ (el corazón del juego)
 > Objetivo: ciudadanos con vida propia observable: viven, trabajan, compran, socializan
@@ -315,6 +319,53 @@ aprieta, T3.8-T3.10 y la Fase 4 valen más que cualquier cosa de la Fase 5.
 
 ## 6. Diario del agente (rellenar al trabajar)
 > Anota aquí: fecha, tarea, decisiones no obvias, deuda técnica, conflictos con §1.
+
+- 2026-07-04 (sesión Sonnet) — **T2.6 adelantada de orden, fuera de la
+  secuencia estricta de §0.1**. Motivo: el usuario quiere publicar un
+  preview público (Cloudflare) donde la ciudad se ve evolucionar en vivo y
+  persiste — sin esto, cada refresco reiniciaba la simulación entera
+  (confirmado: no había ningún código de guardado). Decisión consultada y
+  confirmada con el usuario: alcance COMPLETO (ciudadanos, economía,
+  crecimiento, reloj, rng — no solo el grid). Implementación:
+  · `Simulation.serialize()`/constructor con `restore?` reconstruyen TODO:
+    ciudadanos (con `friends` Map→pares), economía (todas sus Maps salvo
+    `workplaces`, que es DERIVADO de `citizens[].work` + el índice — se
+    recalcula con `economy.rebuild()`, nunca se serializa para no duplicar
+    la fuente de verdad), charlas en curso y reloj. Los DOS streams de rng
+    (general de `Simulation` + el propio de `SocialSystem`) se persisten
+    exponiendo `rng.state` (rng.ts) — pasarlo de vuelta a `createRng()`
+    continúa la MISMA secuencia byte a byte.
+  · Simplificación deliberada: un ciudadano en fase `waitingPath` se
+    normaliza a `deciding` AL GUARDAR — su ticket apunta a una búsqueda de
+    `PathQueue` que no se persiste (efímera, barata de recalcular). Sin
+    esto quedaría un ticket colgado que nunca resolvería tras restaurar.
+  · Frontera respetada (§1.3): el main nunca ve la forma de `SimSaveState`,
+    solo un `blob: string` opaco (`SaveMsg`/`SaveBlobMsg` en protocol.ts) —
+    el worker serializa con `JSON.stringify`, el main lo guarda en
+    localStorage tal cual y lo reenvía en `InitMsg.saveBlob`.
+  · Autoguardado cada 10s + `beforeunload` (best-effort, no todos los
+    navegadores esperan un postMessage antes de descargar). El escenario
+    granja (`?scenario=farm`) NUNCA carga ni guarda: es un escenario fijo
+    para su test de aceptación (T4.4), tiene que arrancar siempre igual.
+  · **Bug real encontrado y corregido**: el primer test de regresión que
+    escribí (guardar→restaurar→avanzar 3 días, comparar contra el original
+    sin restaurar) fallaba con una divergencia real a partir del tick 115
+    — pero el bug estaba en el TEST, no en el guardado: pasaba el objeto de
+    `serialize()` directo a `new Simulation(...)` sin el viaje de ida y
+    vuelta por `JSON.stringify`/`JSON.parse` que SÍ hace `worker.ts` de
+    verdad. Sin ese viaje, sub-objetos como `needs`/`phase` quedaban
+    COMPARTIDOS por referencia entre el original y el restaurado — cada
+    `step()` los mutaba por duplicado, y el rng de cada instancia (streams
+    separados, no compartidos) se desincronizaba en silencio hasta que una
+    decisión de `brain.ts` cruzaba un umbral distinto. Localizado bisecando
+    con un script aparte (comparación campo a campo tick a tick) hasta
+    aislar el primer tick divergente, no adivinando. Con el JSON de por
+    medio (como en producción), 3 días completos sin ninguna diferencia.
+  · Verificado en el preview real (no solo en test): reloj en `10:24 día 1`
+    → recarga de página → sigue en `11:16 día 1` (no vuelve a `00:00 día 0`).
+  · Pendiente real de Fase 2: `actions[]` (registro de acciones del
+    jugador, §1.4) no existe porque las herramientas de construcción
+    (T2.1-T2.5) tampoco existen todavía — se añadirá cuando lleguen.
 
 - 2026-07-04 (misma sesión Sonnet, continuación) — **T6.1: perfilado de
   escala, un O(n²) real encontrado y arreglado**. Con "complejo, eficiente

@@ -19,7 +19,7 @@ import { DAY_GAME_SECONDS } from './sim/clock';
 import { isFestivalDay } from './sim/citizens/activities';
 import { weatherAt } from './sim/weather';
 import { paintRoadExtension } from './world/growth';
-import { CHUNK } from './world/grid';
+import { CHUNK, Grid } from './world/grid';
 import { Speed, AgentState, TravelModeCode } from './sim/protocol';
 import { CitizenInspector } from './ui/inspector';
 import { Chronicle } from './ui/chronicle';
@@ -47,6 +47,8 @@ let simClient: SimClient | null = null;
 let citizenView: CitizenView | null = null;
 let chronicle: Chronicle | null = null;
 let stressAgents: AgentView[] | null = null;
+/** Semilla realmente en juego: la de un guardado cargado (T2.6) o WORLD_SEED. */
+let activeSeed = WORLD_SEED;
 if (sceneName === 'buildings') {
   stage.scene.add(buildShowcase());
   camera.setTarget(0, 0);
@@ -71,22 +73,57 @@ if (sceneName === 'buildings') {
     grief: rng.next() < 0.1 ? rng.next() : 0,
   }));
 } else {
+  // Guardado (T2.6, adelantado desde Fase 2 — ver ROADMAP §6): estado
+  // COMPLETO de la sim (ciudadanos, economía, reloj, rng) en localStorage,
+  // junto al grid ya crecido. El escenario granja (?scenario=farm) nunca
+  // carga ni guarda — es un escenario mínimo fijo, tiene que arrancar igual
+  // siempre para su test de aceptación (T4.4).
+  const SAVE_KEY = 'city-bill:save:v1';
+  interface SaveFile {
+    version: 1;
+    seed: number;
+    gridJson: string;
+    simBlob: string;
+  }
+  const loadSave = (): SaveFile | null => {
+    try {
+      const raw = localStorage.getItem(SAVE_KEY);
+      if (!raw) return null;
+      const p = JSON.parse(raw) as Partial<SaveFile>;
+      if (p.version !== 1 || typeof p.gridJson !== 'string' || typeof p.simBlob !== 'string' || typeof p.seed !== 'number') return null;
+      return p as SaveFile;
+    } catch {
+      return null; // JSON corrupto o localStorage bloqueado: arranca de cero.
+    }
+  };
+  const storeSave = (seed: number, gridJson: string, simBlob: string): void => {
+    try {
+      localStorage.setItem(SAVE_KEY, JSON.stringify({ version: 1, seed, gridJson, simBlob }));
+    } catch {
+      // Lleno o bloqueado (modo privado): sin persistencia, la sim sigue en memoria.
+    }
+  };
+
+  const saved = scenarioName === 'farm' ? null : loadSave();
+  if (saved) activeSeed = saved.seed;
+
   // Grid de render: el del barrio por defecto (neighborhood.ts), salvo que
-  // se pida el escenario mínimo de granja (T4.4) por query param — su
-  // WorldView se construye igual, solo cambia qué Grid alimenta ambos lados
-  // (render + SimClient). No se toca createWorldView()/worldGrid por defecto.
-  const renderGrid = scenarioName === 'farm' ? seedFarm() : defaultWorldGrid;
-  worldView = scenarioName === 'farm' ? new WorldView(renderGrid) : createWorldView();
+  // se pida el escenario mínimo de granja (T4.4) por query param, o que haya
+  // un guardado — su WorldView se construye igual, solo cambia qué Grid
+  // alimenta ambos lados (render + SimClient). No se toca
+  // createWorldView()/worldGrid por defecto.
+  const renderGrid = scenarioName === 'farm' ? seedFarm() : saved ? Grid.deserialize(saved.gridJson) : defaultWorldGrid;
+  worldView = scenarioName === 'farm' || saved ? new WorldView(renderGrid) : createWorldView();
   stage.scene.add(worldView.root);
   camera.setTarget(20, 20);
 
   // Simulación en worker (T3.1+). Velocidad con teclas 0-3.
-  simClient = new SimClient(WORLD_SEED, renderGrid.serialize());
+  simClient = new SimClient(activeSeed, renderGrid.serialize(), saved?.simBlob);
   citizenView = new CitizenView();
   stage.scene.add(citizenView.root);
   // Crecimiento autónomo (T4.2): el worker construye → replicamos en el
   // grid de render y refrescamos el chunk (misma colocación, mismo mundo).
-  chronicle = new Chronicle(WORLD_SEED);
+  chronicle = new Chronicle(activeSeed);
   simClient.onEvent = (name, data) => {
     chronicle?.onEvent(name, data);
     if (!data || !worldView) return;
@@ -120,6 +157,18 @@ if (sceneName === 'buildings') {
   window.addEventListener('keydown', (e) => {
     if (e.key >= '0' && e.key <= '3') simClient!.setSpeed(Number(e.key) as Speed);
   });
+
+  if (scenarioName !== 'farm') {
+    // Autoguardado (T2.6): cada 10s reales y al cerrar/recargar — el worker
+    // tarda un ciclo de mensaje en responder, así que `beforeunload` es un
+    // best-effort (no todos los navegadores esperan a un postMessage antes
+    // de descargar la página); el intervalo periódico es la red de
+    // seguridad real para "recargar y seguir donde iba".
+    const AUTOSAVE_MS = 10_000;
+    simClient.onSaveBlob = (blob) => storeSave(activeSeed, renderGrid.serialize(), blob);
+    setInterval(() => simClient?.save(), AUTOSAVE_MS);
+    window.addEventListener('beforeunload', () => simClient?.save());
+  }
 }
 camera.apply();
 
@@ -164,7 +213,7 @@ loop.onUpdate((dt) => {
     hud.setStats({ agents: n, clock: `${hh}:${mm} día ${day} ×${simClient.speed}` });
     chronicle?.update(t, simClient.population, simClient.buildings);
     worldView?.setFestivalActive(isFestivalDay(day));
-    worldView?.setSeason(weatherAt(WORLD_SEED, day).season);
+    worldView?.setSeason(weatherAt(activeSeed, day).season);
   }
   hud.update(dt);
 });

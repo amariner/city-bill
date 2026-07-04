@@ -54,6 +54,30 @@ export const WHOLESALE_FOOD_PRICE = FOOD_PRICE * 0.4;
 /** Del margen de la tienda, la parte que tributa como impuesto de sociedades. */
 export const CORP_TAX_RATE = 0.15;
 
+/** Guardado (T2.6): todo lo acumulado por la economía salvo `workplaces`
+ * (derivado de `citizens[].work` + el índice — se reconstruye con `rebuild`,
+ * nunca se serializa para no duplicar la fuente de verdad). */
+export interface EconomySaveState {
+  granary: number;
+  foodSold: number;
+  wallets: [string, number][];
+  prestige: [string, number][];
+  prestigeInvested: number;
+  wagesPaid: number;
+  moneySpent: number;
+  treasury: number;
+  taxesCollected: number;
+  pensionsPaid: number;
+  tills: [string, number][];
+  foodSoldTodayByShop: [string, number][];
+  farmerHoursToday: [string, number][];
+  wholesalePaid: number;
+  corpTaxCollected: number;
+  visitsToday: [string, number][];
+  prosperity: [string, number][];
+  cultivation: number;
+}
+
 export class Economy {
   workplaces: Workplace[] = [];
   /** Granero comunal: lo llenan los granjeros, lo venden las tiendas.
@@ -303,6 +327,52 @@ export class Economy {
     this.cultivation += (target - this.cultivation) * (farmedToday ? 0.35 : 0.12);
     this.cultivation = Math.max(0, Math.min(1, this.cultivation));
     this.settleShops();
+  }
+
+  serialize(): EconomySaveState {
+    return {
+      granary: this.granary,
+      foodSold: this.foodSold,
+      wallets: [...this.wallets],
+      prestige: [...this.prestige],
+      prestigeInvested: this.prestigeInvested,
+      wagesPaid: this.wagesPaid,
+      moneySpent: this.moneySpent,
+      treasury: this.treasury,
+      taxesCollected: this.taxesCollected,
+      pensionsPaid: this.pensionsPaid,
+      tills: [...this.tills],
+      foodSoldTodayByShop: [...this.foodSoldTodayByShop],
+      farmerHoursToday: [...this.farmerHoursToday],
+      wholesalePaid: this.wholesalePaid,
+      corpTaxCollected: this.corpTaxCollected,
+      visitsToday: [...this.visitsToday],
+      prosperity: [...this.prosperity],
+      cultivation: this.cultivation,
+    };
+  }
+
+  /** Restaura todo salvo `workplaces`: el llamador DEBE invocar `rebuild()`
+   * después (con el índice y los ciudadanos ya restaurados) para reconstruirlo. */
+  restore(s: EconomySaveState): void {
+    this.granary = s.granary;
+    this.foodSold = s.foodSold;
+    this.wallets = new Map(s.wallets);
+    this.prestige = new Map(s.prestige);
+    this.prestigeInvested = s.prestigeInvested;
+    this.wagesPaid = s.wagesPaid;
+    this.moneySpent = s.moneySpent;
+    this.treasury = s.treasury;
+    this.taxesCollected = s.taxesCollected;
+    this.pensionsPaid = s.pensionsPaid;
+    this.tills = new Map(s.tills);
+    this.foodSoldTodayByShop = new Map(s.foodSoldTodayByShop);
+    this.farmerHoursToday = new Map(s.farmerHoursToday);
+    this.wholesalePaid = s.wholesalePaid;
+    this.corpTaxCollected = s.corpTaxCollected;
+    this.visitsToday = new Map(s.visitsToday);
+    this.prosperity = new Map(s.prosperity);
+    this.cultivation = s.cultivation;
   }
 
   /** Datos agregados para growth (Fase 4) y HUD. */

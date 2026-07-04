@@ -4,7 +4,7 @@
  * SPEED_MULT[speed] sub-ticks (así ×3/×8 no cambia el resultado, solo el ritmo).
  */
 import { Grid } from '../world/grid';
-import { Simulation } from './simulation';
+import { Simulation, SimSaveState } from './simulation';
 import { TICK_REAL_S } from './clock';
 import {
   MainToWorker,
@@ -49,8 +49,14 @@ self.onmessage = (ev: MessageEvent<MainToWorker>) => {
   switch (msg.type) {
     case 'init': {
       const grid = Grid.deserialize(msg.gridJson);
-      sim = new Simulation(grid, msg.seed);
+      sim = msg.saveBlob
+        ? new Simulation(grid, msg.seed, JSON.parse(msg.saveBlob) as SimSaveState)
+        : new Simulation(grid, msg.seed);
       sendSnapshot();
+      break;
+    }
+    case 'save': {
+      if (sim) post({ type: 'saveBlob', blob: JSON.stringify(sim.serialize()) });
       break;
     }
     case 'setSpeed':

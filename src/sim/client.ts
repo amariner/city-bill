@@ -46,11 +46,19 @@ export class SimClient {
   onCitizenInfo: ((info: CitizenInfoMsg) => void) | null = null;
   /** Eventos de sim (cityGrew, citizenBorn…) para que el main reaccione. */
   onEvent: ((name: string, data?: Record<string, unknown>) => void) | null = null;
+  /** Guardado (T2.6): llega en respuesta a `save()`, con el blob listo para
+   * persistir (localStorage) tal cual — el main no lo interpreta. */
+  onSaveBlob: ((blob: string) => void) | null = null;
 
-  constructor(seed: number, gridJson: string) {
+  constructor(seed: number, gridJson: string, saveBlob?: string) {
     this.worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
     this.worker.onmessage = (ev: MessageEvent<WorkerToMain>) => this.onMessage(ev.data);
-    this.send({ type: 'init', seed, gridJson });
+    this.send({ type: 'init', seed, gridJson, saveBlob });
+  }
+
+  /** Pide al worker un guardado; llega asíncronamente por `onSaveBlob`. */
+  save(): void {
+    this.send({ type: 'save' });
   }
 
   private send(msg: MainToWorker): void {
@@ -88,6 +96,9 @@ export class SimClient {
         break;
       case 'event':
         this.onEvent?.(msg.name, msg.data);
+        break;
+      case 'saveBlob':
+        this.onSaveBlob?.(msg.blob);
         break;
     }
   }

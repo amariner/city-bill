@@ -698,5 +698,45 @@ check('determinismo: misma semilla → mismo estado', a.length === b.length && a
   check(`escala: ${TARGET} hab. — ni el tick de cierre de día rompe presupuesto (≤200 ms)`, worstTick <= 200, `→ ${worstTick.toFixed(2)} ms`);
 }
 
+// T2.6 (guardado/restauración, adelantado desde Fase 2 por el objetivo de
+// demo pública persistente — ver ROADMAP §6): serializar y restaurar debe
+// ser un NO-OP para la trayectoria futura — dos sims que arrancan idénticas
+// y reciben los mismos ticks deben llegar exactamente al mismo sitio, tanto
+// si una pasó por serialize/restore como si no. Se serializa ANTES de dar
+// ningún step() (nadie en 'waitingPath' todavía) para que la única
+// simplificación conocida del formato — normalizar 'waitingPath' a
+// 'deciding' al guardar, ver SerializedCitizen en simulation.ts — no entre
+// en juego y el test sea 100% determinista.
+{
+  const seedTest = 123;
+  const a = new Simulation(seedWorld(), seedTest);
+  // JSON.stringify/parse, no el objeto de serialize() a pelo: es la ÚNICA
+  // vía real (worker.ts la manda de un hilo a otro como string), y clona a
+  // fondo — sin esto, sub-objetos como `needs`/`phase` quedarían COMPARTIDOS
+  // por referencia entre `a` y `b`, con cada `step()` mutándolos por
+  // duplicado y un falso positivo de no-determinismo (visto en esta sesión).
+  const blob = JSON.parse(JSON.stringify(a.serialize()));
+  const b = new Simulation(Grid.deserialize(a.grid.serialize()), blob.seed, blob);
+
+  check('guardado: restaura la misma población', b.citizens.size === a.citizens.size, `→ ${a.citizens.size} vs ${b.citizens.size}`);
+  const walletsOf = (s: Simulation) => [...s.economy.wallets.values()].reduce((x, y) => x + y, 0);
+  check('guardado: restaura la misma economía (cartera agregada)', walletsOf(a) === walletsOf(b));
+
+  for (let t = 0; t < TICKS_PER_DAY * 3; t++) {
+    a.step();
+    b.step();
+  }
+
+  const snapshotOf = (s: Simulation) =>
+    JSON.stringify(
+      [...s.citizens.values()]
+        .sort((x, y) => x.id - y.id)
+        .map((c) => [c.id, c.x, c.z, c.heading, c.health, c.needs.energy, c.needs.food, c.activity, c.work?.buildingId ?? null]),
+    );
+  check('guardado: tras 3 días, la trayectoria restaurada es IDÉNTICA a la original', snapshotOf(a) === snapshotOf(b));
+  check('guardado: la economía coincide tras 3 días', a.economy.treasury === b.economy.treasury && a.economy.wagesPaid === b.economy.wagesPaid);
+  check('guardado: el rng sigue el mismo stream (viajes en coche)', a.carTrips === b.carTrips, `→ ${a.carTrips} vs ${b.carTrips}`);
+}
+
 console.log(`\n${passed} ok, ${failed} fallos`);
 if (failed > 0) throw new Error(`${failed} tests fallidos`);

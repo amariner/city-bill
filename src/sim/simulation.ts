@@ -20,11 +20,11 @@ import { Citizen, citizenName, PlannedActivity, TravelMode } from './citizens/ci
 import { decayNeeds, restore, NEED_KEYS } from './citizens/needs';
 import { chooseActivity } from './citizens/brain';
 import { ACTIVITY_BY_KIND, SimContext, activityLabel, EDU_PER_HOUR, CLINIC_FEE, isFestivalDay, CLUB_AFFINITY } from './citizens/activities';
-import { SocialSystem } from './citizens/social';
+import { SocialSystem, SocialSaveState } from './citizens/social';
 import { AgentState, ActivityKind, activityId, AGENT_STRIDE, TravelModeCode } from './protocol';
 import { computeDemand, itemForDemand, findParcel, townCenter, GrowthPlacement, extendRoad } from '../world/growth';
 import { lifeYear, RETIREMENT_AGE } from './lifecycle';
-import { STARTING_MONEY, SHOP_TREAT_PRICE, PENSION_PER_DAY } from './economy';
+import { STARTING_MONEY, SHOP_TREAT_PRICE, PENSION_PER_DAY, EconomySaveState } from './economy';
 import { catalogData, Tier } from '../world/catalogData';
 import { healthTick, CLINIC_RECOVERY_PER_HOUR, WORK_BLOCK_HEALTH } from './health';
 import { weatherAt, Weather } from './weather';
@@ -115,6 +115,52 @@ const COMFORT_FUN_PER_HOUR = 0.15;
  * (0.125) para que hasta el más trabajador tenga un punto fijo positivo. */
 const RETIREMENT_PURPOSE_RECOVERY = 1 / 5;
 
+/** Ciudadano tal cual se guarda (T2.6): `friends` como pares en vez de Map
+ * (JSON no serializa Maps). Un `phase: 'waitingPath'` se normaliza a
+ * 'deciding' AL GUARDAR — su ticket apunta a una búsqueda de `PathQueue` que
+ * no se persiste (es barata de recalcular y vive solo un puñado de ticks);
+ * conservarlo tal cual dejaría un ticket colgado que nunca resolvería tras
+ * restaurar. */
+type SerializedCitizen = Omit<Citizen, 'friends' | 'phase'> & {
+  friends: [number, number][];
+  phase: Exclude<Citizen['phase'], { kind: 'waitingPath' }>;
+};
+
+function serializeCitizen(c: Citizen): SerializedCitizen {
+  const phase = c.phase.kind === 'waitingPath' ? ({ kind: 'deciding' } as const) : c.phase;
+  return { ...c, phase, friends: [...c.friends] };
+}
+
+function restoreCitizen(s: SerializedCitizen): Citizen {
+  return { ...s, friends: new Map(s.friends) };
+}
+
+/** Formato de guardado completo de la sim (T2.6, adelantado desde Fase 2 por
+ * el objetivo de la demo pública persistente — ver ROADMAP.md §6). Cubre TODO
+ * lo que hace falta para continuar exactamente donde se dejó: ciudadanos,
+ * economía, reloj, charlas y los DOS streams de rng (general + social). El
+ * grid (con lo que la ciudad ha crecido) se guarda aparte con
+ * `grid.serialize()` — `simState` no lo incluye para no duplicar la fuente
+ * de verdad. `workplaces` de Economy tampoco se guarda: se recalcula con
+ * `economy.rebuild()` a partir de `citizens[].work` + el índice. */
+export interface SimSaveState {
+  version: 1;
+  seed: number;
+  rngState: number;
+  clockTime: number;
+  clockTick: number;
+  nextId: number;
+  lastDay: number;
+  tier: Tier;
+  autonomousGrowth: boolean;
+  carTrips: number;
+  households: [string, number][];
+  pantry: [string, number][];
+  citizens: SerializedCitizen[];
+  social: SocialSaveState;
+  economy: EconomySaveState;
+}
+
 export interface SimEvent {
   name:
     | 'citizenBorn'
@@ -154,14 +200,68 @@ export class Simulation {
   /** Trayectos en coche acumulados (ciclo 8 — métrica de tests/Crónica). */
   carTrips = 0;
 
-  constructor(readonly grid: Grid, readonly seed: number) {
-    this.rng = createRng(seed ^ 0x5f3759df);
+  /** `restore` (T2.6): si viene, reconstruye el estado exacto de un guardado
+   * en vez de poblar una ciudad nueva — `grid` debe ser YA el grid guardado
+   * (con todo lo crecido), no la semilla original. */
+  constructor(readonly grid: Grid, readonly seed: number, restore?: SimSaveState) {
     this.index = new WorldIndex(grid);
-    this.social = new SocialSystem(createRng(seed ^ 0x9e3779b9));
     this.paths = new PathQueue(grid);
-    this.spawnPopulation();
+    if (restore) {
+      this.rng = createRng(restore.rngState);
+      this.social = new SocialSystem(createRng(0)); // su rng interno se sobreescribe en applyRestore()
+      this.applyRestore(restore);
+    } else {
+      this.rng = createRng(seed ^ 0x5f3759df);
+      this.social = new SocialSystem(createRng(seed ^ 0x9e3779b9));
+      this.spawnPopulation();
+      this.economy.rebuild(this.index, this.citizens);
+      this.hireAndAcquaint();
+    }
+  }
+
+  private applyRestore(state: SimSaveState): void {
+    this.clock.time = state.clockTime;
+    this.clock.tick = state.clockTick;
+    this.nextId = state.nextId;
+    this.lastDay = state.lastDay;
+    this.tier = state.tier;
+    this.autonomousGrowth = state.autonomousGrowth;
+    this.carTrips = state.carTrips;
+    this.households = new Map(state.households);
+    this.pantry.clear();
+    for (const [k, v] of state.pantry) this.pantry.set(k, v);
+    this.citizens.clear();
+    for (const sc of state.citizens) this.citizens.set(sc.id, restoreCitizen(sc));
+    this.social.restore(state.social);
+    this.economy.restore(state.economy);
+    // `workplaces` no se guarda (derivado): se reconstruye ahora que
+    // ciudadanos e índice ya están en su estado restaurado. A propósito NO
+    // se llama a `hireAndAcquaint()` aquí — reforzaría afinidades y
+    // recontrataría cada vez que alguien recarga la página, divergiendo de
+    // una partida que simplemente hubiera seguido corriendo sin recargar.
     this.economy.rebuild(this.index, this.citizens);
-    this.hireAndAcquaint();
+  }
+
+  /** Guardado (T2.6): todo lo necesario para continuar exactamente donde se
+   * dejó. Ver `SimSaveState` para qué se excluye y por qué. */
+  serialize(): SimSaveState {
+    return {
+      version: 1,
+      seed: this.seed,
+      rngState: this.rng.state,
+      clockTime: this.clock.time,
+      clockTick: this.clock.tick,
+      nextId: this.nextId,
+      lastDay: this.lastDay,
+      tier: this.tier,
+      autonomousGrowth: this.autonomousGrowth,
+      carTrips: this.carTrips,
+      households: [...this.households],
+      pantry: [...this.pantry],
+      citizens: [...this.citizens.values()].map(serializeCitizen),
+      social: this.social.serialize(),
+      economy: this.economy.serialize(),
+    };
   }
 
   // --- Población -------------------------------------------------------------

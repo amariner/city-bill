@@ -15,6 +15,12 @@ export function createRng(seed: number) {
     next,
     range: (min: number, max: number) => min + next() * (max - min),
     pick: <T>(arr: readonly T[]): T => arr[Math.floor(next() * arr.length)],
+    /** Estado interno actual (T2.6): pasarlo a `createRng` continúa la MISMA
+     * secuencia, byte a byte, desde este punto — así el guardado persiste el
+     * flujo de aleatoriedad sin romper el determinismo. */
+    get state(): number {
+      return s >>> 0;
+    },
   };
 }
 

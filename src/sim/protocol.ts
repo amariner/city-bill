@@ -62,6 +62,16 @@ export interface InitMsg {
   seed: number;
   /** Grid serializado (grid.serialize()); el worker lo deserializa. */
   gridJson: string;
+  /** Guardado (T2.6): JSON de `Simulation.serialize()`. Si viene, el worker
+   * restaura ciudadanos/economía/reloj en vez de poblar una ciudad nueva —
+   * `gridJson` debe ser entonces el grid YA evolucionado, coherente con este
+   * blob (main.ts los guarda y carga siempre juntos). */
+  saveBlob?: string;
+}
+
+/** Petición de guardado (T2.6): el worker responde con `SaveBlobMsg`. */
+export interface SaveMsg {
+  type: 'save';
 }
 
 export interface SetSpeedMsg {
@@ -84,7 +94,7 @@ export interface QueryCitizenMsg {
   id: number;
 }
 
-export type MainToWorker = InitMsg | SetSpeedMsg | ActionMsg | QueryCitizenMsg;
+export type MainToWorker = InitMsg | SetSpeedMsg | ActionMsg | QueryCitizenMsg | SaveMsg;
 
 // --- worker → main -----------------------------------------------------------
 
@@ -139,4 +149,12 @@ export interface CitizenInfoMsg {
   grief: number;
 }
 
-export type WorkerToMain = SnapshotMsg | SimEventMsg | CitizenInfoMsg;
+/** Respuesta a `SaveMsg` (T2.6): JSON de `Simulation.serialize()`, opaco para
+ * el main — lo guarda tal cual (localStorage) y lo reenvía en un futuro
+ * `InitMsg.saveBlob` sin tocarlo. */
+export interface SaveBlobMsg {
+  type: 'saveBlob';
+  blob: string;
+}
+
+export type WorkerToMain = SnapshotMsg | SimEventMsg | CitizenInfoMsg | SaveBlobMsg;

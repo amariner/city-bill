@@ -7,7 +7,7 @@
 import { Citizen } from './citizen';
 import { restore } from './needs';
 import { TICK_GAME_S } from '../clock';
-import { Rng } from '../../rng';
+import { Rng, createRng } from '../../rng';
 
 /** Distancia máx. (celdas) para pararse a charlar. */
 const CHAT_RANGE = 3;
@@ -31,6 +31,11 @@ export interface ChatPair {
   remaining: number;
 }
 
+export interface SocialSaveState {
+  chats: ChatPair[];
+  rngState: number;
+}
+
 export class SocialSystem {
   /** Charlas en curso. */
   chats: ChatPair[] = [];
@@ -40,6 +45,23 @@ export class SocialSystem {
 
   isChatting(id: number): boolean {
     return this.chatting.has(id);
+  }
+
+  /** Guardado (T2.6): charlas en curso + estado del rng propio (independiente
+   * del rng general de `Simulation`). `chatting` no hace falta serializarlo:
+   * se reconstruye por completo a partir de `chats`. */
+  serialize(): SocialSaveState {
+    return { chats: this.chats.map((c) => ({ ...c })), rngState: this.rng.state };
+  }
+
+  restore(state: SocialSaveState): void {
+    this.chats = state.chats.map((c) => ({ ...c }));
+    this.chatting = new Set();
+    for (const c of this.chats) {
+      this.chatting.add(c.a);
+      this.chatting.add(c.b);
+    }
+    this.rng = createRng(state.rngState);
   }
 
   /** Se conocen (vecinos, compañeros) — siembra afinidad simétrica. */
