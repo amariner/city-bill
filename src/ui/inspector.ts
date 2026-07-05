@@ -140,6 +140,11 @@ export class CitizenInspector {
     }
   }
 
+  /** Id del ciudadano seleccionado (para el marcador visual en el mundo). */
+  get selected(): number | null {
+    return this.selectedId;
+  }
+
   /** El main nos presta la lista del frame para el picking. */
   lastAgents: AgentView[] | null = null;
   lastCount = 0;

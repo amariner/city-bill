@@ -16,6 +16,7 @@ import { catalogItem } from './world/catalog';
 import { buildShowcase } from './showcase';
 import { SimClient, AgentView } from './sim/client';
 import { CitizenView } from './world/render/citizens';
+import { SelectionMarker } from './world/render/selectionMarker';
 import { DAY_GAME_SECONDS } from './sim/clock';
 import { seasonalWarmth } from './sim/weather';
 import { updateTerrainSeason } from './world/render/terrain';
@@ -49,6 +50,7 @@ camera.setZoomIndex(1);
 let worldView: ReturnType<typeof createWorldView> | null = null;
 let simClient: SimClient | null = null;
 let citizenView: CitizenView | null = null;
+let selectionMarker: SelectionMarker | null = null;
 let chronicle: Chronicle | null = null;
 let toasts: Toasts | null = null;
 if (sceneName === 'buildings') {
@@ -71,6 +73,8 @@ if (sceneName === 'buildings') {
   simClient = new SimClient(worldSeed, grid.serialize());
   citizenView = new CitizenView();
   stage.scene.add(citizenView.root);
+  selectionMarker = new SelectionMarker();
+  stage.scene.add(selectionMarker.root);
   // Crecimiento autónomo (T4.2): el worker construye → replicamos en el
   // grid de render y refrescamos el chunk (misma colocación, mismo mundo).
   chronicle = new Chronicle(worldSeed);
@@ -126,6 +130,20 @@ loop.onUpdate((dt) => {
     if (inspector) {
       inspector.setAgents(agentViews, n);
       inspector.update(agentViews, n);
+      // Marcador de selección: sigue al ciudadano abierto en el inspector.
+      if (selectionMarker) {
+        const sel = inspector.selected;
+        let selView: AgentView | null = null;
+        if (sel !== null) {
+          for (let i = 0; i < n; i++) {
+            if (agentViews[i].id === sel && agentViews[i].state !== 0 /* Inside */) {
+              selView = agentViews[i];
+              break;
+            }
+          }
+        }
+        selectionMarker.update(selView, dt);
+      }
     }
     const t = simClient.gameTime;
     updateSun(stage.sun, (t % DAY_GAME_SECONDS) / DAY_GAME_SECONDS); // ciclo de luz T1.8

@@ -1121,3 +1121,21 @@ una simulación, y los tratamos como tales:
   de FX, permitido por §0.6); cero lógica de sim, `tsc` limpio, 276/276 tests intactos.
   Próximo en la veta: (b) el legado/vida VISIBLE en el mundo (no solo en tarjetas);
   (c) cubiertas de nieve en tejados (T5.1 pulido).
+- 2026-07-05 · **Veta INTERFAZ — SURFACING 3: anillo de selección (inspector↔mundo)** ·
+  El inspector (T3.10) mostraba una tarjeta de texto, pero NADA en el mundo señalaba a
+  quién habías abierto: la autonomía se leía, no se SEGUÍA con los ojos. Ahora un aro
+  plano y pastel late bajo los pies del ciudadano seleccionado y le sigue frame a frame
+  (`world/render/selectionMarker.ts`); con [F] (cámara-sigue) se ve rastreándole por la
+  ciudad. Un solo mesh reutilizado (RingGeometry tumbada, MeshBasicMaterial,
+  depthWrite:false) → +1 draw call, cero coste cuando no hay selección (mesh oculto).
+  Color nuevo `selectRing` en `palette.ts` (oro suave, nombre semántico). El inspector
+  expone `get selected()`; el main busca ese id entre los agentes YA interpolados del
+  frame y posiciona el aro, ocultándolo si el agente está DENTRO de un edificio (estado
+  Inside) — coherente con que el pick solo agarra a quien está al aire libre. Latido
+  sutil (sin·cos, FX cosmético permitido por §0.6). Verificado por screenshot: seguido
+  a "Júlia Vidal, paseando", el aro dorado aparece bajo su figura y la cámara la centra;
+  cuando el seleccionado entra a trabajar, el aro desaparece (correcto). `tsc` limpio,
+  276/276 tests intactos (no toca sim). Con esto el trío de surfacing (HUD de ciudad +
+  inspector enriquecido + avisos + este vínculo visual) hace la vida de la sim VISIBLE
+  desde el primer vistazo, sin abrir menús.
+  Próximo en la veta: (b) el legado/vida visible en el mundo; (c) nieve en tejados.

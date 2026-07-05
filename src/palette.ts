@@ -74,4 +74,7 @@ export const PALETTE = {
   ambientWinter: 0xc4d2e6, // relleno frío azulado (nieve, sombra fría)
   ambientSummer: 0xdcd8c8, // relleno cálido de verano
   snow: 0xeef2f7, // manto de nieve del terreno en invierno (emissive)
+
+  // UI diegética
+  selectRing: 0xd8b25a, // anillo bajo el ciudadano seleccionado en el inspector
 } as const;
