@@ -78,10 +78,16 @@ const _snow = new THREE.Color(PALETTE.snow);
  * Nieve por estación (T5.1 paso 2): en el frío del invierno el suelo se cubre de
  * blanco. Se hace con EMISSIVE (aditivo → ilumina hacia el blanco; un multiply
  * solo oscurecería), proporcional a la crudeza invernal. `warmth` ∈ [-1,1].
+ *
+ * El factor (0.85) está calibrado para que la nieve LEA de verdad —a 0.42 apenas
+ * se notaba sobre el suelo ya claro y las estaciones "solo se veían en luz/cielo"—
+ * pero SIN saturar: por encima de ~1.2 el emissive clampa a blanco plano y borra
+ * las sombras largas del suelo (checklist §4). A 0.85 el manto se lee como nieve
+ * y, como el emissive no llega a 1, las sombras de árboles/casas siguen marcándose.
  */
 export function updateTerrainSeason(warmth: number): void {
   const winter = Math.max(0, -warmth); // 0 (templado) … 1 (pleno invierno)
-  terrainMaterial.emissive.copy(_snow).multiplyScalar(0.42 * winter);
+  terrainMaterial.emissive.copy(_snow).multiplyScalar(0.85 * winter);
 }
 
 function finish(buf: QuadBuffers): THREE.Mesh {

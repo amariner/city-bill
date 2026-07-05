@@ -1157,3 +1157,19 @@ una simulación, y los tratamos como tales:
   siente llamado al campo). Puro DOM sobre datos ya presentes; verificado por
   screenshot. Con esto el inspector cuenta una PERSONA completa: quién es, con quién
   vive, qué hace, qué ama, qué debe, qué deja. `tsc` limpio, 276/276 tests.
+- 2026-07-05 · **Veta INTERFAZ — la NIEVE del suelo por fin se ve (T5.1 paso 2)** ·
+  Hallazgo al verificar con screenshots la veta de interfaz: aunque el ROADMAP daba la
+  nieve del terreno por HECHA (`updateTerrainSeason`, emissive de nieve por invierno),
+  en pantalla el suelo invernal salía beige NORMAL — el usuario tenía razón en que "las
+  estaciones solo se ven en luz/cielo". Causa: el factor emissive (0.42) era demasiado
+  débil para leerse sobre un suelo ya claro. Diagnóstico empírico (A/B forzando el
+  factor): a 1.4 el suelo blanquea del todo → la tubería SÍ funcionaba, solo estaba
+  infradosificada; pero 1.4 satura a blanco PLANO y borra las sombras largas del suelo
+  (rompe checklist §4). Calibrado a 0.85: el manto lee claramente como nieve (caminos
+  blancos, campos con velo pálido) y, como el emissive no llega a 1, las sombras de
+  árboles y casas SIGUEN marcándose. Verificado por screenshot (invierno seed 42). Un
+  cambio de un número, pero cierra de verdad T5.1 paso 2 —la estación ahora se ve
+  también en el SUELO— y es una lección de método: "implementado" no es "verificado en
+  pantalla"; el surfacing visual necesita el screenshot del §4, no basta con que el
+  código exista. Pulido que sigue pendiente: cubiertas de nieve en TEJADOS (hoy solo el
+  suelo). `tsc` limpio, 276/276 tests (no toca sim).

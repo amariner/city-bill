@@ -269,8 +269,11 @@ repetido, arbolado automático en márgenes de carretera (rasgo de identidad).
   blanco en invierno vía `emissive` del material único de terreno
   (`updateTerrainSeason` en `render/terrain.ts`; aditivo, sin rebuild de malla).
   Colores en `palette.ts` (`skyWinter/Summer`, `ambientWinter/Summer`, `snow`).
-  Verificado por screenshots (mundo invernal nevado vs verano). *Pulido opcional:*
-  cubiertas blancas de nieve en los tejados (hoy solo el suelo).
+  Verificado por screenshots (mundo invernal nevado vs verano). NOTA (2026-07-05,
+  sesión interfaz): el factor emissive de la nieve estaba infradosificado (0.42) y en
+  pantalla no se leía → subido a 0.85 (lee como nieve sin saturar a blanco plano ni
+  borrar las sombras del suelo). *Pulido opcional:* cubiertas blancas de nieve en los
+  tejados (hoy solo el suelo).
 - [ ] **T5.2 Tren.** Vía + estación + tren con 3-5 vagones en circuito, humo de la
   locomotora con sprites de esferas.
 - [ ] **T5.3 Sonido generativo.** Web Audio: viento, pájaros, campana lejana, murmullo
