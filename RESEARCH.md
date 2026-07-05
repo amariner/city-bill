@@ -977,3 +977,21 @@ una simulación, y los tratamos como tales:
   legado no monetario (oficio/vocación, ser pilar por amistades) y que IMPORTE en vida.
   (c) el gran pendiente estructural sigue siendo el cierre monetario TOTAL (nómina
   finita: tiendas pagan de su caja, el sector público del tesoro).
+- 2026-07-05 · **Ciclo 36: VOCACIÓN (autorrealización, N5 — la cúspide de Maslow)** ·
+  Sigue subiendo la cúspide. Tras el legado (lo que dejas), la vocación (lo que HACES
+  con sentido): trabajar en lo que uno ama colma el PROPÓSITO mucho más. Clave de
+  diseño para riesgo mínimo: la vocación NO es un campo nuevo —sale del CARÁCTER ya
+  existente (`vocationOf`: el trabajador se realiza labrando, el sociable en el trato,
+  el hogareño cuidando)—, así que es pura, determinista y no toca ni el estado ni las
+  fábricas de test. En la jornada, si el rol del empleo encaja con la vocación
+  (`jobFitsVocation`), se suma un bonus de propósito (`VOCATION_PURPOSE_BONUS`). Emerge
+  JOB SATISFACTION: medido en seed 42, quien ejerce su vocación acaba con propósito
+  ~0.23 frente a ~0.13 de quien trabaja a disgusto — una desigualdad de SENTIDO (no de
+  dinero), justo la dimensión humana que el ciclo 34-revertido pedía. El crecimiento
+  sigue acotado (max 115 a día 40; el bonus de propósito no desestabiliza). 262/262
+  tests verdes. La pirámide, antes plana en la cúspide (solo festival), ya tiene en N5
+  festival + legado + vocación.
+  Carencias observadas para próximos ciclos: (a) que la vocación se vea (inspector) y
+  que un desajuste sostenido EMPUJE a cambiar de oficio (buscar el propio). (b) el
+  cierre monetario TOTAL (nómina finita), el gran pendiente estructural. (c) producir
+  bienes dentro (artesanos) y la cobertura desigual de la vacuna.

@@ -22,7 +22,8 @@ import { chronicleText, summarizeYear, compactChronicle, ChronEvent, isLegacyDea
 import { townAttractiveness, householdHardship, updateEmigrationPressure, EMIGRATE_PRESSURE_LIMIT, computeDemand, DemandInput, fertilityFactor, CARRYING_CAPACITY } from '../world/growth';
 import { ACTIVITY_BY_KIND, SimContext } from './citizens/activities';
 import { Weather } from './weather';
-import { Citizen } from './citizens/citizen';
+import { Citizen, vocationOf, jobFitsVocation } from './citizens/citizen';
+import { catalogData } from '../world/catalogData';
 import { createRng } from '../rng';
 
 let passed = 0;
@@ -1168,6 +1169,34 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
   check('legado permanente: la Crónica conserva el legado tras compactar', compacted.some((e) => e.kind === 'legacy' && e.text.includes('Vera')));
   check('legado permanente: lo rutinario del año viejo se resume en una línea', compacted.some((e) => e.kind === 'summary' && e.year === 0));
   check('legado permanente: la muerte corriente ya no aparece literal', !compacted.some((e) => e.kind === 'death' && e.text.includes('Ben')));
+}
+
+// Ciclo 36 RESEARCH.md — VOCACIÓN (N5, autorrealización): trabajar en lo que uno
+// AMA colma el propósito mucho más (la cúspide de Maslow). La vocación sale del
+// CARÁCTER (sin campo nuevo): el trabajador se realiza con las manos, el sociable
+// con el trato, el hogareño cuidando. Emerge job satisfaction: quien ejerce su
+// vocación está más realizado que quien no — desigualdad de SENTIDO, no de dinero.
+{
+  const P = (sociable: number, trabajador: number, hogareño: number) => ({ sociable, trabajador, hogareño });
+  check('vocación: el trabajador se realiza labrando (manos)', vocationOf(P(0.2, 0.9, 0.3)) === 'labrar');
+  check('vocación: el sociable, en el trato', vocationOf(P(0.9, 0.3, 0.2)) === 'tratar');
+  check('vocación: el hogareño, cuidando', vocationOf(P(0.2, 0.3, 0.9)) === 'cuidar');
+  check('vocación: labrar colma la agricultura y el oficio, no el comercio', jobFitsVocation(P(0.2, 0.9, 0.3), 'agriculture') && jobFitsVocation(P(0.2, 0.9, 0.3), 'work') && !jobFitsVocation(P(0.2, 0.9, 0.3), 'commerce'));
+  check('vocación: tratar colma el comercio', jobFitsVocation(P(0.9, 0.3, 0.2), 'commerce') && !jobFitsVocation(P(0.9, 0.3, 0.2), 'civic'));
+  check('vocación: cuidar colma lo cívico (escuela/clínica)', jobFitsVocation(P(0.2, 0.3, 0.9), 'civic'));
+
+  // Integración: quien trabaja EN su vocación acaba más realizado (más propósito)
+  // que quien no — el sentido emerge del encaje carácter↔oficio, sin guion.
+  const sim = new Simulation(seedWorld(), 42);
+  for (let t = 0; t < TICKS_PER_DAY * 25; t++) sim.step();
+  const fit: number[] = [], unfit: number[] = [];
+  for (const c of sim.citizens.values()) {
+    if (!c.work) continue;
+    const role = catalogData(c.work.buildingId)?.role;
+    (jobFitsVocation(c.personality, role) ? fit : unfit).push(c.needs.purpose);
+  }
+  const avg = (a: number[]) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0);
+  check('vocación: quien ejerce su vocación está MÁS realizado (más propósito)', fit.length > 0 && unfit.length > 0 && avg(fit) > avg(unfit), `→ vocación ${avg(fit).toFixed(2)} vs a disgusto ${avg(unfit).toFixed(2)}`);
 }
 
 // Determinismo: mismo snapshot final con la misma semilla.

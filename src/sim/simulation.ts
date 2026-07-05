@@ -16,7 +16,7 @@ import { PathQueue, pathLength } from './pathfinding';
 import { CellXZ, manhattan } from './geometry';
 import { WorldIndex } from './worldIndex';
 import { Economy } from './economy';
-import { Citizen, citizenName, PlannedActivity, TravelMode } from './citizens/citizen';
+import { Citizen, citizenName, PlannedActivity, TravelMode, jobFitsVocation, VOCATION_PURPOSE_BONUS } from './citizens/citizen';
 import { decayNeeds, restore, NEED_KEYS } from './citizens/needs';
 import { chooseActivity } from './citizens/brain';
 import { ACTIVITY_BY_KIND, SimContext, activityLabel, EDU_PER_HOUR, CLINIC_FEE, isFestivalDay } from './citizens/activities';
@@ -794,6 +794,8 @@ export class Simulation {
             if (employer?.role === 'agriculture') this.economy.produceFood(`${c.home.ax},${c.home.az}`, hours);
             // Dinero: cada hora trabajada es salario para el hogar.
             this.economy.payWage(`${c.home.ax},${c.home.az}`, hours, employer?.tier ?? 0, c.education);
+            // Vocación (ciclo 36): trabajar en lo que uno ama COLMA el propósito.
+            if (jobFitsVocation(c.personality, employer?.role)) restore(c.needs, 'purpose', VOCATION_PURPOSE_BONUS * hours);
           }
         }
         if (this.clock.time >= c.phase.until) {

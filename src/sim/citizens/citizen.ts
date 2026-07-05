@@ -15,6 +15,37 @@ export interface Personality {
   hogareño: number;
 }
 
+// --- Vocación (ciclo 36, N5 autorrealización) ---------------------------------
+// A qué se siente LLAMADO alguien, según su carácter. Trabajar en la propia
+// vocación llena el PROPÓSITO mucho más (hacer lo que uno ama; la autorrealización
+// de Maslow). No hay campo nuevo: la vocación SALE del carácter (personalidad),
+// así que es pura y determinista y no toca el estado ni los tests de fábrica.
+export type Vocation = 'labrar' | 'tratar' | 'cuidar';
+
+/** La vocación de alguien, por su rasgo dominante: el trabajador se realiza con
+ * las MANOS (labrar), el sociable con el TRATO (tratar), el hogareño CUIDANDO. */
+export function vocationOf(p: Personality): Vocation {
+  if (p.trabajador >= p.sociable && p.trabajador >= p.hogareño) return 'labrar';
+  if (p.sociable >= p.hogareño) return 'tratar';
+  return 'cuidar';
+}
+
+/** Roles de empleo que COLMAN cada vocación. */
+export const VOCATION_ROLES: Record<Vocation, string[]> = {
+  labrar: ['agriculture', 'work'],
+  tratar: ['commerce'],
+  cuidar: ['civic'],
+};
+
+/** ¿El empleo (por su rol) es la vocación de quien lo ejerce? Pura. */
+export function jobFitsVocation(p: Personality, role: string | undefined): boolean {
+  return role !== undefined && VOCATION_ROLES[vocationOf(p)].includes(role);
+}
+
+/** Bonus de propósito por hora al trabajar EN la propia vocación (ciclo 36):
+ * se suma al propósito base del trabajo — hacer lo que amas realiza el doble. */
+export const VOCATION_PURPOSE_BONUS = 1 / 7;
+
 /** Referencia a un edificio por su celda ancla (estable ante cambios). */
 export interface PlaceRef {
   ax: number;
