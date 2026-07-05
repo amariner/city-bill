@@ -98,10 +98,14 @@ export function chronicleText(name: string, data?: Record<string, unknown>): str
       const h = typeof data?.health === 'number' ? data.health : 1;
       const age = typeof data?.age === 'number' ? data.age : 0;
       const partner = typeof data?.partnerName === 'string' ? data.partnerName : '';
+      const kids = typeof data?.childrenRaised === 'number' ? data.childrenRaised : 0;
       const cause = h < ILLNESS_HEALTH && age < OLD_AGE ? ' por enfermedad' : '';
       const longLife = !cause && age >= LONG_LIFE_AGE ? ', una vida larga' : '';
+      // Legado (ciclo 34, N5): una vida deja huella — los hijos criados se honran
+      // al morir. La estima nace de lo VIVIDO (no del dinero, ver §4 ciclo 34).
+      const legacy = kids > 0 ? `, deja ${kids} ${kids === 1 ? 'hijo' : 'hijos'}` : '';
       const widowing = partner ? ` — ${partner} pierde a su pareja` : '';
-      return `muere ${who} (${age || '?'} años)${cause}${longLife}${widowing}`;
+      return `muere ${who} (${age || '?'} años)${cause}${longLife}${legacy}${widowing}`;
     }
     case 'coupleFormed':
       return `${data?.a} y ${data?.b} se emparejan`;

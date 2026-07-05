@@ -215,6 +215,7 @@ export class Simulation {
       grief: 0,
       sick: 0,
       immune: 0,
+      childrenRaised: 0,
       x: door[0] + 0.5,
       z: door[1] + 0.5,
       heading: this.rng.range(0, Math.PI * 2),
@@ -400,7 +401,7 @@ export class Simulation {
       if (![...this.citizens.values()].some((c) => c.home.ax === d.home.ax && c.home.az === d.home.az)) {
         this.households.set(k, Math.max(0, (this.households.get(k) ?? 1) - 1));
       }
-      this.events.push({ name: 'citizenLeft', data: { id: d.id, name: d.name, age: d.age, health: d.health, reason: 'death', partnerName: partner?.name } });
+      this.events.push({ name: 'citizenLeft', data: { id: d.id, name: d.name, age: d.age, health: d.health, reason: 'death', partnerName: partner?.name, childrenRaised: d.childrenRaised } });
     }
     for (const [a, b] of life.couples) {
       this.events.push({ name: 'coupleFormed', data: { a: a.name, b: b.name } });
@@ -409,6 +410,8 @@ export class Simulation {
       const child = this.spawnCitizen(b.home.ax, b.home.az, b.home.buildingId, 0);
       SocialSystem.acquaint(child, b.parents[0], 0.8);
       SocialSystem.acquaint(child, b.parents[1], 0.8);
+      b.parents[0].childrenRaised++; // ciclo 34: cada vida deja rastro (legado)
+      b.parents[1].childrenRaised++;
     }
     if (life.deaths.length > 0) this.economy.rebuild(this.index, this.citizens);
   }

@@ -78,6 +78,10 @@ export interface Citizen {
   /** Inmunidad [0,1] tras pasar la enfermedad (contagio, ciclo 25). Protege del
    * recontagio y decae en ~una estación → de ahí las OLEADAS (modelo SIRS). */
   immune: number;
+  /** Hijos criados a lo largo de la vida (ciclo 34, N5 legado): puro RECUERDO,
+   * no alimenta ninguna dinámica — da a cada vida un rastro que la Crónica honra
+   * al morir (una vida deja huella: la estima nace de lo vivido, no del dinero). */
+  childrenRaised: number;
   /** Afinidad por id de conocido [0,1]. Se refuerza con encuentros. */
   friends: Map<number, number>;
   /** Tick en que terminó su última charla (histéresis anti-bucle). */

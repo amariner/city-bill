@@ -943,3 +943,20 @@ una simulación, y los tratamos como tales:
   más humano— (b) que el estatus/la estima nazca de LOGROS NO monetarios que varían de
   forma natural: criar hijos, longevidad, ser pilar del barrio, VOCACIÓN cumplida,
   LEGADO recordado (§6.1). Ese es el siguiente ataque a la cúspide de la pirámide.
+- 2026-07-05 · **Ciclo 34 (bis): LEGADO — la vida deja huella (N5)** · Aplica DIRECTO
+  la lección del 34-revertido: la estima no cuelga del dinero, nace de LO VIVIDO.
+  Primer paso, el más humano y de menor riesgo: la Crónica —la memoria del juego, la
+  condición de victoria §6.1— honra al morir los HIJOS que uno crió. Nuevo campo
+  `childrenRaised` en el ciudadano (puro RECUERDO: no alimenta ninguna dinámica, así
+  que CERO riesgo de caos), que se incrementa en ambos padres a cada nacimiento; al
+  morir, el evento lo lleva y el narrador (`chronicleText`) añade "…, deja N hijos"
+  (singular/plural). El dato VARÍA de forma natural —justo lo que le faltaba al estatus
+  por riqueza—: en seed 42 a 40 días mueren 12 personas, 5 dejando hijos, y la mayor
+  huella es de 8 — una matriarca. Así una vida larga y fecunda se distingue de una
+  corta, y la Crónica lo cuenta sin guion. Verificado (narrador puro + emergencia
+  integrada). 248/248 tests verdes. Sube por fin a N5 (la cúspide era festival sola).
+  Carencias observadas para próximos ciclos: (a) el legado podría ampliarse (oficio/
+  vocación cumplida, ser pilar del barrio por amistades, longevidad venerada) y hacerse
+  VISIBLE en el inspector, no solo en la Crónica. (b) que la huella IMPORTE en vida
+  (los mayores con muchos hijos/nietos, respetados) — con cuidado de no acoplar al caos
+  del crecimiento. (c) sigue el cierre monetario TOTAL (nómina finita) y la vocación.

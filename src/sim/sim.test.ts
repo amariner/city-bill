@@ -361,7 +361,7 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
     needs: { energy: 1, food: 1, social: 1, fun: 1, purpose: 1 },
     home: { ax: 0, az: 0, buildingId: 'house' }, work: null,
     x: 0, z: 0, heading: 0, phase: { kind: 'deciding' }, activity: 'none',
-    partnerId: null, education: 0, health, grief: 0, sick: 0, immune: 0, friends: new Map(), lastChatTick: -1, inside: false,
+    partnerId: null, education: 0, health, grief: 0, sick: 0, immune: 0, childrenRaised: 0, friends: new Map(), lastChatTick: -1, inside: false,
   });
   const cohort = (health: number): number => {
     const m = new Map<number, Citizen>();
@@ -510,7 +510,7 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
     needs: { energy: 1, food: 1, social: 1, fun: 1, purpose: 1 },
     home: { ax: 0, az: 0, buildingId: 'house' }, work: null,
     x: 0, z: 0, heading: 0, phase: { kind: 'deciding' }, activity: 'none',
-    partnerId: null, education: 0, health, grief: 0, sick: 0, immune: 0, friends: new Map(), lastChatTick: -1, inside: false,
+    partnerId: null, education: 0, health, grief: 0, sick: 0, immune: 0, childrenRaised: 0, friends: new Map(), lastChatTick: -1, inside: false,
   });
   const cohortDeaths = (health: number): number => {
     const m = new Map<number, Citizen>();
@@ -537,7 +537,7 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
     needs: { energy: 1, food: 1, social: 0.8, fun: 0.8, purpose: 1 },
     home: { ax: 0, az: 0, buildingId: 'house' }, work: null,
     x: 0, z: 0, heading: 0, phase: { kind: 'deciding' }, activity: 'none',
-    partnerId: null, education: 0, health: 1, grief, sick: 0, immune: 0, friends: new Map(), lastChatTick: -1, inside: false,
+    partnerId: null, education: 0, health: 1, grief, sick: 0, immune: 0, childrenRaised: 0, friends: new Map(), lastChatTick: -1, inside: false,
   });
 
   // (a) Mecanismo puro: el golpe se acumula y se acota; el duelo apaga la
@@ -587,7 +587,7 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
     needs: { energy: 1, food: 1, social: 0.8, fun: 0.8, purpose: 1 },
     home: { ax: 0, az: 0, buildingId: 'house' }, work: null,
     x: 0, z: 0, heading: 0, phase: { kind: 'deciding' }, activity: 'none',
-    partnerId: null, education: 0, health: 1, grief, sick: 0, immune: 0, friends: new Map(), lastChatTick: -1, inside: false,
+    partnerId: null, education: 0, health: 1, grief, sick: 0, immune: 0, childrenRaised: 0, friends: new Map(), lastChatTick: -1, inside: false,
   });
 
   // (a) Puro: en la misma hora, quien está acompañado alivia MÁS que quien pasa
@@ -660,7 +660,7 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
     needs: { energy: 1, food: 1, social: 1, fun: 1, purpose: 1 },
     home: { ax: 0, az: 0, buildingId: 'house' }, work: null,
     x: 0, z: 0, heading: 0, phase: { kind: 'deciding' }, activity: 'none',
-    partnerId: null, education: 0, health: 1, grief, sick: 0, immune: 0, friends: new Map(friends), lastChatTick: -1, inside: false,
+    partnerId: null, education: 0, health: 1, grief, sick: 0, immune: 0, childrenRaised: 0, friends: new Map(friends), lastChatTick: -1, inside: false,
   });
   // Un íntimo (afinidad 0.9) consuela más que un desconocido de vista (0.05).
   const byIntimate = person(1, 0.8, [[2, 0.9]]);
@@ -694,7 +694,7 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
     needs: { energy: 1, food: 1, social: 1, fun: 1, purpose: 1 },
     home: { ax: 0, az: 0, buildingId: 'house' }, work: null,
     x: 0, z: 0, heading: 0, phase: { kind: 'deciding' }, activity: 'none',
-    partnerId: null, education: 0, health: 1, grief, sick: 0, immune: 0, friends: new Map(), lastChatTick: -1, inside: false,
+    partnerId: null, education: 0, health: 1, grief, sick: 0, immune: 0, childrenRaised: 0, friends: new Map(), lastChatTick: -1, inside: false,
   });
   check('luto une: dos dolientes estrechan más lazo que una charla normal', chatBond(p(0.5), p(0.6)) > chatBond(p(0), p(0)));
   check('luto une: si solo uno pena, la charla es normal', chatBond(p(0.5), p(0)) === chatBond(p(0), p(0)));
@@ -823,7 +823,7 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
     needs: { energy: 1, food: 1, social: 1, fun: 1, purpose: 1 },
     home: { ax: 0, az: 0, buildingId: 'house' }, work: null,
     x: 0, z: 0, heading: 0, phase: { kind: 'deciding' }, activity: 'none',
-    partnerId: null, education: 0, health: 1, grief: 0, sick, immune, friends: new Map(), lastChatTick: -1, inside: false,
+    partnerId: null, education: 0, health: 1, grief: 0, sick, immune, childrenRaised: 0, friends: new Map(), lastChatTick: -1, inside: false,
   });
   const alwaysInfect = { next: () => 0 }; // rng que siempre contagia
 
@@ -883,7 +883,7 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
     needs: { energy: 1, food: 1, social: 1, fun: 1, purpose: 1 },
     home: { ax: 0, az: 0, buildingId: 'house' }, work: null,
     x: 0, z: 0, heading: 0, phase: { kind: 'deciding' }, activity: 'none',
-    partnerId: null, education: 0, health: 1, grief: 0, sick, immune: 0, friends: new Map(), lastChatTick: -1, inside: false,
+    partnerId: null, education: 0, health: 1, grief: 0, sick, immune: 0, childrenRaised: 0, friends: new Map(), lastChatTick: -1, inside: false,
   });
   const ctxOn = { quarantine: true } as unknown as SimContext;
   const ctxOff = { quarantine: false } as unknown as SimContext;
@@ -1116,6 +1116,35 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
   check('vacuna: inmunidad de rebaño — el pico de la oleada cae mucho', on.peak < off.peak * 0.6, `→ pico con ${on.peak} vs sin ${off.peak}`);
   check('vacuna: mucha menos gente llega a enfermar', on.ever < off.ever, `→ ${on.ever} vs ${off.ever}`);
   check('vacuna: sin campaña (para medir) no se administra ninguna', off.given === 0);
+}
+
+// Ciclo 34 RESEARCH.md — LEGADO (N5, la vida deja huella): tras el hallazgo del
+// ciclo 34-revertido (la estima NO puede colgar de la riqueza en una economía
+// igualitaria), la estima nace de LO VIVIDO. Primer paso: la Crónica honra al
+// morir los HIJOS que uno crió — un dato que varía de forma natural (una
+// matriarca de 8 deja otra huella que quien se fue joven). Puro recuerdo.
+{
+  const die = (data: Record<string, unknown>) => chronicleText('citizenLeft', { reason: 'death', name: 'X', age: 84, health: 1, ...data });
+  check('legado: al morir se honran los hijos criados', (die({ childrenRaised: 3 }) ?? '').includes('deja 3 hijos'));
+  check('legado: un solo hijo, en singular', (die({ childrenRaised: 1 }) ?? '').includes('deja 1 hijo') && !(die({ childrenRaised: 1 }) ?? '').includes('hijos'));
+  check('legado: quien no dejó hijos no lo menciona (no toda vida es igual)', !(die({ childrenRaised: 0 }) ?? '').includes('deja'));
+
+  // Integración: con las generaciones, mueren padres que dejaron hijos → la
+  // huella es REAL y emergente, no un guion.
+  const sim = new Simulation(seedWorld(), 42);
+  let legacyDeaths = 0, maxKids = 0;
+  for (let t = 0; t < TICKS_PER_DAY * 40; t++) {
+    sim.step();
+    for (const e of sim.takeEvents()) {
+      if (e.name === 'citizenLeft' && e.data.reason === 'death') {
+        const k = (e.data.childrenRaised as number) ?? 0;
+        if (k > 0) legacyDeaths++;
+        maxKids = Math.max(maxKids, k);
+      }
+    }
+  }
+  check('legado: emergen muertes que dejan hijos (la vida deja huella)', legacyDeaths > 0, `→ ${legacyDeaths} con legado`);
+  check('legado: alguna vida deja una huella grande (matriarca/patriarca)', maxKids >= 2, `→ el mayor legado, ${maxKids} hijos`);
 }
 
 // Determinismo: mismo snapshot final con la misma semilla.
