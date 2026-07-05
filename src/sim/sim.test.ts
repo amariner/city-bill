@@ -21,6 +21,7 @@ import { sickStayIn } from './citizens/activities';
 import { chronicleText, summarizeYear, compactChronicle, ChronEvent, isLegacyDeath } from '../ui/chronicle';
 import { townAttractiveness, householdHardship, updateEmigrationPressure, EMIGRATE_PRESSURE_LIMIT, computeDemand, DemandInput, fertilityFactor, CARRYING_CAPACITY } from '../world/growth';
 import { ACTIVITY_BY_KIND, SimContext } from './citizens/activities';
+import { settlementClass } from './protocol';
 import { Weather } from './weather';
 import { Citizen, vocationOf, jobFitsVocation, surnameOf } from './citizens/citizen';
 import { catalogData } from '../world/catalogData';
@@ -1455,6 +1456,32 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
     [...sim.citizens.values()].some((c) => sim.describe(c.id)?.bestFriendClose === true));
   check('inspector: y también lazos de simple conocido (no todo es intimidad)',
     [...sim.citizens.values()].some((c) => { const i = sim.describe(c.id); return i?.bestFriend != null && i.bestFriendClose === false; }));
+}
+
+// Ciclo 47 RESEARCH.md — IDENTIDAD DEL ASENTAMIENTO (aldea→pueblo→villa→ciudad): el
+// LUGAR tiene un nombre según su tamaño, visible siempre en el HUD, y la Crónica
+// celebra cuando asciende — un eje distinto de los tiers (que abren edificios): esto
+// es su IDENTIDAD. La clase de partida no se narra; solo los ascensos.
+{
+  // Pura: los umbrales de clase (0/20/60/150).
+  check('asentamiento: los umbrales nombran bien cada clase',
+    settlementClass(5) === 'aldea' && settlementClass(20) === 'pueblo' && settlementClass(59) === 'pueblo' && settlementClass(60) === 'villa' && settlementClass(150) === 'ciudad');
+  // Narración pura (única fuente, ciclo 18).
+  check('crónica: el ascenso a villa se narra como mayoría de edad',
+    chronicleText('settlementRose', { class: 'villa', population: 63 }) === 'el pueblo se hace villa (63 almas)');
+
+  // Emergente (seed 42, corto): el asentamiento nace aldea y asciende a pueblo al
+  // cruzar 20 almas — la Crónica lo celebra, sin narrar la clase de partida.
+  const sim = new Simulation(seedWorld(), 42);
+  const rises: Array<Record<string, unknown>> = [];
+  for (let t = 0; t < TICKS_PER_DAY * 10; t++) {
+    sim.step();
+    for (const e of sim.takeEvents()) if (e.name === 'settlementRose') rises.push(e.data);
+  }
+  check('asentamiento: el lugar ASCIENDE de categoría al crecer (aldea→pueblo)',
+    rises.some((r) => r.class === 'pueblo'), `→ ${rises.map((r) => r.class).join(', ')}`);
+  check('asentamiento: el ascenso reporta la clase y la población',
+    rises.length > 0 && rises.every((r) => typeof r.class === 'string' && typeof r.population === 'number'));
 }
 
 // Determinismo: mismo snapshot final con la misma semilla.

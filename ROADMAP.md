@@ -438,3 +438,10 @@ aprieta, T3.8-T3.10 y la Fase 4 valen más que cualquier cosa de la Fase 5.
   inspector cuenta a una persona casi completa (quién es, con quién vive, de quién viene,
   quién la acompaña, qué hace, qué ama, qué debe, qué deja). 305/305 tests, `tsc` limpio.
   Ver RESEARCH.md §4 (2026-07-05, ciclo 46).
+- 2026-07-05 (sesión Opus, LÓGICA+INTERFAZ a la par — ciclo 47) — **Identidad del
+  asentamiento (aldea→pueblo→villa→ciudad)**: el lugar tiene ahora un nombre por su tamaño
+  (función pura `settlementClass`, umbrales 0/20/60/150, eje distinto de los tiers). El HUD
+  lo muestra SIEMPRE (la etiqueta del chip de población pasó a ALDEA/PUEBLO/VILLA/CIUDAD;
+  verificado por screenshot "ALDEA · 16") y la Crónica celebra cada ascenso ("la aldea se
+  hace pueblo (20 almas)") con toast ✦. Emerge pronto (seed 42: pueblo@d3) → test barato.
+  309/309 tests, `tsc` limpio. Ver RESEARCH.md §4 (2026-07-05, ciclo 47).

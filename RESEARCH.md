@@ -1326,3 +1326,25 @@ una simulación, y los tratamos como tales:
   Carencia para próximos ciclos: (a) surfacing de las PANDILLAS/tercer lugar (ya simuladas)
   y de las rivalidades si las hubiera; (b) un beat de Crónica cuando nace una amistad muy
   íntima o cuando dos que se odiaban... (no hay odio aún: posible lógica futura N3).
+- 2026-07-05 · **Ciclo 47: IDENTIDAD DEL ASENTAMIENTO (aldea→pueblo→villa→ciudad)** ·
+  Retoma la veta de la historia del LUGAR (ciclo 45): el pueblo tenía tesoro, paro, granero…
+  pero no un NOMBRE propio según su tamaño. Ahora una función pura `settlementClass(pop)`
+  (umbrales 0/20/60/150, en `protocol.ts`, compartida por HUD y sim) le da identidad:
+  aldea, pueblo, villa o ciudad. Es un eje DISTINTO de los tiers (25/80/200, que abren
+  edificios): esto es cómo se LLAMA el lugar. **INTERFAZ A LA PAR** (doble): (1) el HUD
+  muestra la clase SIEMPRE — la etiqueta del chip de población pasó de "POBLACIÓN" a
+  "ALDEA/PUEBLO/VILLA/CIUDAD" (se ve crecer el asentamiento, no solo el número; verificado
+  por screenshot: "ALDEA · 16"); (2) la Crónica celebra cada ASCENSO ("la aldea se hace
+  pueblo (20 almas)", "el pueblo se hace villa…") vía evento `settlementRose`, con un toast
+  ✦ dorado. La clase de partida no se narra (se inicia `settlementLevelSeen` con la del
+  arranque); se emite un beat por cada escalón cruzado (soporta subir dos de golpe). Sin
+  RNG. EMERGENCIA medida: el ascenso llega pronto (seed 42: pueblo@d3; seedFarm: pueblo@d11,
+  villa@d23) → test BARATO (10 días). VERIFICAR: 309/309 tests (4 nuevos), `tsc` limpio,
+  screenshot del HUD con "ALDEA" sin errores runtime. TRAMPA cazada: hay DOS uniones de
+  nombres de evento (el contrato `SimEventMsg` en protocol.ts y la interfaz LOCAL `SimEvent`
+  en simulation.ts) — hay que ampliar AMBAS o `tsc` casca (el `| head` ocultó el código de
+  salida de tsc; usar `tsc; echo $?` sin pipe para verlo).
+  Carencia para próximos ciclos: (a) coordinar el toast de tier y el de asentamiento si
+  caen el mismo día (hoy pueden solaparse, aunque los umbrales están desfasados a propósito);
+  (b) que la clase module también el ARTE (una ciudad se ve distinta de una aldea — ya lo
+  hacen los tiers vía catálogo, pero la identidad podría reforzarlo).

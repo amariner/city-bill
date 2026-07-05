@@ -154,6 +154,17 @@ export function chronicleText(name: string, data?: Record<string, unknown>): str
       const n = typeof data?.members === 'number' ? data.members : '?';
       return `la familia ${fam} echa raíces: ${n} descendientes vivos`;
     }
+    case 'settlementRose': {
+      // Mayoría de edad del asentamiento (ciclo 47): sube de categoría por tamaño.
+      const cls = data?.class;
+      const n = typeof data?.population === 'number' ? data.population : '?';
+      const phrase =
+        cls === 'pueblo' ? 'la aldea se hace pueblo'
+        : cls === 'villa' ? 'el pueblo se hace villa'
+        : cls === 'ciudad' ? 'la villa se hace ciudad'
+        : 'la comunidad crece';
+      return `${phrase} (${n} almas)`;
+    }
     case 'firstBuilding': {
       // Hito del pueblo (ciclo 45): el pueblo estrena un tipo de edificio (fórmula
       // neutra sin artículo — los nombres del catálogo tienen género variado).

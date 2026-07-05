@@ -21,7 +21,7 @@ import { decayNeeds, restore, NEED_KEYS } from './citizens/needs';
 import { chooseActivity } from './citizens/brain';
 import { ACTIVITY_BY_KIND, SimContext, activityLabel, EDU_PER_HOUR, CLINIC_FEE, isFestivalDay } from './citizens/activities';
 import { SocialSystem } from './citizens/social';
-import { AgentState, ActivityKind, activityId, AGENT_STRIDE, TravelModeCode, CityStats, CitizenInfoMsg } from './protocol';
+import { AgentState, ActivityKind, activityId, AGENT_STRIDE, TravelModeCode, CityStats, CitizenInfoMsg, settlementLevel, SETTLEMENT_CLASSES } from './protocol';
 import {
   computeDemand, itemForDemand, findParcel, townCenter, townAttractiveness,
   householdHardship, updateEmigrationPressure, EMIGRATE_POP_FLOOR, EMIGRATE_PRESSURE_LIMIT,
@@ -82,7 +82,7 @@ const VOCATION_QUIT_CHANCE = 0.05;
 const DYNASTY_THRESHOLD = 8;
 
 export interface SimEvent {
-  name: 'citizenBorn' | 'citizenLeft' | 'jobTaken' | 'chatStarted' | 'cityGrew' | 'tierUnlocked' | 'coupleFormed' | 'festivalDay' | 'roadExtended' | 'epidemic' | 'vocationFound' | 'dynastyRose' | 'dynastyFell' | 'firstBuilding';
+  name: 'citizenBorn' | 'citizenLeft' | 'jobTaken' | 'chatStarted' | 'cityGrew' | 'tierUnlocked' | 'coupleFormed' | 'festivalDay' | 'roadExtended' | 'epidemic' | 'vocationFound' | 'dynastyRose' | 'dynastyFell' | 'firstBuilding' | 'settlementRose';
   data: Record<string, unknown>;
 }
 
@@ -112,6 +112,9 @@ export class Simulation {
   /** Tipos de edificio ya vistos (ciclo 45): se pre-puebla con los de la aldea
    * fundacional; la ciudad anuncia el PRIMERO de cada tipo NUEVO que levanta. */
   private readonly firstBuildingSeen = new Set<string>();
+  /** Clase de asentamiento ya alcanzada (ciclo 47): aldea→pueblo→villa→ciudad.
+   * Se inicia con la del arranque para no narrar la identidad de partida. */
+  private settlementLevelSeen = 0;
   private nextId = 1;
   private lastDay = 0;
   events: SimEvent[] = [];
@@ -168,6 +171,8 @@ export class Simulation {
     // Hitos del pueblo (ciclo 45): los edificios de la aldea fundacional no son
     // "primicias" — solo lo será el primer tipo NUEVO que la ciudad levante sola.
     for (const b of this.index.buildings) this.firstBuildingSeen.add(b.id);
+    // Identidad de partida (ciclo 47): no se narra el ascenso a la clase inicial.
+    this.settlementLevelSeen = settlementLevel(this.citizens.size);
   }
 
   // --- Población -------------------------------------------------------------
@@ -488,6 +493,14 @@ export class Simulation {
       }
       this.checkDynasties(); // ciclo 43: ¿alguna estirpe se ha afianzado?
       const pop = this.citizens.size;
+      // Mayoría de edad del asentamiento (ciclo 47): al cruzar un umbral de tamaño,
+      // el lugar ASCIENDE de categoría (aldea→pueblo→villa→ciudad) — su identidad,
+      // distinta del tier. Se narra cada escalón cruzado (puede subir dos de golpe).
+      const lvl = settlementLevel(pop);
+      while (this.settlementLevelSeen < lvl) {
+        this.settlementLevelSeen++;
+        this.events.push({ name: 'settlementRose', data: { class: SETTLEMENT_CLASSES[this.settlementLevelSeen], population: pop } });
+      }
       const unlocked: Tier = pop >= 200 ? 4 : pop >= 80 ? 3 : pop >= 25 ? 2 : 1;
       if (unlocked > this.tier) {
         this.tier = unlocked;

@@ -58,6 +58,27 @@ export function activityId(kind: ActivityKind): number {
   return ACTIVITY_IDS.indexOf(kind);
 }
 
+// --- Clase de asentamiento (ciclo 47): la IDENTIDAD del lugar por su tamaño ----
+/** Cómo se llama al asentamiento según su población — un eje distinto de los
+ * tiers (que abren edificios): esto es su IDENTIDAD, la ve el HUD siempre y la
+ * Crónica celebra cuando asciende. Pura; la comparten HUD y sim. */
+export const SETTLEMENT_CLASSES = ['aldea', 'pueblo', 'villa', 'ciudad'] as const;
+export type SettlementClass = (typeof SETTLEMENT_CLASSES)[number];
+/** Población mínima de cada clase (mismo índice que SETTLEMENT_CLASSES). */
+export const SETTLEMENT_MIN = [0, 20, 60, 150];
+
+export function settlementLevel(population: number): number {
+  let lvl = 0;
+  for (let i = SETTLEMENT_MIN.length - 1; i >= 0; i--) {
+    if (population >= SETTLEMENT_MIN[i]) { lvl = i; break; }
+  }
+  return lvl;
+}
+
+export function settlementClass(population: number): SettlementClass {
+  return SETTLEMENT_CLASSES[settlementLevel(population)];
+}
+
 // --- main → worker -----------------------------------------------------------
 
 export interface InitMsg {
@@ -143,7 +164,8 @@ export interface SimEventMsg {
     | 'vocationFound'
     | 'dynastyRose'
     | 'dynastyFell'
-    | 'firstBuilding';
+    | 'firstBuilding'
+    | 'settlementRose';
   data?: Record<string, unknown>;
 }
 

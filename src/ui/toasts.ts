@@ -57,6 +57,9 @@ function styleFor(name: string, data?: Record<string, unknown>): Style | null {
     case 'firstBuilding':
       // Hito del pueblo (ciclo 45): estrena un tipo de edificio — desarrollo urbano.
       return { accent: MILESTONE, mark: '⌂' };
+    case 'settlementRose':
+      // Mayoría de edad (ciclo 47): el lugar asciende de categoría — un gran hito.
+      return { accent: GOLDEN, mark: '✦' };
     case 'citizenLeft':
       // Solo los LEGADOS (matriarcas/patriarcas, ciclo 35) — no cada muerte.
       return isLegacyDeath(data) ? { accent: '', mark: '†' } : null;

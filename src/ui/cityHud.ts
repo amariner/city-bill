@@ -10,7 +10,7 @@
  * (signRed/signYellow), no hex sueltos — respeta la regla de arte nº 1.
  */
 import { PALETTE } from '../palette';
-import { CityStats, Speed } from '../sim/protocol';
+import { CityStats, Speed, settlementClass } from '../sim/protocol';
 
 /** Hex numérico de la paleta → color CSS. */
 function css(hex: number): string {
@@ -114,6 +114,10 @@ export class CityHud {
       this.chips.time.value.style.color = clock.speed === 0 ? WARN : '';
     }
 
+    // Identidad del lugar (ciclo 47): la etiqueta del chip de población es su
+    // CLASE (aldea/pueblo/villa/ciudad) — se ve crecer el asentamiento, no solo
+    // el número. El label ya va en mayúsculas y atenuado (encaja como categoría).
+    this.chips.pop.label.textContent = settlementClass(city.population);
     this.chips.pop.value.textContent = String(city.population);
 
     this.chips.treasury.value.textContent = fmtMoney(city.treasury);
