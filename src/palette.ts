@@ -75,6 +75,12 @@ export const PALETTE = {
   ambientSummer: 0xdcd8c8, // relleno cálido de verano
   snow: 0xeef2f7, // manto de nieve del terreno en invierno (emissive)
 
+  // Construcción autónoma (T4.2): andamio de madera pálida y solar de tierra
+  // desnuda. Tonos cálidos y desaturados, coherentes con la paleta tierra.
+  scaffold: 0xc9b088, // travesaños/postes de andamio (madera clara)
+  scaffoldShade: 0xb49a6f, // cara en sombra del andamio
+  constructionSite: 0xccbfa2, // solar despejado (tierra removida) bajo la obra
+
   // UI diegética
   selectRing: 0xd8b25a, // anillo bajo el ciudadano seleccionado en el inspector
 } as const;

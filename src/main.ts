@@ -12,10 +12,10 @@ import { createWorldView } from './neighborhood';
 import { seedWorld, seedFarm } from './world/seed';
 import { extendRoad } from './world/growth';
 import { createRng } from './rng';
-import { catalogItem } from './world/catalog';
 import { buildShowcase } from './showcase';
 import { SimClient, AgentView } from './sim/client';
 import { CitizenView } from './world/render/citizens';
+import { ConstructionView } from './world/render/construction';
 import { SelectionMarker } from './world/render/selectionMarker';
 import { DAY_GAME_SECONDS } from './sim/clock';
 import { seasonalWarmth } from './sim/weather';
@@ -50,6 +50,7 @@ camera.setZoomIndex(1);
 let worldView: ReturnType<typeof createWorldView> | null = null;
 let simClient: SimClient | null = null;
 let citizenView: CitizenView | null = null;
+let construction: ConstructionView | null = null;
 let selectionMarker: SelectionMarker | null = null;
 let chronicle: Chronicle | null = null;
 let toasts: Toasts | null = null;
@@ -73,6 +74,9 @@ if (sceneName === 'buildings') {
   simClient = new SimClient(worldSeed, grid.serialize());
   citizenView = new CitizenView();
   stage.scene.add(citizenView.root);
+  // Obras en curso: el sector de construcción autónoma se ve levantarse (T4.2).
+  construction = new ConstructionView(grid, worldView);
+  stage.scene.add(construction.root);
   selectionMarker = new SelectionMarker();
   stage.scene.add(selectionMarker.root);
   // Crecimiento autónomo (T4.2): el worker construye → replicamos en el
@@ -86,10 +90,9 @@ if (sceneName === 'buildings') {
     if (!data || !worldView) return;
     if (name === 'cityGrew') {
       const { id, cx, cz, rot } = data as { id: string; cx: number; cz: number; rot: 0 | 1 | 2 | 3 };
-      const it = catalogItem(id);
-      if (!it) return;
-      grid.placeBuilding(id, it.w, it.d, cx, cz, rot);
-      worldView.refreshChunkAt(cx, cz);
+      // La obra se ANIMA (andamio → subida → pop); al terminar, ConstructionView
+      // hornea el edificio en el grid de render. No lo colocamos aquí.
+      construction?.spawn(id, cx, cz, rot);
     } else if (name === 'roadExtended') {
       // T4.4: la ciudad trazó una calle en el worker → la replicamos EN EL RENDER.
       // La calzada/márgenes son deterministas (sin RNG); el arbolado puede diferir.
@@ -123,6 +126,7 @@ const agentViews: AgentView[] = [];
 const loop = new GameLoop(() => stage.renderer.render(stage.scene, camera.cam));
 loop.onUpdate((dt) => {
   controller.update(dt);
+  construction?.update(dt); // obras en curso (FX cosmético, dt real)
   if (worldView) hud.setStats({ chunks: worldView.countVisibleChunks(camera.cam) });
   if (simClient && citizenView) {
     const n = simClient.view(agentViews);

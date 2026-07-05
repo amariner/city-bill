@@ -225,6 +225,15 @@ repetido, arbolado automático en márgenes de carretera (rasgo de identidad).
   en modo autónomo total), la demanda materializa edificios por etapas con animación de
   construcción (andamio low-poly → pop). Parcela vacía → casita → casa con jardín →
   adosados → bloque, según densidad local. Cada edificio nuevo genera/atrae ciudadanos.
+  *ANIMACIÓN DE CONSTRUCCIÓN HECHA (2026-07-05):* `world/render/construction.ts`
+  (`ConstructionView`). Al llegar `cityGrew`, el edificio NO aparece de golpe: se
+  despeja un solar de tierra (`constructionSite`), se levanta un ANDAMIO low-poly
+  (postes + travesaños, madera `scaffold`/`scaffoldShade`) y el edificio EMERGE
+  escalando en Y con ease-out y remata con POP elástico; al terminar (~1.3 s de dt
+  REAL, FX cosmético) se hornea en el grid de render y el andamio se retira/desvanece.
+  Verificado por burst-screenshots del `?scene=farm` (andamio de madera visible
+  rodeando la obra, §4). *Pendiente:* progresión de densidad por etapas del MISMO
+  solar (casita→casa→bloque) — hoy cada demanda elige el mayor tier disponible.
 - [x] **T4.3 Inmigración/emigración.** Familias llegan si hay vivienda+empleo+felicidad;
   se van si no. La población es consecuencia, no un slider. (Inmigración modulada por
   atractividad = ciclo 12; emigración digna por penuria sostenida = ciclo 14, RESEARCH.md.)
