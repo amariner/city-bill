@@ -1517,6 +1517,34 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
     bornNoParent === 0, `→ ${bornNoParent} sin progenitor de ${born}`);
 }
 
+// Ciclo 49 RESEARCH.md — EL NACIMIENTO DEL PUEBLO: la saga necesita un principio. La
+// Crónica arranca con "se funda el pueblo — N almas lo levantan" (primera línea,
+// nunca se compacta, como el legado). Se emite en el arranque; la Crónica lo deduplica
+// al recargar (persiste por semilla).
+{
+  // Narración pura (única fuente, ciclo 18).
+  check('crónica: la fundación del pueblo se narra con sus fundadores',
+    chronicleText('townFounded', { founders: 12 }) === 'se funda el pueblo — 12 almas lo levantan');
+
+  // Emergente: una sim recién construida EMITE la fundación con el nº real de almas.
+  const sim = new Simulation(seedWorld(), 42);
+  const founded = sim.takeEvents().find((e) => e.name === 'townFounded');
+  check('fundación: el pueblo se funda al arrancar (beat de apertura)', founded !== undefined);
+  check('fundación: reporta el nº de fundadores igual a la población inicial',
+    founded !== undefined && founded.data.founders === sim.citizens.size);
+
+  // La fundación NO se compacta: el principio de la saga se recuerda para siempre.
+  const evs: ChronEvent[] = [
+    { year: 0, text: 'se funda el pueblo — 6 almas lo levantan', kind: 'founded' },
+    { year: 0, text: 'muere Ben (78 años)', kind: 'death' },
+  ];
+  const compacted = compactChronicle(evs, 10); // año 0 ya es viejo (RETAIN 4)
+  check('fundación: sobrevive a la compactación (como el legado)',
+    compacted.some((e) => e.kind === 'founded' && e.text.includes('se funda')));
+  check('fundación: lo rutinario del año fundacional sí se resume',
+    compacted.some((e) => e.kind === 'summary' && e.year === 0));
+}
+
 // Determinismo: mismo snapshot final con la misma semilla.
 const a = runDays(7, 1).sim.snapshot();
 const b = runDays(7, 1).sim.snapshot();

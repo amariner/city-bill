@@ -93,7 +93,7 @@ const VOCATION_QUIT_CHANCE = 0.05;
 const DYNASTY_THRESHOLD = 8;
 
 export interface SimEvent {
-  name: 'citizenBorn' | 'citizenLeft' | 'jobTaken' | 'chatStarted' | 'cityGrew' | 'tierUnlocked' | 'coupleFormed' | 'festivalDay' | 'roadExtended' | 'epidemic' | 'citizenRetired' | 'homePrestige' | 'cultivationChanged' | 'vocationFound' | 'dynastyRose' | 'dynastyFell' | 'firstBuilding' | 'settlementRose' | 'familyArrived';
+  name: 'citizenBorn' | 'citizenLeft' | 'jobTaken' | 'chatStarted' | 'cityGrew' | 'tierUnlocked' | 'coupleFormed' | 'festivalDay' | 'roadExtended' | 'epidemic' | 'citizenRetired' | 'homePrestige' | 'cultivationChanged' | 'vocationFound' | 'dynastyRose' | 'dynastyFell' | 'firstBuilding' | 'settlementRose' | 'familyArrived' | 'townFounded';
   data: Record<string, unknown>;
 }
 
@@ -184,6 +184,10 @@ export class Simulation {
     for (const b of this.index.buildings) this.firstBuildingSeen.add(b.id);
     // Identidad de partida (ciclo 47): no se narra el ascenso a la clase inicial.
     this.settlementLevelSeen = settlementLevel(this.citizens.size);
+    // El principio de la saga (ciclo 49): el pueblo se funda. Primer beat de la
+    // Crónica — la historia necesita un comienzo. La Crónica lo deduplica al
+    // recargar (persiste por semilla), así que se emite siempre sin miedo.
+    this.events.push({ name: 'townFounded', data: { founders: this.citizens.size } });
   }
 
   // --- Población -------------------------------------------------------------

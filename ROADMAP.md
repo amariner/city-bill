@@ -931,3 +931,10 @@ aprieta, T3.8-T3.10 y la Fase 4 valen más que cualquier cosa de la Fase 5.
   narra "la familia Novák se instala en el pueblo", con contador `llegadas` en la cabecera
   y compactación por año ("N llegadas de fuera"). Invariante verificada: todo `citizenBorn`
   lleva progenitor (linaje). 319/319 tests, `tsc` limpio. Ver RESEARCH.md §4 (ciclo 48).
+- 2026-07-05 (sesión Opus, tras el merge — ciclo 49) — **El nacimiento del pueblo**: la
+  saga necesitaba un principio. La Crónica abre ahora con "se funda el pueblo — N almas lo
+  levantan" (evento `townFounded` al construir, kind `founded`), primera línea que NUNCA se
+  compacta (como el legado). Dedup por persistencia (la sim se reconstruye al recargar pero
+  la Crónica persiste por semilla). Con esto la Crónica cuenta un arco completo: el pueblo
+  nace (49) → llegan/nacen sus gentes (48/42) → familias y dinastías (43) crecen y se apagan
+  (44) → el lugar madura de aldea a ciudad (47). 324/324 tests, `tsc` limpio.

@@ -1603,3 +1603,17 @@ una simulación, y los tratamos como tales:
   42) → el feed reciente puede llenarse de llegadas; se compacta por año, pero un ciclo
   futuro podría narrar solo las llegadas NOTABLES (familias grandes / a bloques) y contar
   el resto. La demografía, eso sí, ya es HONESTA (nacer ≠ inmigrar).
+- 2026-07-05 · **Ciclo 49: EL NACIMIENTO DEL PUEBLO (el principio de la saga)** · La
+  Crónica contaba vidas, familias, dinastías y el desarrollo del lugar, pero no tenía un
+  COMIENZO — abría con la primera construcción o el primer nacimiento, nunca con el pueblo
+  fundándose. Ahora el constructor emite `townFounded{founders}` y la Crónica abre con "se
+  funda el pueblo — N almas lo levantan" (kind `founded`), su PRIMERA línea. Como el legado
+  (ciclo 35), NO se compacta jamás: el principio de la saga se recuerda para siempre.
+  TRAMPA resuelta (persistencia): la sim se reconstruye en CADA recarga y reemitiría la
+  fundación, pero la Crónica persiste por semilla (`localStorage`) → dedup en `onEvent`
+  (si ya hay un evento `founded`, se ignora) para no acumular "se funda" en cada visita.
+  Sin RNG, sin toast (una vez al arrancar; vive en la Crónica). VERIFICAR: 324/324 tests
+  (5 nuevos: narración, emisión al construir con nº real de fundadores, supervivencia a la
+  compactación), `tsc` limpio. Con esto la Crónica cuenta un arco COMPLETO: el pueblo nace
+  (49) → llegan y nacen sus gentes (48/42) → forman familias y dinastías (43) que crecen y
+  se apagan (44) → el lugar madura de aldea a ciudad (47) y estrena sus obras (45).

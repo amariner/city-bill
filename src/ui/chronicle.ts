@@ -15,7 +15,7 @@ import { ILLNESS_HEALTH, OLD_AGE } from '../sim/lifecycle';
 const ACTIVE_LOGICS = activeLogicNames();
 
 /** Tipo de evento para la compactación por años (RESEARCH §5). */
-export type ChronKind = 'birth' | 'death' | 'emigrated' | 'arrived' | 'couple' | 'milestone' | 'legacy' | 'summary';
+export type ChronKind = 'birth' | 'death' | 'emigrated' | 'arrived' | 'couple' | 'milestone' | 'legacy' | 'summary' | 'founded';
 
 /** Hijos criados a partir de los cuales una muerte es LEGADO permanente (ciclo 35). */
 export const LEGACY_KIDS = 4;
@@ -85,8 +85,10 @@ export function summarizeYear(year: number, events: ChronEvent[]): ChronEvent {
 export function compactChronicle(events: ChronEvent[], currentYear: number): ChronEvent[] {
   const cutoff = currentYear - RETAIN_DETAIL_YEARS;
   // Un LEGADO (ciclo 35) NO se compacta: se recuerda por nombre para siempre,
-  // como un 'summary'. Lo rutinario del año sí se resume en una línea.
-  const compactable = (e: ChronEvent) => e.year <= cutoff && e.kind !== 'summary' && e.kind !== 'legacy';
+  // como un 'summary'. La FUNDACIÓN (ciclo 49) tampoco: es el principio de la saga.
+  // Lo rutinario del año sí se resume en una línea.
+  const compactable = (e: ChronEvent) =>
+    e.year <= cutoff && e.kind !== 'summary' && e.kind !== 'legacy' && e.kind !== 'founded';
   const detailByYear = new Map<number, ChronEvent[]>();
   for (const e of events) {
     if (compactable(e)) {
@@ -152,6 +154,11 @@ export function chronicleText(name: string, data?: Record<string, unknown>): str
       return `una epidemia recorre la ciudad (${data?.sick ?? '?'} enfermos)`;
     case 'citizenRetired':
       return `${who} se jubila`;
+    case 'townFounded': {
+      // El principio de la saga (ciclo 49): la primera línea de la Crónica.
+      const n = typeof data?.founders === 'number' ? data.founders : '?';
+      return `se funda el pueblo — ${n} almas lo levantan`;
+    }
     case 'familyArrived': {
       // Llegada (ciclo 48): una ciudad atractiva recibe gente — no es un nacimiento.
       const fam = typeof data?.surname === 'string' && data.surname ? data.surname : '';
@@ -271,6 +278,9 @@ export class Chronicle {
     const year = this.lastYear < 0 ? 0 : this.lastYear;
     // Fundadores: no inundar la crónica con el nacimiento inicial.
     if (name === 'citizenBorn' && year === 0) return;
+    // Fundación (ciclo 49): se emite en CADA arranque (la sim se reconstruye al
+    // recargar), pero la Crónica persiste por semilla → solo se registra UNA vez.
+    if (name === 'townFounded' && this.data.events.some((e) => e.kind === 'founded')) return;
     // Contadores (memoria numérica; la narración va aparte, en chronicleText).
     switch (name) {
       case 'citizenBorn':
@@ -294,6 +304,7 @@ export class Chronicle {
     if (!text) return;
     const kind: ChronKind =
       name === 'citizenBorn' ? 'birth'
+      : name === 'townFounded' ? 'founded'
       : name === 'coupleFormed' ? 'couple'
       : name === 'familyArrived' ? 'arrived'
       : name === 'citizenLeft' ? (data?.reason === 'emigrated' ? 'emigrated' : isLegacyDeath(data) ? 'legacy' : 'death')
