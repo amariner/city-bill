@@ -100,6 +100,13 @@ export function compactChronicle(events: ChronEvent[], currentYear: number): Chr
 /** Edad a partir de la cual una muerte se narra como "una vida larga". */
 const LONG_LIFE_AGE = 85;
 
+/** Vocación (ciclo 36) en la voz de la Crónica — consistente con el inspector. */
+const VOCATION_STORY: Record<string, string> = {
+  labrar: 'por fin labra la tierra',
+  tratar: 'por fin vive del trato con la gente',
+  cuidar: 'por fin se dedica a cuidar de otros',
+};
+
 /**
  * Evento de sim → frase de la Crónica (PURA y testeable — ciclo 18). La Crónica
  * es la memoria del juego (§3/§6.1: ganamos cuando cuenta historias que no
@@ -111,8 +118,12 @@ const LONG_LIFE_AGE = 85;
 export function chronicleText(name: string, data?: Record<string, unknown>): string | null {
   const who = (data?.name as string) ?? 'alguien';
   switch (name) {
-    case 'citizenBorn':
-      return `nace ${who}`;
+    case 'citizenBorn': {
+      // Linaje (ciclo 42): el nacimiento muestra de quién desciende — la saga
+      // generacional se lee en el feed (los apellidos se perpetúan por herencia).
+      const parent = typeof data?.parent === 'string' ? data.parent.split(' ')[0] : '';
+      return parent ? `nace ${who}, de ${parent}` : `nace ${who}`;
+    }
     case 'citizenLeft': {
       if (data?.reason === 'emigrated') return `${who} se marcha a otra ciudad`;
       const h = typeof data?.health === 'number' ? data.health : 1;
@@ -137,6 +148,42 @@ export function chronicleText(name: string, data?: Record<string, unknown>): str
       return typeof data?.name === 'string' ? data.name : 'fiesta mayor del pueblo';
     case 'epidemic':
       return `una epidemia recorre la ciudad (${data?.sick ?? '?'} enfermos)`;
+    case 'dynastyRose': {
+      // Dinastía (ciclo 43): una estirpe se afianza — descendencia REAL, no azar.
+      const fam = typeof data?.surname === 'string' ? data.surname : (data?.founder ?? 'una familia');
+      const n = typeof data?.members === 'number' ? data.members : '?';
+      return `la familia ${fam} echa raíces: ${n} descendientes vivos`;
+    }
+    case 'settlementRose': {
+      // Mayoría de edad del asentamiento (ciclo 47): sube de categoría por tamaño.
+      const cls = data?.class;
+      const n = typeof data?.population === 'number' ? data.population : '?';
+      const phrase =
+        cls === 'pueblo' ? 'la aldea se hace pueblo'
+        : cls === 'villa' ? 'el pueblo se hace villa'
+        : cls === 'ciudad' ? 'la villa se hace ciudad'
+        : 'la comunidad crece';
+      return `${phrase} (${n} almas)`;
+    }
+    case 'firstBuilding': {
+      // Hito del pueblo (ciclo 45): el pueblo estrena un tipo de edificio (fórmula
+      // neutra sin artículo — los nombres del catálogo tienen género variado).
+      const label = typeof data?.name === 'string' ? data.name : 'un edificio nuevo';
+      return `el pueblo estrena un edificio nuevo: ${label}`;
+    }
+    case 'dynastyFell': {
+      // Extinción de estirpe (ciclo 44): el arco de una familia se cierra.
+      const fam = typeof data?.surname === 'string' && data.surname ? data.surname : '';
+      return fam
+        ? `se extingue la familia ${fam} — no queda ninguno de su sangre`
+        : 'se extingue una vieja estirpe — no queda ninguno de su sangre';
+    }
+    case 'vocationFound': {
+      // Rotación vocacional (ciclo 41): alguien dejó su oficio y encontró su
+      // llamada — una historia que el churn genera, no un guion.
+      const voc = typeof data?.vocation === 'string' ? VOCATION_STORY[data.vocation] : undefined;
+      return voc ? `${who} encuentra su vocación: ${voc}` : `${who} encuentra su vocación`;
+    }
     default:
       return null;
   }

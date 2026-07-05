@@ -191,6 +191,9 @@ export class CitizenInspector {
     ].join('\n');
     // Quién es (ciclo 23): edad, etapa y pareja bajo el nombre.
     const who = `${info.age} años · ${info.lifeStage}${info.partnerName ? ` · con ${info.partnerName}` : ''}`;
+    // Linaje (ciclo 42): de quién desciende — la saga generacional, visible en la
+    // ficha (los fundadores/inmigrantes no tienen; llegaron de fuera).
+    const lineage = info.parent ? `\nhijo/a de ${info.parent}` : '';
     // Vocación (ciclo 36) y legado (ciclo 34): lo que la sim ya modela por
     // dentro y no salía. La vocación se marca cumplida (✓) si el empleo la colma.
     // Oficio (lo que hace) vs vocación (lo que ama): si coinciden, ✓.
@@ -202,7 +205,17 @@ export class CitizenInspector {
     const legacy = info.childrenRaised > 0
       ? `\nlegado: ${info.childrenRaised} ${info.childrenRaised === 1 ? 'hijo criado' : 'hijos criados'}`
       : '';
+    // Descendencia viva (ciclo 43): la familia hacia abajo — cuántos hijos siguen
+    // en el pueblo (complementa el legado, que cuenta los criados a lo largo de la vida).
+    const descendants = info.livingChildren > 0
+      ? `\nfamilia: ${info.livingChildren} ${info.livingChildren === 1 ? 'hijo/a vive aquí' : 'hijos viven aquí'}`
+      : '';
+    // Amistad (ciclo 46): la afinidad social, simulada desde T3.7 pero nunca vista.
+    // Se muestra el lazo más cercano, marcando si es ÍNTIMO (un amigo de verdad).
+    const friend = info.bestFriend
+      ? `\n${info.bestFriendClose ? 'amistad íntima' : 'conocido/a'}: ${info.bestFriend}`
+      : '';
     const trade = job ? `${job}\n` : '';
-    this.el.textContent = `${info.name}\n${who}\n${info.activityLabel}${this.follow ? '  ⌖' : ''}\n\n${bars}\n${meta}\n\n${trade}${voc}${legacy}\n\n[F] seguir · [Esc] cerrar`;
+    this.el.textContent = `${info.name}\n${who}${lineage}\n${info.activityLabel}${this.follow ? '  ⌖' : ''}\n\n${bars}\n${meta}\n\n${trade}${voc}${legacy}${descendants}${friend}\n\n[F] seguir · [Esc] cerrar`;
   }
 }

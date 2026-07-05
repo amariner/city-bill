@@ -16,12 +16,12 @@ import { PathQueue, pathLength } from './pathfinding';
 import { CellXZ, manhattan } from './geometry';
 import { WorldIndex } from './worldIndex';
 import { Economy } from './economy';
-import { Citizen, citizenName, PlannedActivity, TravelMode, jobFitsVocation, vocationOf, VOCATION_PURPOSE_BONUS } from './citizens/citizen';
+import { Citizen, citizenName, PlannedActivity, TravelMode, jobFitsVocation, vocationOf, VOCATION_PURPOSE_BONUS, surnameOf } from './citizens/citizen';
 import { decayNeeds, restore, NEED_KEYS } from './citizens/needs';
 import { chooseActivity } from './citizens/brain';
 import { ACTIVITY_BY_KIND, SimContext, activityLabel, EDU_PER_HOUR, CLINIC_FEE, isFestivalDay } from './citizens/activities';
 import { SocialSystem } from './citizens/social';
-import { AgentState, ActivityKind, activityId, AGENT_STRIDE, TravelModeCode, CityStats, CitizenInfoMsg } from './protocol';
+import { AgentState, ActivityKind, activityId, AGENT_STRIDE, TravelModeCode, CityStats, CitizenInfoMsg, settlementLevel, SETTLEMENT_CLASSES } from './protocol';
 import {
   computeDemand, itemForDemand, findParcel, townCenter, townAttractiveness,
   householdHardship, updateEmigrationPressure, EMIGRATE_POP_FLOOR, EMIGRATE_PRESSURE_LIMIT,
@@ -66,8 +66,23 @@ const VACCINE_COST_PER_DOSE = 6;
  * campaña (otoño-invierno): la capacidad del sistema, ~toda en dos semanas. */
 const VACCINE_DAILY_FRACTION = 0.12;
 
+// --- Rotación vocacional (ciclo 41): que la vocación MUEVA a la gente ----------
+/** Probabilidad diaria de que un adulto INFELIZ en su oficio (trabaja lejos de
+ * su vocación) lo deje para buscar el suyo — pero solo si hay una vacante que sí
+ * lo colma a su alcance (`hasVocationVacancy`). Bajo a propósito: un goteo de
+ * HISTORIAS ("deja la tienda y por fin labra la tierra"), no un vuelco laboral.
+ * El ciclo 37 demostró que preferir en la asignación es un no-op sin este churn. */
+const VOCATION_QUIT_CHANCE = 0.05;
+
+// --- Dinastías (ciclo 43): la estirpe que se afianza -------------------------
+/** Descendientes VIVOS de un mismo tronco a partir de los cuales la Crónica
+ * reconoce una DINASTÍA (una familia que ha echado raíces). Medido: las líneas
+ * dominantes llegan a 20-40 en pueblos pequeños; 8 marca una familia grande de
+ * verdad y dispara pocas veces (un hito raro, no spam). */
+const DYNASTY_THRESHOLD = 8;
+
 export interface SimEvent {
-  name: 'citizenBorn' | 'citizenLeft' | 'jobTaken' | 'chatStarted' | 'cityGrew' | 'tierUnlocked' | 'coupleFormed' | 'festivalDay' | 'roadExtended' | 'epidemic';
+  name: 'citizenBorn' | 'citizenLeft' | 'jobTaken' | 'chatStarted' | 'cityGrew' | 'tierUnlocked' | 'coupleFormed' | 'festivalDay' | 'roadExtended' | 'epidemic' | 'vocationFound' | 'dynastyRose' | 'dynastyFell' | 'firstBuilding' | 'settlementRose';
   data: Record<string, unknown>;
 }
 
@@ -79,6 +94,27 @@ export class Simulation {
   readonly social: SocialSystem;
   readonly paths: PathQueue;
   private rng: Rng;
+  /** RNG APARTE para el churn vocacional (ciclo 41): así el goteo de renuncias
+   * no altera el flujo del RNG general (natalidad, crecimiento…) — el resto de
+   * la sim conserva su secuencia exacta y el churn sigue siendo determinista. */
+  private churnRng: Rng;
+  /** Quienes dejaron su puesto HOY buscando su vocación (ciclo 41): se reasignan
+   * con preferencia y, si aciertan, la Crónica lo narra. Se reusa por día. */
+  private readonly churnSeekers = new Set<number>();
+  /** Troncos de estirpe ya reconocidos como dinastía (ciclo 43): el hito se narra
+   * UNA vez por línea, cuando cruza el umbral de descendientes vivos. */
+  private readonly dynastiesSeen = new Set<number>();
+  /** Dinastías ya extinguidas (ciclo 44): su caída se narra una sola vez. */
+  private readonly dynastiesFallen = new Set<number>();
+  /** Apellido de cada tronco reconocido (ciclo 44): para narrar su extinción
+   * cuando ya no queda ningún miembro vivo de quien leerlo. */
+  private readonly dynastyNames = new Map<number, string>();
+  /** Tipos de edificio ya vistos (ciclo 45): se pre-puebla con los de la aldea
+   * fundacional; la ciudad anuncia el PRIMERO de cada tipo NUEVO que levanta. */
+  private readonly firstBuildingSeen = new Set<string>();
+  /** Clase de asentamiento ya alcanzada (ciclo 47): aldea→pueblo→villa→ciudad.
+   * Se inicia con la del arranque para no narrar la identidad de partida. */
+  private settlementLevelSeen = 0;
   private nextId = 1;
   private lastDay = 0;
   events: SimEvent[] = [];
@@ -96,6 +132,10 @@ export class Simulation {
   /** Vacunación activa (ciclo 33): salud pública preventiva. false = escenario
    * "sin vacuna" (para medir la inmunidad de rebaño contra la epidemia cruda). */
   vaccination = true;
+  /** Rotación vocacional activa (ciclo 41): los infelices en su oficio buscan su
+   * vocación. false = escenario "sin churn" (para medir cuánto ACERCA la gente a
+   * su llamada — la lección del ciclo 37: preferir sin churn es un no-op). */
+  vocationalMobility = true;
   /** Vacunaciones administradas (ciclo 33 — métrica de tests/Crónica). */
   vaccinationsGiven = 0;
   /** Tier desbloqueado (T4.5 lo ligará a población; fijo de momento). */
@@ -121,12 +161,18 @@ export class Simulation {
 
   constructor(readonly grid: Grid, readonly seed: number) {
     this.rng = createRng(seed ^ 0x5f3759df);
+    this.churnRng = createRng(seed ^ 0x243f6a88);
     this.index = new WorldIndex(grid);
     this.social = new SocialSystem(createRng(seed ^ 0x9e3779b9));
     this.paths = new PathQueue(grid);
     this.spawnPopulation();
     this.economy.rebuild(this.index, this.citizens);
     this.hireAndAcquaint();
+    // Hitos del pueblo (ciclo 45): los edificios de la aldea fundacional no son
+    // "primicias" — solo lo será el primer tipo NUEVO que la ciudad levante sola.
+    for (const b of this.index.buildings) this.firstBuildingSeen.add(b.id);
+    // Identidad de partida (ciclo 47): no se narra el ascenso a la clase inicial.
+    this.settlementLevelSeen = settlementLevel(this.citizens.size);
   }
 
   // --- Población -------------------------------------------------------------
@@ -186,12 +232,26 @@ export class Simulation {
     return free;
   }
 
-  private spawnCitizen(ax: number, az: number, buildingId: string, age?: number): Citizen {
+  private spawnCitizen(
+    ax: number,
+    az: number,
+    buildingId: string,
+    age?: number,
+    lineage?: { surname: string; parentName: string; parentId: number; lineId: number },
+  ): Citizen {
     const b = this.index.at(ax, az);
     const door: CellXZ = b?.entrance ?? [ax, az];
+    // Linaje (ciclo 42): un hijo hereda el APELLIDO de un progenitor. Se genera
+    // igualmente el nombre completo (mismo nº de tiradas de RNG → determinismo y
+    // crecimiento intactos) y solo se SUSTITUYE el apellido por el heredado.
+    const generated = citizenName(this.rng);
+    const name = lineage ? `${generated.split(' ')[0]} ${lineage.surname}` : generated;
     const c: Citizen = {
       id: this.nextId++,
-      name: citizenName(this.rng),
+      name,
+      parent: lineage?.parentName,
+      parentId: lineage?.parentId,
+      lineId: lineage?.lineId,
       age: age ?? Math.floor(this.rng.range(18, 72)),
       personality: {
         sociable: this.rng.next(),
@@ -226,13 +286,86 @@ export class Simulation {
       inside: true, // empiezan en casa
     };
     this.citizens.set(c.id, c);
-    this.events.push({ name: 'citizenBorn', data: { id: c.id, name: c.name } });
+    this.events.push({ name: 'citizenBorn', data: { id: c.id, name: c.name, parent: c.parent } });
     return c;
   }
 
-  /** Contrata parados y presenta a vecinos cercanos y compañeros de trabajo. */
-  private hireAndAcquaint(): void {
-    const hires = this.economy.assignJobs(this.citizens);
+  /** Rotación vocacional (ciclo 41): un adulto que trabaja LEJOS de su vocación
+   * puede, de tanto en tanto, DEJAR su puesto para buscar el suyo — pero solo si
+   * existe una vacante que sí lo colma a su alcance (si no, quedarse es lo cuerdo:
+   * nada de paro estéril). Marca a los que renuncian como buscadores para que la
+   * reasignación (hireAndAcquaint) los lleve a su llamada y la Crónica lo narre.
+   * Usa un RNG APARTE → no perturba el flujo general. Determinista. */
+  private vocationalChurn(): void {
+    this.churnSeekers.clear();
+    if (!this.vocationalMobility) return;
+    const quitters: Citizen[] = [];
+    for (const c of this.citizens.values()) {
+      if (!c.work || c.age < ADULT_AGE || c.age >= OLD_AGE) continue;
+      if (jobFitsVocation(c.personality, catalogData(c.work.buildingId)?.role)) continue; // ya en lo suyo
+      if (!this.economy.hasVocationVacancy(c)) continue; // sin destino: no renuncia
+      if (this.churnRng.next() < VOCATION_QUIT_CHANCE) quitters.push(c);
+    }
+    // Determinista: renuncia por orden de id (el orden del Map ya es de inserción,
+    // pero fijamos por si acaso — libera sillas antes de reasignar).
+    quitters.sort((a, b) => a.id - b.id);
+    for (const c of quitters) {
+      this.economy.vacate(c);
+      this.churnSeekers.add(c.id);
+    }
+  }
+
+  /** Dinastías (ciclo 43): cuenta los descendientes VIVOS de cada tronco y, la
+   * primera vez que una línea cruza el umbral, la Crónica la reconoce como una
+   * familia afianzada. Descendencia REAL (por `lineId`), no coincidencia de
+   * apellido — sobrevive a la muerte de los ancestros. Sin RNG; O(n)/día. */
+  private checkDynasties(): void {
+    const alive = new Map<number, number>();
+    const surname = new Map<number, string>();
+    for (const c of this.citizens.values()) {
+      if (c.lineId === undefined) continue;
+      alive.set(c.lineId, (alive.get(c.lineId) ?? 0) + 1);
+      if (!surname.has(c.lineId)) surname.set(c.lineId, surnameOf(c.name));
+    }
+    for (const [line, count] of alive) {
+      if (count < DYNASTY_THRESHOLD || this.dynastiesSeen.has(line)) continue;
+      this.dynastiesSeen.add(line);
+      const founder = this.citizens.get(line); // vivo aún? (puede haber muerto)
+      const fam = surname.get(line) ?? '';
+      this.dynastyNames.set(line, fam);
+      this.events.push({
+        name: 'dynastyRose',
+        data: { line, surname: fam, members: count, founder: founder?.name },
+      });
+    }
+    // Extinción (ciclo 44): una dinastía reconocida cuya SANGRE se apaga del todo
+    // — ni un descendiente vivo (alive) ni el tronco (el fundador) — cierra su arco.
+    // Requerir también al fundador muerto evita el falso positivo de que aún podría
+    // tener más hijos y revivir la línea. Se narra una sola vez.
+    for (const line of this.dynastiesSeen) {
+      if (this.dynastiesFallen.has(line)) continue;
+      if (alive.has(line) || this.citizens.has(line)) continue; // aún hay sangre
+      this.dynastiesFallen.add(line);
+      this.events.push({ name: 'dynastyFell', data: { line, surname: this.dynastyNames.get(line) } });
+    }
+  }
+
+  /** Tras reasignar, narra a los buscadores (ciclo 41) que aterrizaron en un
+   * empleo que COLMA su vocación: la historia que el churn genera. */
+  private reportVocationFound(): void {
+    for (const id of this.churnSeekers) {
+      const c = this.citizens.get(id);
+      if (c?.work && jobFitsVocation(c.personality, catalogData(c.work.buildingId)?.role)) {
+        this.events.push({ name: 'vocationFound', data: { id, name: c.name, vocation: vocationOf(c.personality) } });
+      }
+    }
+  }
+
+  /** Contrata parados y presenta a vecinos cercanos y compañeros de trabajo.
+   * `seekers` (ciclo 41): parados que buscan su vocación — se colocan con
+   * preferencia por los empleos que la colman. */
+  private hireAndAcquaint(seekers?: ReadonlySet<number>): void {
+    const hires = this.economy.assignJobs(this.citizens, seekers);
     for (const h of hires) this.events.push({ name: 'jobTaken', data: h as unknown as Record<string, unknown> });
     // Compañeros de trabajo se conocen.
     for (const w of this.economy.workplaces) {
@@ -348,7 +481,9 @@ export class Simulation {
       this.stepOutbreak(); // ciclo 25: en invierno, algún resfriado prende y se propaga
       this.stepEmigration(); // ciclo 14: tras la red de pensiones (última bala)
       this.economy.investInHomes(this.households.keys()); // estatus, ciclo 9
-      this.hireAndAcquaint();
+      this.vocationalChurn(); // ciclo 41: quien es infeliz en su oficio busca su vocación
+      this.hireAndAcquaint(this.churnSeekers);
+      this.reportVocationFound(); // narra a quien, tras dejar su puesto, encontró su llamada
       if (isFestivalDay(this.clock.day)) {
         // Cosecha abundante (ciclo 24): la fiesta de otoño se celebra distinta si
         // el granero rebosa — acopla festival↔alimento↔estación, sin guion.
@@ -356,7 +491,16 @@ export class Simulation {
         if (festName === 'fiesta de la cosecha' && this.economy.granary > BOUNTIFUL_GRANARY) festName += ' abundante';
         this.events.push({ name: 'festivalDay', data: { day: this.clock.day, name: festName } });
       }
+      this.checkDynasties(); // ciclo 43: ¿alguna estirpe se ha afianzado?
       const pop = this.citizens.size;
+      // Mayoría de edad del asentamiento (ciclo 47): al cruzar un umbral de tamaño,
+      // el lugar ASCIENDE de categoría (aldea→pueblo→villa→ciudad) — su identidad,
+      // distinta del tier. Se narra cada escalón cruzado (puede subir dos de golpe).
+      const lvl = settlementLevel(pop);
+      while (this.settlementLevelSeen < lvl) {
+        this.settlementLevelSeen++;
+        this.events.push({ name: 'settlementRose', data: { class: SETTLEMENT_CLASSES[this.settlementLevelSeen], population: pop } });
+      }
       const unlocked: Tier = pop >= 200 ? 4 : pop >= 80 ? 3 : pop >= 25 ? 2 : 1;
       if (unlocked > this.tier) {
         this.tier = unlocked;
@@ -407,7 +551,17 @@ export class Simulation {
       this.events.push({ name: 'coupleFormed', data: { a: a.name, b: b.name } });
     }
     for (const b of life.births) {
-      const child = this.spawnCitizen(b.home.ax, b.home.az, b.home.buildingId, 0);
+      // Linaje (ciclo 42): el hijo hereda el apellido de un progenitor → los
+      // apellidos se perpetúan y el pueblo cría DINASTÍAS visibles en la Crónica.
+      const surname = surnameOf(b.parents[0].name);
+      const child = this.spawnCitizen(b.home.ax, b.home.az, b.home.buildingId, 0, {
+        surname,
+        parentName: b.parents[0].name,
+        parentId: b.parents[0].id,
+        // El tronco de la estirpe (ciclo 43): el fundador de la línea. Se propaga
+        // hacia abajo → sobrevive a la muerte de los ancestros.
+        lineId: b.parents[0].lineId ?? b.parents[0].id,
+      });
       SocialSystem.acquaint(child, b.parents[0], 0.8);
       SocialSystem.acquaint(child, b.parents[1], 0.8);
       b.parents[0].childrenRaised++; // ciclo 34: cada vida deja rastro (legado)
@@ -707,6 +861,13 @@ export class Simulation {
     }
     this.hireAndAcquaint();
     this.events.push({ name: 'cityGrew', data: { ...p } });
+    // Hito del pueblo (ciclo 45): la PRIMERA vez que se levanta un tipo de edificio
+    // — el pueblo estrena escuela, tienda, consultorio, fábrica… un beat de su
+    // desarrollo (acopla con los tiers: cada tier abre tipos nuevos).
+    if (!this.firstBuildingSeen.has(p.id)) {
+      this.firstBuildingSeen.add(p.id);
+      this.events.push({ name: 'firstBuilding', data: { id: p.id, name: it.name } });
+    }
   }
 
   private stepCitizen(c: Citizen, ctx: SimContext): void {
@@ -1011,10 +1172,33 @@ export class Simulation {
     for (let i = 0; i < ticks; i++) this.step();
   }
 
+  /** Hijos vivos de un ciudadano (linaje, ciclo 43): descendencia directa aún en
+   * el pueblo. O(n) por consulta del inspector (2/s) — barato. */
+  private countChildren(id: number): number {
+    let n = 0;
+    for (const c of this.citizens.values()) if (c.parentId === id) n++;
+    return n;
+  }
+
+  /** Amistad más cercana VIVA de un ciudadano (social, ciclo 46): la afinidad más
+   * alta hacia alguien aún en el pueblo. Devuelve su nombre e íntimidad (≥ el umbral
+   * de duelo por amigo = un lazo de verdad, no un simple conocido). */
+  private closestFriend(c: Citizen): { name?: string; close: boolean } {
+    let name: string | undefined;
+    let best = -1;
+    for (const [fid, aff] of c.friends) {
+      const f = this.citizens.get(fid);
+      if (!f) continue; // muerto o emigrado: ya no cuenta
+      if (aff > best) { best = aff; name = f.name; }
+    }
+    return { name, close: best >= GRIEF_FRIEND_AFFINITY };
+  }
+
   /** Estado legible de un ciudadano (inspector T3.10). */
   describe(id: number): Omit<CitizenInfoMsg, 'type' | 'id'> | null {
     const c = this.citizens.get(id);
     if (!c) return null;
+    const friend = this.closestFriend(c);
     const homeKey = `${c.home.ax},${c.home.az}`;
     // Quién es (ciclo 23): edad, etapa de vida y con quién comparte la vida —
     // el inspector deja de ser una hoja de stats y pasa a mostrar una PERSONA.
@@ -1033,6 +1217,10 @@ export class Simulation {
       age: c.age,
       lifeStage,
       partnerName: partner?.name,
+      parent: c.parent,
+      livingChildren: this.countChildren(c.id),
+      bestFriend: friend.name,
+      bestFriendClose: friend.close,
       activity: c.activity,
       activityLabel: activityLabel(c.activity, c.phase.kind === 'moving' || c.phase.kind === 'waitingPath'),
       needs: { ...c.needs },

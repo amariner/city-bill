@@ -431,3 +431,61 @@ aprieta, T3.8-T3.10 y la Fase 4 valen más que cualquier cosa de la Fase 5.
     `tsc` limpio, `grid.test` 33/33. Refactor de `main.ts`: `buildRenderAndUi(grid)`
     separado de la creación del `SimClient` (el render se monta al llegar el grid
     maduro; el juego normal lo llama sincrónico como antes).
+- 2026-07-05 (sesión Opus, LÓGICA+INTERFAZ a la par — ciclo 41) — **Rotación vocacional
+  (churn)**: la vocación (ciclo 36) ya no es solo un tinte de propósito, ahora MUEVE a la
+  gente. Un adulto infeliz en su oficio (trabaja lejos de su vocación) puede DEJARLO para
+  buscar el suyo, si hay vacante que lo colma a su alcance; al reasignar, gravita a su
+  llamada (descuento de distancia solo para el que busca). Salda la lección del ciclo 37
+  (preferir sin churn = no-op): medido A/B, el encaje sube (p.ej. seed 500 0.27→0.38) y
+  el suelo de comida es IDÉNTICO ON/OFF (benigno). RNG APARTE (`churnRng`) para no
+  perturbar el flujo general. **Interfaz a la par**: evento `vocationFound` → la Crónica
+  lo narra ("X encuentra su vocación: por fin labra la tierra"), un toast ✦ lo asoma, y
+  el inspector ya lo marca ✓ — se ve a alguien pasar a su vocación. 282/282 tests, `tsc`
+  limpio, screenshot de regresión limpio. Ver RESEARCH.md §4 (2026-07-05, ciclo 41).
+- 2026-07-05 (sesión Opus, LÓGICA+INTERFAZ a la par — ciclo 42) — **Linaje (apellidos
+  heredados)**: la historia autónoma (la Crónica) se vuelve SAGA generacional. Un hijo
+  hereda el apellido de un progenitor (mismo nº de tiradas de RNG → mundo byte-idéntico,
+  282 tests previos intactos); los apellidos se perpetúan y emergen dinastías. **Interfaz
+  a la par**: la Crónica narra "nace Ada, de Vera" y el inspector muestra "hijo/a de Vera
+  Novák". Descartado un hito de dinastía por apellido (ruidoso con solo 12 apellidos;
+  pediría un árbol genealógico real — ciclo futuro). 288/288 tests, `tsc` limpio.
+  Ver RESEARCH.md §4 (2026-07-05, ciclo 42).
+- 2026-07-05 (sesión Opus, LÓGICA+INTERFAZ a la par — ciclo 43) — **Dinastías
+  (descendencia real)**: el hito de dinastía legítimo que el ciclo 42 dejó pendiente. Cada
+  persona lleva un `lineId` (el tronco de su estirpe, propagado al nacer); cuando una línea
+  cruza 8 descendientes vivos, la Crónica la reconoce ("la familia Novák echa raíces: 9
+  descendientes vivos"), un toast ❦ lo asoma, y el inspector muestra la familia hacia abajo
+  ("familia: N hijos viven aquí"). Descendencia REAL (por lineId, no coincidencia de
+  apellido); sin RNG → mundo byte-idéntico (288 tests previos intactos). El linaje se lee
+  ya en tres direcciones: de quién vienes, quién sigue contigo, cuándo tu estirpe se vuelve
+  historia. 292/292 tests, `tsc` limpio. Ver RESEARCH.md §4 (2026-07-05, ciclo 43).
+- 2026-07-05 (sesión Opus, LÓGICA+INTERFAZ a la par — ciclo 44) — **Extinción de estirpe**:
+  cierra el arco familiar (rise & fall). Cuando una dinastía reconocida se apaga del todo
+  (ni un descendiente vivo ni el fundador), la Crónica cierra su historia ("se extingue la
+  familia Novák — no queda ninguno de su sangre") y un toast ❧ sobrio la asoma. Emergente
+  de largo plazo (medido offline: ~día 180 en seeds 7/999/12345); cubierto por test
+  unitario del predicado + narración (el run de 200 años disparaba la suite a >4 min).
+  Con esto el arco de una familia es COMPLETO: nace (42), crece y se reconoce (43), se
+  apaga (44). 297/297 tests, `tsc` limpio. Ver RESEARCH.md §4 (2026-07-05, ciclo 44).
+- 2026-07-05 (sesión Opus, LÓGICA+INTERFAZ a la par — ciclo 45) — **Hitos del pueblo
+  (primer edificio de cada tipo)**: abre la veta de la historia del LUGAR (tras el arco
+  familiar). Cuando la ciudad levanta sola un tipo de edificio que no había (escuela,
+  consultorio, adosados, fábrica…), la Crónica lo celebra ("el pueblo estrena un edificio
+  nuevo: Escuela") y un toast ⌂ lo asoma. Acoplado a los tiers (cada tier abre tipos);
+  emerge del crecimiento sin guion. 301/301 tests, `tsc` limpio, screenshot del pueblo en
+  desarrollo sin regresión. Ver RESEARCH.md §4 (2026-07-05, ciclo 45).
+- 2026-07-05 (sesión Opus, INTERFAZ alcanza a la lógica — ciclo 46) — **Las amistades,
+  visibles**: la afinidad social (charlas/vínculos/duelo, T3.7) se simulaba desde hace ~40
+  ciclos pero nunca se veía. El inspector muestra ahora el lazo más cercano vivo, marcándolo
+  "amistad íntima" si supera el umbral de duelo por amigo (0.55) o "conocido/a" si no. Cero
+  lógica nueva (`closestFriend` sobre `c.friends`, dos campos en el mensaje). Con esto el
+  inspector cuenta a una persona casi completa (quién es, con quién vive, de quién viene,
+  quién la acompaña, qué hace, qué ama, qué debe, qué deja). 305/305 tests, `tsc` limpio.
+  Ver RESEARCH.md §4 (2026-07-05, ciclo 46).
+- 2026-07-05 (sesión Opus, LÓGICA+INTERFAZ a la par — ciclo 47) — **Identidad del
+  asentamiento (aldea→pueblo→villa→ciudad)**: el lugar tiene ahora un nombre por su tamaño
+  (función pura `settlementClass`, umbrales 0/20/60/150, eje distinto de los tiers). El HUD
+  lo muestra SIEMPRE (la etiqueta del chip de población pasó a ALDEA/PUEBLO/VILLA/CIUDAD;
+  verificado por screenshot "ALDEA · 16") y la Crónica celebra cada ascenso ("la aldea se
+  hace pueblo (20 almas)") con toast ✦. Emerge pronto (seed 42: pueblo@d3) → test barato.
+  309/309 tests, `tsc` limpio. Ver RESEARCH.md §4 (2026-07-05, ciclo 47).

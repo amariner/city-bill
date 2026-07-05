@@ -1173,3 +1173,178 @@ una simulación, y los tratamos como tales:
   pantalla"; el surfacing visual necesita el screenshot del §4, no basta con que el
   código exista. Pulido que sigue pendiente: cubiertas de nieve en TEJADOS (hoy solo el
   suelo). `tsc` limpio, 276/276 tests (no toca sim).
+- 2026-07-05 · **Ciclo 41: ROTACIÓN VOCACIONAL (churn) — la vocación por fin MUEVE a
+  la gente + su HISTORIA** · Cierra la carencia (a) del ciclo 36 y salda la lección del
+  ciclo 37 (que quedó como no-op). OBSERVAR: la vocación (ciclo 36) daba más propósito a
+  quien encajaba, pero NADIE se movía hacia su llamada — el desajuste era permanente.
+  INVESTIGAR: en la sociedad real la gente CAMBIA de oficio buscando sentido; el ciclo 37
+  demostró que PREFERIR la vocación al asignar es un no-op en un mercado escaso (una sola
+  vacante viable) → hace falta CHURN (rotación): que el infeliz DEJE su puesto y así se
+  abran opciones en el tiempo. MODELAR: en el cierre del día, un adulto cuyo oficio NO
+  colma su vocación puede (5%/día) DEJARLO — pero solo si existe una vacante que sí lo
+  colma a su alcance y estrictamente mejor con descuento (`hasVocationVacancy`); si no,
+  quedarse es lo cuerdo (nada de paro estéril). Al reasignar, esos buscadores ven la
+  distancia a los empleos de su vocación DESCONTADA (0.5) → gravitan a su llamada. Clave
+  de riesgo mínimo: (1) el churn usa un RNG APARTE (`churnRng`) → NO perturba el flujo
+  general (natalidad, crecimiento conservan su secuencia exacta); (2) el descuento SOLO
+  se aplica a los buscadores (`vocationSeekers`), así la asignación normal queda
+  BYTE-idéntica y los 276 tests previos no se movieron. IMPLEMENTAR: `vacate` +
+  `hasVocationVacancy` en economy.ts, `vocationalChurn`/`reportVocationFound` en
+  simulation.ts, toggle `vocationalMobility` para A/B. EMERGENCIA medida (A/B, mismo
+  seed): el encaje carácter↔oficio SUBE con churn (seed 42: 0.29→0.33; seed 7: 0.37→0.53;
+  seed 500: 0.27→0.38) — NO es un no-op, a diferencia del ciclo 37. Y CRÍTICO para la
+  seguridad: el `food_min` es IDÉNTICO ON vs OFF en 6 semillas (nadie pasa más hambre;
+  el churn no descuadra el alimento). La población diverge por seed (sensibilidad caótica
+  ya conocida; media 67 vs 76, sin daño sistémico — el suelo de comida intacto lo
+  confirma benigno). VERIFICAR: 282/282 tests (6 nuevos), `tsc` limpio, screenshot de
+  regresión sin errores runtime (mundo+HUD+Crónica OK, §4 intacto).
+  **INTERFAZ A LA PAR** (veta del usuario): el churn genera HISTORIAS y se SURFACEAN al
+  instante — evento `vocationFound` (frontera única, protocol.ts) → (1) la Crónica lo
+  narra ("Emil encuentra su vocación: por fin labra la tierra", `chronicleText`, única
+  fuente); (2) un toast efímero ✦ (toasts.ts) lo asoma sin abrir nada; (3) el inspector
+  ya marcaba la vocación ✓ — ahora se ve a alguien PASAR de a-disgusto a ✓. La vida
+  interior del ciclo 36 por fin se mueve y se cuenta.
+  Carencias observadas para próximos ciclos: (a) que el churn escoja MEJOR el destino
+  (hoy 0.5 de descuento; a veces re-toma un puesto no-vocacional más cercano); (b) que un
+  desajuste SOSTENIDO (no solo el azar) empuje a renunciar (acoplar con el propósito bajo
+  del ciclo 36); (c) el gran pendiente estructural sigue siendo el cierre monetario
+  COMPLETO (agro + comercio) y el estatus desacoplado (ciclo 38).
+- 2026-07-05 · **Ciclo 42: LINAJE (apellidos heredados) — la historia se vuelve SAGA
+  generacional** · Veta de la "simulación autónoma de la historia" (la Crónica): hasta
+  ahora cada persona tenía un nombre y apellido SORTEADOS al azar, sin relación con sus
+  padres — el pueblo no criaba FAMILIAS que perduraran. OBSERVAR: en una crónica real, lo
+  que hila las generaciones son los APELLIDOS: los Novák de hoy descienden de los Novák de
+  ayer. MODELAR: un hijo hereda el apellido de un progenitor (`surnameOf` del padre[0]);
+  se genera igualmente el nombre completo (MISMO nº de tiradas de RNG → el mundo es
+  BYTE-idéntico, solo cambia el string del apellido, que no alimenta ninguna lógica) y se
+  sustituye el apellido por el heredado. Se guarda `parent` (nombre del progenitor) como
+  puro recuerdo. EMERGENCIA (test, seed 500, 45 años): nacen descendientes con progenitor
+  conocido y TODOS heredan el apellido (sin excepción) → los apellidos se perpetúan y
+  emergen dinastías. Como no toca el estado de la sim, los 282 tests previos siguen
+  byte-idénticos (determinismo intacto). **INTERFAZ A LA PAR**: (1) la Crónica narra la
+  descendencia — "nace Ada, de Vera" (el nacimiento muestra de quién viene; la saga se lee
+  en el feed y los apellidos recurrentes la hacen visible sin código extra); (2) el
+  inspector añade la filiación "hijo/a de Vera Novák" (los fundadores/inmigrantes no la
+  tienen — llegaron de fuera). VERIFICAR: 288/288 tests (6 nuevos), `tsc` limpio,
+  screenshots sin errores runtime (manifiesto muestra "N3 linaje"). Nota de método: ver
+  el feed con líneas de nacimiento-con-linaje exige varias generaciones (>2 años de juego
+  a ×8); el mecanismo se verificó por test en la Simulation real y la narración por
+  función pura, con la UI confirmada sin regresión por screenshot.
+  DESCARTADO en este ciclo (y por qué): un HITO de "dinastía" (avisar cuando un apellido
+  alcanza N vivos) sería RUIDOSO — con solo 12 apellidos en el pool, medio pueblo comparte
+  apellido por azar, no por linaje real; el hito no distinguiría una familia próspera de
+  una coincidencia. Un contador de dinastías DE VERDAD pediría un árbol de descendencia
+  (contar el subárbol de un fundador), un ciclo aparte. Carencia para próximos ciclos: (a)
+  ese árbol genealógico real (contar descendientes vivos de un tronco) daría el hito de
+  dinastía legítimo; (b) que la Crónica resuma "la familia X, N generaciones" al compactar.
+- 2026-07-05 · **Ciclo 43: DINASTÍAS (descendencia REAL) — la estirpe que echa raíces** ·
+  Salda la carencia (a) del ciclo 42 (el hito de dinastía legítimo, sin el ruido del pool
+  de 12 apellidos). MODELAR: cada persona lleva un `lineId` = el id del TRONCO de su
+  estirpe (el fundador de la línea), propagado al nacer (`parents[0].lineId ?? parents[0].id`)
+  hacia ABAJO — así la línea sobrevive a la muerte de los ancestros sin caminar el árbol
+  hacia arriba (que rompería al borrarse un ancestro del Map). Cada día se cuentan los
+  descendientes VIVOS por tronco y, la primera vez que una línea cruza el umbral
+  (`DYNASTY_THRESHOLD=8`, medido: las líneas dominantes llegan a 20-40 en pueblos
+  pequeños, 8 marca una familia grande sin spam), la Crónica la reconoce (evento
+  `dynastyRose`, una vez por tronco vía `dynastiesSeen`). Es descendencia REAL (por
+  `lineId`), no coincidencia de apellido. Sin RNG, O(n)/día → el mundo sigue byte-idéntico
+  (los 288 tests previos intactos; determinismo confirmado). EMERGENCIA (test, seed 42, 60
+  años): emerge ≥1 dinastía, todas por encima del umbral, cada tronco reconocido una sola
+  vez. **INTERFAZ A LA PAR**: (1) la Crónica narra "la familia Novák echa raíces: 9
+  descendientes vivos"; (2) un toast ❦ dorado lo asoma (hito del largo plazo); (3) el
+  inspector añade la familia HACIA ABAJO — "familia: N hijos viven aquí" (complementa el
+  legado, que cuenta los criados a lo largo de la vida) via `countChildren`/`livingChildren`
+  en el contrato del mensaje. Con esto el linaje se lee en las TRES direcciones: de quién
+  vienes (filiación, ciclo 42), quién sigue contigo (hijos vivos) y cuándo tu estirpe se
+  vuelve historia (dinastía). VERIFICAR: 292/292 tests (4 nuevos), `tsc` limpio, boot sin
+  errores runtime. Nota de método: ver el toast/línea de dinastía en vivo exige ~60 años
+  de juego (más allá del límite de captura headless); verificado por test en la Simulation
+  real y por función pura, UI sin regresión.
+  Carencia para próximos ciclos: (a) el hito de dinastía podría enriquecerse con las
+  GENERACIONES (profundidad del árbol), no solo el nº de vivos; (b) que una estirpe que se
+  EXTINGUE (último descendiente muere) también se narre — el arco completo de una familia.
+- 2026-07-05 · **Ciclo 44: EXTINCIÓN DE ESTIRPE — el arco completo de una familia (rise &
+  fall)** · Cierra la carencia (b) del ciclo 43. Tras afianzarse, una dinastía reconocida
+  puede APAGARSE del todo — y la Crónica cierra su historia: "se extingue la familia Novák
+  — no queda ninguno de su sangre". MODELAR: en `checkDynasties` (ya diario), para cada
+  tronco reconocido (`dynastiesSeen`) que no está ya caído, si NO queda ni un descendiente
+  vivo (`!alive.has(line)`) NI el tronco/fundador (`!citizens.has(line)`), se emite
+  `dynastyFell` una vez (`dynastiesFallen`). Requerir también al fundador muerto evita el
+  falso positivo de que aún podría tener más hijos y revivir la línea. El apellido para la
+  narración se recuerda al afianzarse (`dynastyNames`), porque al extinguirse ya no queda
+  nadie de quien leerlo. Sin RNG → mundo byte-idéntico (288 previos intactos). EMERGENCIA
+  medida OFFLINE (rise & fall es de LARGO PLAZO): la extinción aparece hacia el día ~180 en
+  seeds 7 (d183), 999 (d180) y 12345 (d213) — rara y honda, justo el beat melancólico
+  buscado. LECCIÓN de método/coste: un test emergente de 200 años disparaba la suite a >4
+  min (inaceptable en el camino crítico); se sustituyó por un test UNITARIO del predicado
+  de extinción (barato, sin correr la sim) + la narración pura, y la emergencia se verifica
+  y documenta aquí. **INTERFAZ A LA PAR**: la Crónica narra la extinción; un toast ❧ sobrio
+  (acento neutro) la asoma. Con esto el arco de una familia es COMPLETO: nace (linaje, 42),
+  crece y se reconoce (dinastía, 43), y se apaga (extinción, 44) — una vida generacional
+  entera contada sola. VERIFICAR: 297/297 tests (5 nuevos), `tsc` limpio, boot sin errores.
+  Carencia para próximos ciclos: (a) la profundidad del árbol (generaciones) enriquecería
+  tanto el hito de dinastía como la extinción ("tras 4 generaciones, se apaga…"); (b) el
+  arco familiar ya está cerrado — siguiente veta de historia: los HITOS DEL PUEBLO (primer
+  edificio de cada tipo, récord de población, la calle más larga) como beats de la Crónica.
+- 2026-07-05 · **Ciclo 45: HITOS DEL PUEBLO (primer edificio de cada tipo) — la historia
+  del LUGAR** · Nueva veta tras cerrar el arco familiar: la Crónica contaba a las PERSONAS
+  (nacer, emparejarse, morir, prosperar) pero el pueblo como LUGAR no tenía beats propios.
+  MODELAR: se pre-puebla `firstBuildingSeen` con los tipos de la aldea fundacional (no son
+  primicias); cuando la ciudad levanta SOLA (en `applyGrowth`, junto a `cityGrew`) un tipo
+  que no había → evento `firstBuilding` con el nombre de catálogo. Acopla con los tiers
+  (cada tier abre tipos nuevos: escuela/consultorio en T1, supermercado/ayuntamiento en T3,
+  fábrica/oficinas en T4), así el estreno EMERGE del crecimiento, sin guion. Sin RNG nuevo,
+  O(1)/construcción. EMERGENCIA medida: fires tempranos y fiables (seed 500: Consultorio@d5,
+  Adosados@d6, Escuela@d15, Bloque@d21, Supermercado@d21) → test BARATO posible (12 días).
+  **INTERFAZ A LA PAR**: la Crónica narra "el pueblo estrena un edificio nuevo: Escuela";
+  un toast ⌂ (MILESTONE) lo asoma. VERIFICAR: 301/301 tests (4 nuevos), `tsc` limpio,
+  screenshot del pueblo en desarrollo sin errores runtime (el estreno concreto tarda más
+  años en el mundo del navegador —seedWorld(N)— que en el del test —seedWorld() por
+  defecto—; el mecanismo se verificó por test y narración pura). Con esto la Crónica cuenta
+  DOS historias entrelazadas: la de las familias (linaje) y la del lugar (su desarrollo).
+  Carencia para próximos ciclos: (a) más hitos del lugar (récord de población, la primera
+  calle autotrazada, la primera vez que el pueblo pasa de aldea a villa por tier); (b) que
+  el hito de tier (ya existente) y estos estrenos se coordinen para no solaparse.
+- 2026-07-05 · **Ciclo 46: LAS AMISTADES, VISIBLES (surfacing social)** · Veta interfaz
+  pura: la afinidad social se simula desde T3.7 (charlas al cruzarse, vínculos que crecen,
+  duelo al perder a un amigo íntimo, consuelo escalado por intimidad) pero NUNCA se veía —
+  una de las lógicas más hondas, invisible durante ~40 ciclos. El inspector muestra ahora
+  el LAZO MÁS CERCANO vivo del ciudadano, marcándolo ÍNTIMO si su afinidad supera el umbral
+  de duelo por amigo (`GRIEF_FRIEND_AFFINITY=0.55` — reutilizado como definición de "amigo
+  de verdad": justo el lazo cuya pérdida haría penar), o "conocido/a" si es menor. Cero
+  lógica nueva: `closestFriend` recorre `c.friends` (afinidad por id) y resuelve el nombre
+  del más afín que siga VIVO en el pueblo (los muertos/emigrados ya no cuentan); dos campos
+  nuevos en el contrato del mensaje (`bestFriend`, `bestFriendClose`). EMERGENCIA (test,
+  barato, sin correr días): al arrancar ya hay lazos (convecinos/compañeros se conocen);
+  los convivientes se siembran con afinidad alta (0.6 ≥ 0.55 → ÍNTIMO) y los meros vecinos
+  con 0.15 (conocido) → el inspector distingue ambos. VERIFICAR: 305/305 tests (4 nuevos),
+  `tsc` limpio, boots sin errores runtime (la ficha del inspector es ruta establecida; su
+  captura por click a ciego sobre un agente diminuto es poco fiable —el estado se cubre por
+  test de `describe()`). Con esto el inspector cuenta a una PERSONA casi completa: quién es,
+  con quién vive, de quién viene, quién la acompaña (amistad), qué hace, qué ama, qué debe,
+  qué deja — la ventana de autonomía (T3.10) por fin muestra también su mundo social.
+  Carencia para próximos ciclos: (a) surfacing de las PANDILLAS/tercer lugar (ya simuladas)
+  y de las rivalidades si las hubiera; (b) un beat de Crónica cuando nace una amistad muy
+  íntima o cuando dos que se odiaban... (no hay odio aún: posible lógica futura N3).
+- 2026-07-05 · **Ciclo 47: IDENTIDAD DEL ASENTAMIENTO (aldea→pueblo→villa→ciudad)** ·
+  Retoma la veta de la historia del LUGAR (ciclo 45): el pueblo tenía tesoro, paro, granero…
+  pero no un NOMBRE propio según su tamaño. Ahora una función pura `settlementClass(pop)`
+  (umbrales 0/20/60/150, en `protocol.ts`, compartida por HUD y sim) le da identidad:
+  aldea, pueblo, villa o ciudad. Es un eje DISTINTO de los tiers (25/80/200, que abren
+  edificios): esto es cómo se LLAMA el lugar. **INTERFAZ A LA PAR** (doble): (1) el HUD
+  muestra la clase SIEMPRE — la etiqueta del chip de población pasó de "POBLACIÓN" a
+  "ALDEA/PUEBLO/VILLA/CIUDAD" (se ve crecer el asentamiento, no solo el número; verificado
+  por screenshot: "ALDEA · 16"); (2) la Crónica celebra cada ASCENSO ("la aldea se hace
+  pueblo (20 almas)", "el pueblo se hace villa…") vía evento `settlementRose`, con un toast
+  ✦ dorado. La clase de partida no se narra (se inicia `settlementLevelSeen` con la del
+  arranque); se emite un beat por cada escalón cruzado (soporta subir dos de golpe). Sin
+  RNG. EMERGENCIA medida: el ascenso llega pronto (seed 42: pueblo@d3; seedFarm: pueblo@d11,
+  villa@d23) → test BARATO (10 días). VERIFICAR: 309/309 tests (4 nuevos), `tsc` limpio,
+  screenshot del HUD con "ALDEA" sin errores runtime. TRAMPA cazada: hay DOS uniones de
+  nombres de evento (el contrato `SimEventMsg` en protocol.ts y la interfaz LOCAL `SimEvent`
+  en simulation.ts) — hay que ampliar AMBAS o `tsc` casca (el `| head` ocultó el código de
+  salida de tsc; usar `tsc; echo $?` sin pipe para verlo).
+  Carencia para próximos ciclos: (a) coordinar el toast de tier y el de asentamiento si
+  caen el mismo día (hoy pueden solaparse, aunque los umbrales están desfasados a propósito);
+  (b) que la clase module también el ARTE (una ciudad se ve distinta de una aldea — ya lo
+  hacen los tiers vía catálogo, pero la identidad podría reforzarlo).
