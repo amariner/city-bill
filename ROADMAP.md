@@ -430,3 +430,11 @@ aprieta, T3.8-T3.10 y la Fase 4 valen más que cualquier cosa de la Fase 5.
   nuevo: Escuela") y un toast ⌂ lo asoma. Acoplado a los tiers (cada tier abre tipos);
   emerge del crecimiento sin guion. 301/301 tests, `tsc` limpio, screenshot del pueblo en
   desarrollo sin regresión. Ver RESEARCH.md §4 (2026-07-05, ciclo 45).
+- 2026-07-05 (sesión Opus, INTERFAZ alcanza a la lógica — ciclo 46) — **Las amistades,
+  visibles**: la afinidad social (charlas/vínculos/duelo, T3.7) se simulaba desde hace ~40
+  ciclos pero nunca se veía. El inspector muestra ahora el lazo más cercano vivo, marcándolo
+  "amistad íntima" si supera el umbral de duelo por amigo (0.55) o "conocido/a" si no. Cero
+  lógica nueva (`closestFriend` sobre `c.friends`, dos campos en el mensaje). Con esto el
+  inspector cuenta a una persona casi completa (quién es, con quién vive, de quién viene,
+  quién la acompaña, qué hace, qué ama, qué debe, qué deja). 305/305 tests, `tsc` limpio.
+  Ver RESEARCH.md §4 (2026-07-05, ciclo 46).

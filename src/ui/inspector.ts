@@ -210,7 +210,12 @@ export class CitizenInspector {
     const descendants = info.livingChildren > 0
       ? `\nfamilia: ${info.livingChildren} ${info.livingChildren === 1 ? 'hijo/a vive aquí' : 'hijos viven aquí'}`
       : '';
+    // Amistad (ciclo 46): la afinidad social, simulada desde T3.7 pero nunca vista.
+    // Se muestra el lazo más cercano, marcando si es ÍNTIMO (un amigo de verdad).
+    const friend = info.bestFriend
+      ? `\n${info.bestFriendClose ? 'amistad íntima' : 'conocido/a'}: ${info.bestFriend}`
+      : '';
     const trade = job ? `${job}\n` : '';
-    this.el.textContent = `${info.name}\n${who}${lineage}\n${info.activityLabel}${this.follow ? '  ⌖' : ''}\n\n${bars}\n${meta}\n\n${trade}${voc}${legacy}${descendants}\n\n[F] seguir · [Esc] cerrar`;
+    this.el.textContent = `${info.name}\n${who}${lineage}\n${info.activityLabel}${this.follow ? '  ⌖' : ''}\n\n${bars}\n${meta}\n\n${trade}${voc}${legacy}${descendants}${friend}\n\n[F] seguir · [Esc] cerrar`;
   }
 }

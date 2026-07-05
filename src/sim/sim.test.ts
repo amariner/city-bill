@@ -1435,6 +1435,28 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
     firsts.every((f) => typeof f.name === 'string' && (f.name as string).length > 0 && catalogData(f.id as string) !== undefined));
 }
 
+// Ciclo 46 RESEARCH.md — LAS AMISTADES, VISIBLES (surfacing social): la afinidad se
+// simula desde T3.7 (charlas, vínculos, duelo por amigo) pero NUNCA se veía. El
+// inspector muestra ahora el lazo más cercano vivo, marcando si es ÍNTIMO (afinidad ≥
+// el umbral de duelo por amigo = un amigo de verdad, no un simple conocido). La
+// interfaz alcanza a una lógica honda que llevaba ciclos invisible. Cero lógica nueva.
+{
+  const sim = new Simulation(seedWorld(), 42);
+  // Los convecinos/compañeros se conocen al arrancar (T3.7): hay amistades ya.
+  const withFriend = [...sim.citizens.values()].find((c) => c.friends.size > 0);
+  check('amistad: hay lazos sembrados desde el arranque (convecinos/compañeros)', withFriend !== undefined);
+  const names = new Set([...sim.citizens.values()].map((c) => c.name));
+  const info = withFriend ? sim.describe(withFriend.id) : null;
+  check('inspector: expone la amistad más cercana, y es alguien VIVO del pueblo',
+    info != null && typeof info.bestFriend === 'string' && names.has(info.bestFriend));
+  // Los convivientes se siembran con afinidad alta (0.6 ≥ umbral de duelo 0.55) → hay
+  // lazos ÍNTIMOS reconocibles; los meros vecinos (0.15) quedan de "conocido".
+  check('inspector: emerge algún lazo ÍNTIMO (convivientes por encima del umbral)',
+    [...sim.citizens.values()].some((c) => sim.describe(c.id)?.bestFriendClose === true));
+  check('inspector: y también lazos de simple conocido (no todo es intimidad)',
+    [...sim.citizens.values()].some((c) => { const i = sim.describe(c.id); return i?.bestFriend != null && i.bestFriendClose === false; }));
+}
+
 // Determinismo: mismo snapshot final con la misma semilla.
 const a = runDays(7, 1).sim.snapshot();
 const b = runDays(7, 1).sim.snapshot();

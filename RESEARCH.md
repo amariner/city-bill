@@ -1305,3 +1305,24 @@ una simulación, y los tratamos como tales:
   Carencia para próximos ciclos: (a) más hitos del lugar (récord de población, la primera
   calle autotrazada, la primera vez que el pueblo pasa de aldea a villa por tier); (b) que
   el hito de tier (ya existente) y estos estrenos se coordinen para no solaparse.
+- 2026-07-05 · **Ciclo 46: LAS AMISTADES, VISIBLES (surfacing social)** · Veta interfaz
+  pura: la afinidad social se simula desde T3.7 (charlas al cruzarse, vínculos que crecen,
+  duelo al perder a un amigo íntimo, consuelo escalado por intimidad) pero NUNCA se veía —
+  una de las lógicas más hondas, invisible durante ~40 ciclos. El inspector muestra ahora
+  el LAZO MÁS CERCANO vivo del ciudadano, marcándolo ÍNTIMO si su afinidad supera el umbral
+  de duelo por amigo (`GRIEF_FRIEND_AFFINITY=0.55` — reutilizado como definición de "amigo
+  de verdad": justo el lazo cuya pérdida haría penar), o "conocido/a" si es menor. Cero
+  lógica nueva: `closestFriend` recorre `c.friends` (afinidad por id) y resuelve el nombre
+  del más afín que siga VIVO en el pueblo (los muertos/emigrados ya no cuentan); dos campos
+  nuevos en el contrato del mensaje (`bestFriend`, `bestFriendClose`). EMERGENCIA (test,
+  barato, sin correr días): al arrancar ya hay lazos (convecinos/compañeros se conocen);
+  los convivientes se siembran con afinidad alta (0.6 ≥ 0.55 → ÍNTIMO) y los meros vecinos
+  con 0.15 (conocido) → el inspector distingue ambos. VERIFICAR: 305/305 tests (4 nuevos),
+  `tsc` limpio, boots sin errores runtime (la ficha del inspector es ruta establecida; su
+  captura por click a ciego sobre un agente diminuto es poco fiable —el estado se cubre por
+  test de `describe()`). Con esto el inspector cuenta a una PERSONA casi completa: quién es,
+  con quién vive, de quién viene, quién la acompaña (amistad), qué hace, qué ama, qué debe,
+  qué deja — la ventana de autonomía (T3.10) por fin muestra también su mundo social.
+  Carencia para próximos ciclos: (a) surfacing de las PANDILLAS/tercer lugar (ya simuladas)
+  y de las rivalidades si las hubiera; (b) un beat de Crónica cuando nace una amistad muy
+  íntima o cuando dos que se odiaban... (no hay odio aún: posible lógica futura N3).

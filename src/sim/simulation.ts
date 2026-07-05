@@ -1117,10 +1117,25 @@ export class Simulation {
     return n;
   }
 
+  /** Amistad más cercana VIVA de un ciudadano (social, ciclo 46): la afinidad más
+   * alta hacia alguien aún en el pueblo. Devuelve su nombre e íntimidad (≥ el umbral
+   * de duelo por amigo = un lazo de verdad, no un simple conocido). */
+  private closestFriend(c: Citizen): { name?: string; close: boolean } {
+    let name: string | undefined;
+    let best = -1;
+    for (const [fid, aff] of c.friends) {
+      const f = this.citizens.get(fid);
+      if (!f) continue; // muerto o emigrado: ya no cuenta
+      if (aff > best) { best = aff; name = f.name; }
+    }
+    return { name, close: best >= GRIEF_FRIEND_AFFINITY };
+  }
+
   /** Estado legible de un ciudadano (inspector T3.10). */
   describe(id: number): Omit<CitizenInfoMsg, 'type' | 'id'> | null {
     const c = this.citizens.get(id);
     if (!c) return null;
+    const friend = this.closestFriend(c);
     const homeKey = `${c.home.ax},${c.home.az}`;
     // Quién es (ciclo 23): edad, etapa de vida y con quién comparte la vida —
     // el inspector deja de ser una hoja de stats y pasa a mostrar una PERSONA.
@@ -1141,6 +1156,8 @@ export class Simulation {
       partnerName: partner?.name,
       parent: c.parent,
       livingChildren: this.countChildren(c.id),
+      bestFriend: friend.name,
+      bestFriendClose: friend.close,
       activity: c.activity,
       activityLabel: activityLabel(c.activity, c.phase.kind === 'moving' || c.phase.kind === 'waitingPath'),
       needs: { ...c.needs },

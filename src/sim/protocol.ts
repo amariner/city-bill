@@ -160,6 +160,10 @@ export interface CitizenInfoMsg {
   parent?: string;
   /** Hijos VIVOS ahora mismo — linaje, ciclo 43 (la familia vista hacia abajo). */
   livingChildren: number;
+  /** Amistad más cercana viva — social, ciclo 46 (la afinidad, por fin visible). */
+  bestFriend?: string;
+  /** ¿Ese lazo es ÍNTIMO (afinidad ≥ umbral de duelo)? — un amigo de verdad. */
+  bestFriendClose: boolean;
   activity: ActivityKind;
   activityLabel: string;
   needs: Record<string, number>;
