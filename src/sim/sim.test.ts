@@ -1361,6 +1361,33 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
     withParent > 0 && surnameMatches === withParent, `→ ${surnameMatches}/${withParent} heredan`);
 }
 
+// Ciclo 43 RESEARCH.md — DINASTÍAS (descendencia real): tras heredar el apellido
+// (ciclo 42), la Crónica reconoce las ESTIRPES que se afianzan — contando la
+// descendencia REAL por tronco (`lineId`, no coincidencia de apellido, y sobrevive
+// a la muerte de los ancestros). Un hito raro del largo plazo: "la familia X echa
+// raíces". El inspector muestra la familia hacia abajo (hijos vivos aquí).
+{
+  // Narración pura (única fuente, ciclo 18).
+  check('crónica: la dinastía se narra con su tamaño',
+    chronicleText('dynastyRose', { surname: 'Novák', members: 9, founder: 'Vera Novák' }) === 'la familia Novák echa raíces: 9 descendientes vivos');
+
+  // Emergente: en un pueblo con generaciones, alguna estirpe cruza el umbral y la
+  // Crónica la reconoce UNA sola vez (por tronco).
+  const sim = new Simulation(seedWorld(), 42);
+  const dynasties: Array<Record<string, unknown>> = [];
+  for (let t = 0; t < TICKS_PER_DAY * 60; t++) {
+    sim.step();
+    for (const e of sim.takeEvents()) if (e.name === 'dynastyRose') dynasties.push(e.data);
+  }
+  check('dinastía: emerge una estirpe afianzada (descendencia real, largo plazo)',
+    dynasties.length > 0, `→ ${dynasties.length} dinastías`);
+  check('dinastía: el hito reporta descendencia por encima del umbral',
+    dynasties.every((d) => (d.members as number) >= 8), `→ tamaños ${dynasties.map((d) => d.members).join(',')}`);
+  const lines = dynasties.map((d) => d.line);
+  check('dinastía: cada tronco se reconoce UNA vez (sin repetir)',
+    new Set(lines).size === lines.length);
+}
+
 // Determinismo: mismo snapshot final con la misma semilla.
 const a = runDays(7, 1).sim.snapshot();
 const b = runDays(7, 1).sim.snapshot();

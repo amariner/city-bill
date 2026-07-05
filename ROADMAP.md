@@ -406,3 +406,12 @@ aprieta, T3.8-T3.10 y la Fase 4 valen más que cualquier cosa de la Fase 5.
   Novák". Descartado un hito de dinastía por apellido (ruidoso con solo 12 apellidos;
   pediría un árbol genealógico real — ciclo futuro). 288/288 tests, `tsc` limpio.
   Ver RESEARCH.md §4 (2026-07-05, ciclo 42).
+- 2026-07-05 (sesión Opus, LÓGICA+INTERFAZ a la par — ciclo 43) — **Dinastías
+  (descendencia real)**: el hito de dinastía legítimo que el ciclo 42 dejó pendiente. Cada
+  persona lleva un `lineId` (el tronco de su estirpe, propagado al nacer); cuando una línea
+  cruza 8 descendientes vivos, la Crónica la reconoce ("la familia Novák echa raíces: 9
+  descendientes vivos"), un toast ❦ lo asoma, y el inspector muestra la familia hacia abajo
+  ("familia: N hijos viven aquí"). Descendencia REAL (por lineId, no coincidencia de
+  apellido); sin RNG → mundo byte-idéntico (288 tests previos intactos). El linaje se lee
+  ya en tres direcciones: de quién vienes, quién sigue contigo, cuándo tu estirpe se vuelve
+  historia. 292/292 tests, `tsc` limpio. Ver RESEARCH.md §4 (2026-07-05, ciclo 43).

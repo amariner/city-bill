@@ -140,7 +140,8 @@ export interface SimEventMsg {
     | 'festivalDay'
     | 'roadExtended'
     | 'epidemic'
-    | 'vocationFound';
+    | 'vocationFound'
+    | 'dynastyRose';
   data?: Record<string, unknown>;
 }
 
@@ -155,6 +156,8 @@ export interface CitizenInfoMsg {
   partnerName?: string;
   /** Progenitor del que desciende — linaje, ciclo 42 (el inspector: "hijo/a de …"). */
   parent?: string;
+  /** Hijos VIVOS ahora mismo — linaje, ciclo 43 (la familia vista hacia abajo). */
+  livingChildren: number;
   activity: ActivityKind;
   activityLabel: string;
   needs: Record<string, number>;

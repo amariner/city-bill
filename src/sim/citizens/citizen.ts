@@ -123,6 +123,13 @@ export interface Citizen {
    * Puro recuerdo para el inspector ("hijo/a de …"); los fundadores/inmigrantes
    * no tienen (llegan de fuera). El APELLIDO se hereda por el nombre. */
   parent?: string;
+  /** Id del progenitor (estable) — linaje, ciclo 43. Para contar descendencia. */
+  parentId?: number;
+  /** Id del TRONCO de la estirpe (el fundador de la línea) — dinastías, ciclo 43.
+   * Se propaga al nacer (`parents[0].lineId ?? parents[0].id`) sin caminar hacia
+   * arriba, así una línea sobrevive a la muerte de sus ancestros. Undefined en los
+   * fundadores/inmigrantes (aún sin descendencia propia registrada). */
+  lineId?: number;
 }
 
 /** Apellido (todo tras el primer nombre) — para el linaje (ciclo 42). */

@@ -74,8 +74,15 @@ const VACCINE_DAILY_FRACTION = 0.12;
  * El ciclo 37 demostró que preferir en la asignación es un no-op sin este churn. */
 const VOCATION_QUIT_CHANCE = 0.05;
 
+// --- Dinastías (ciclo 43): la estirpe que se afianza -------------------------
+/** Descendientes VIVOS de un mismo tronco a partir de los cuales la Crónica
+ * reconoce una DINASTÍA (una familia que ha echado raíces). Medido: las líneas
+ * dominantes llegan a 20-40 en pueblos pequeños; 8 marca una familia grande de
+ * verdad y dispara pocas veces (un hito raro, no spam). */
+const DYNASTY_THRESHOLD = 8;
+
 export interface SimEvent {
-  name: 'citizenBorn' | 'citizenLeft' | 'jobTaken' | 'chatStarted' | 'cityGrew' | 'tierUnlocked' | 'coupleFormed' | 'festivalDay' | 'roadExtended' | 'epidemic' | 'vocationFound';
+  name: 'citizenBorn' | 'citizenLeft' | 'jobTaken' | 'chatStarted' | 'cityGrew' | 'tierUnlocked' | 'coupleFormed' | 'festivalDay' | 'roadExtended' | 'epidemic' | 'vocationFound' | 'dynastyRose';
   data: Record<string, unknown>;
 }
 
@@ -94,6 +101,9 @@ export class Simulation {
   /** Quienes dejaron su puesto HOY buscando su vocación (ciclo 41): se reasignan
    * con preferencia y, si aciertan, la Crónica lo narra. Se reusa por día. */
   private readonly churnSeekers = new Set<number>();
+  /** Troncos de estirpe ya reconocidos como dinastía (ciclo 43): el hito se narra
+   * UNA vez por línea, cuando cruza el umbral de descendientes vivos. */
+  private readonly dynastiesSeen = new Set<number>();
   private nextId = 1;
   private lastDay = 0;
   events: SimEvent[] = [];
@@ -211,7 +221,7 @@ export class Simulation {
     az: number,
     buildingId: string,
     age?: number,
-    lineage?: { surname: string; parentName: string },
+    lineage?: { surname: string; parentName: string; parentId: number; lineId: number },
   ): Citizen {
     const b = this.index.at(ax, az);
     const door: CellXZ = b?.entrance ?? [ax, az];
@@ -224,6 +234,8 @@ export class Simulation {
       id: this.nextId++,
       name,
       parent: lineage?.parentName,
+      parentId: lineage?.parentId,
+      lineId: lineage?.lineId,
       age: age ?? Math.floor(this.rng.range(18, 72)),
       personality: {
         sociable: this.rng.next(),
@@ -284,6 +296,29 @@ export class Simulation {
     for (const c of quitters) {
       this.economy.vacate(c);
       this.churnSeekers.add(c.id);
+    }
+  }
+
+  /** Dinastías (ciclo 43): cuenta los descendientes VIVOS de cada tronco y, la
+   * primera vez que una línea cruza el umbral, la Crónica la reconoce como una
+   * familia afianzada. Descendencia REAL (por `lineId`), no coincidencia de
+   * apellido — sobrevive a la muerte de los ancestros. Sin RNG; O(n)/día. */
+  private checkDynasties(): void {
+    const alive = new Map<number, number>();
+    const surname = new Map<number, string>();
+    for (const c of this.citizens.values()) {
+      if (c.lineId === undefined) continue;
+      alive.set(c.lineId, (alive.get(c.lineId) ?? 0) + 1);
+      if (!surname.has(c.lineId)) surname.set(c.lineId, surnameOf(c.name));
+    }
+    for (const [line, count] of alive) {
+      if (count < DYNASTY_THRESHOLD || this.dynastiesSeen.has(line)) continue;
+      this.dynastiesSeen.add(line);
+      const founder = this.citizens.get(line); // vivo aún? (puede haber muerto)
+      this.events.push({
+        name: 'dynastyRose',
+        data: { line, surname: surname.get(line), members: count, founder: founder?.name },
+      });
     }
   }
 
@@ -428,6 +463,7 @@ export class Simulation {
         if (festName === 'fiesta de la cosecha' && this.economy.granary > BOUNTIFUL_GRANARY) festName += ' abundante';
         this.events.push({ name: 'festivalDay', data: { day: this.clock.day, name: festName } });
       }
+      this.checkDynasties(); // ciclo 43: ¿alguna estirpe se ha afianzado?
       const pop = this.citizens.size;
       const unlocked: Tier = pop >= 200 ? 4 : pop >= 80 ? 3 : pop >= 25 ? 2 : 1;
       if (unlocked > this.tier) {
@@ -485,6 +521,10 @@ export class Simulation {
       const child = this.spawnCitizen(b.home.ax, b.home.az, b.home.buildingId, 0, {
         surname,
         parentName: b.parents[0].name,
+        parentId: b.parents[0].id,
+        // El tronco de la estirpe (ciclo 43): el fundador de la línea. Se propaga
+        // hacia abajo → sobrevive a la muerte de los ancestros.
+        lineId: b.parents[0].lineId ?? b.parents[0].id,
       });
       SocialSystem.acquaint(child, b.parents[0], 0.8);
       SocialSystem.acquaint(child, b.parents[1], 0.8);
@@ -1039,6 +1079,14 @@ export class Simulation {
     };
   }
 
+  /** Hijos vivos de un ciudadano (linaje, ciclo 43): descendencia directa aún en
+   * el pueblo. O(n) por consulta del inspector (2/s) — barato. */
+  private countChildren(id: number): number {
+    let n = 0;
+    for (const c of this.citizens.values()) if (c.parentId === id) n++;
+    return n;
+  }
+
   /** Estado legible de un ciudadano (inspector T3.10). */
   describe(id: number): Omit<CitizenInfoMsg, 'type' | 'id'> | null {
     const c = this.citizens.get(id);
@@ -1062,6 +1110,7 @@ export class Simulation {
       lifeStage,
       partnerName: partner?.name,
       parent: c.parent,
+      livingChildren: this.countChildren(c.id),
       activity: c.activity,
       activityLabel: activityLabel(c.activity, c.phase.kind === 'moving' || c.phase.kind === 'waitingPath'),
       needs: { ...c.needs },

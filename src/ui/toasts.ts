@@ -48,6 +48,9 @@ function styleFor(name: string, data?: Record<string, unknown>): Style | null {
       // Rotación vocacional (ciclo 41): alguien encontró su llamada — historia
       // personal digna de un aviso (la sim la genera sin guion).
       return { accent: MILESTONE, mark: '✦' };
+    case 'dynastyRose':
+      // Dinastía (ciclo 43): una estirpe se afianza — un hito del largo plazo.
+      return { accent: GOLDEN, mark: '❦' };
     case 'citizenLeft':
       // Solo los LEGADOS (matriarcas/patriarcas, ciclo 35) — no cada muerte.
       return isLegacyDeath(data) ? { accent: '', mark: '†' } : null;

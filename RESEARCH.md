@@ -1237,3 +1237,29 @@ una simulación, y los tratamos como tales:
   (contar el subárbol de un fundador), un ciclo aparte. Carencia para próximos ciclos: (a)
   ese árbol genealógico real (contar descendientes vivos de un tronco) daría el hito de
   dinastía legítimo; (b) que la Crónica resuma "la familia X, N generaciones" al compactar.
+- 2026-07-05 · **Ciclo 43: DINASTÍAS (descendencia REAL) — la estirpe que echa raíces** ·
+  Salda la carencia (a) del ciclo 42 (el hito de dinastía legítimo, sin el ruido del pool
+  de 12 apellidos). MODELAR: cada persona lleva un `lineId` = el id del TRONCO de su
+  estirpe (el fundador de la línea), propagado al nacer (`parents[0].lineId ?? parents[0].id`)
+  hacia ABAJO — así la línea sobrevive a la muerte de los ancestros sin caminar el árbol
+  hacia arriba (que rompería al borrarse un ancestro del Map). Cada día se cuentan los
+  descendientes VIVOS por tronco y, la primera vez que una línea cruza el umbral
+  (`DYNASTY_THRESHOLD=8`, medido: las líneas dominantes llegan a 20-40 en pueblos
+  pequeños, 8 marca una familia grande sin spam), la Crónica la reconoce (evento
+  `dynastyRose`, una vez por tronco vía `dynastiesSeen`). Es descendencia REAL (por
+  `lineId`), no coincidencia de apellido. Sin RNG, O(n)/día → el mundo sigue byte-idéntico
+  (los 288 tests previos intactos; determinismo confirmado). EMERGENCIA (test, seed 42, 60
+  años): emerge ≥1 dinastía, todas por encima del umbral, cada tronco reconocido una sola
+  vez. **INTERFAZ A LA PAR**: (1) la Crónica narra "la familia Novák echa raíces: 9
+  descendientes vivos"; (2) un toast ❦ dorado lo asoma (hito del largo plazo); (3) el
+  inspector añade la familia HACIA ABAJO — "familia: N hijos viven aquí" (complementa el
+  legado, que cuenta los criados a lo largo de la vida) via `countChildren`/`livingChildren`
+  en el contrato del mensaje. Con esto el linaje se lee en las TRES direcciones: de quién
+  vienes (filiación, ciclo 42), quién sigue contigo (hijos vivos) y cuándo tu estirpe se
+  vuelve historia (dinastía). VERIFICAR: 292/292 tests (4 nuevos), `tsc` limpio, boot sin
+  errores runtime. Nota de método: ver el toast/línea de dinastía en vivo exige ~60 años
+  de juego (más allá del límite de captura headless); verificado por test en la Simulation
+  real y por función pura, UI sin regresión.
+  Carencia para próximos ciclos: (a) el hito de dinastía podría enriquecerse con las
+  GENERACIONES (profundidad del árbol), no solo el nº de vivos; (b) que una estirpe que se
+  EXTINGUE (último descendiente muere) también se narre — el arco completo de una familia.

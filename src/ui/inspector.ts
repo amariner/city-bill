@@ -205,7 +205,12 @@ export class CitizenInspector {
     const legacy = info.childrenRaised > 0
       ? `\nlegado: ${info.childrenRaised} ${info.childrenRaised === 1 ? 'hijo criado' : 'hijos criados'}`
       : '';
+    // Descendencia viva (ciclo 43): la familia hacia abajo — cuántos hijos siguen
+    // en el pueblo (complementa el legado, que cuenta los criados a lo largo de la vida).
+    const descendants = info.livingChildren > 0
+      ? `\nfamilia: ${info.livingChildren} ${info.livingChildren === 1 ? 'hijo/a vive aquí' : 'hijos viven aquí'}`
+      : '';
     const trade = job ? `${job}\n` : '';
-    this.el.textContent = `${info.name}\n${who}${lineage}\n${info.activityLabel}${this.follow ? '  ⌖' : ''}\n\n${bars}\n${meta}\n\n${trade}${voc}${legacy}\n\n[F] seguir · [Esc] cerrar`;
+    this.el.textContent = `${info.name}\n${who}${lineage}\n${info.activityLabel}${this.follow ? '  ⌖' : ''}\n\n${bars}\n${meta}\n\n${trade}${voc}${legacy}${descendants}\n\n[F] seguir · [Esc] cerrar`;
   }
 }

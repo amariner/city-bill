@@ -148,6 +148,12 @@ export function chronicleText(name: string, data?: Record<string, unknown>): str
       return typeof data?.name === 'string' ? data.name : 'fiesta mayor del pueblo';
     case 'epidemic':
       return `una epidemia recorre la ciudad (${data?.sick ?? '?'} enfermos)`;
+    case 'dynastyRose': {
+      // Dinastía (ciclo 43): una estirpe se afianza — descendencia REAL, no azar.
+      const fam = typeof data?.surname === 'string' ? data.surname : (data?.founder ?? 'una familia');
+      const n = typeof data?.members === 'number' ? data.members : '?';
+      return `la familia ${fam} echa raíces: ${n} descendientes vivos`;
+    }
     case 'vocationFound': {
       // Rotación vocacional (ciclo 41): alguien dejó su oficio y encontró su
       // llamada — una historia que el churn genera, no un guion.
