@@ -66,6 +66,11 @@ const VACCINE_COST_PER_DOSE = 6;
  * campaña (otoño-invierno): la capacidad del sistema, ~toda en dos semanas. */
 const VACCINE_DAILY_FRACTION = 0.12;
 
+/** Cada cuántos edificios la ciudad abre una calle transversal proactiva
+ * (compacidad, anti-ribbon de T4.4): un valor bajo teje la trama 2D antes; uno
+ * alto deja crecer el frente. `maybeExtendRoad` sigue acotando el ritmo real. */
+const STREET_EVERY = 4;
+
 export interface SimEvent {
   name: 'citizenBorn' | 'citizenLeft' | 'jobTaken' | 'chatStarted' | 'cityGrew' | 'tierUnlocked' | 'coupleFormed' | 'festivalDay' | 'roadExtended' | 'epidemic';
   data: Record<string, unknown>;
@@ -112,6 +117,10 @@ export class Simulation {
   roadsExtended = 0;
   /** Último día en que se trazó vía (T4.4 — ritmo: una calle no cada tick). */
   private lastRoadDay = -10;
+  /** Edificios levantados desde la última calle (compacidad: cada pocos, la
+   * ciudad abre una calle transversal PROACTIVA para crecer en trama 2D en vez
+   * de en tira lineal a lo largo de una sola vía — anti-ribbon de T4.4). */
+  private buildingsSinceRoad = 0;
   /** Presión migratoria por hogar ('ax,az') — penuria sostenida (ciclo 14). */
   private emigrationPressure = new Map<string, number>();
   /** Ciudadanos decididos a marcharse: caminan a la salida y despawnean allí. */
@@ -596,6 +605,16 @@ export class Simulation {
     const center = townCenter(
       this.index.buildings.filter((b) => b.data.role !== 'nature').map((b) => [b.ax, b.az]),
     );
+    // COMPACIDAD (anti-ribbon, T4.4): cada pocos edificios la ciudad abre una
+    // calle transversal PROACTIVA en vez de esperar a que el frente de una sola
+    // vía se agote. Así el pueblo crece en TRAMA 2D (calles cruzadas que se
+    // llenan) y no en tira lineal. El ritmo lo acota `maybeExtendRoad` (una
+    // calle cada ≥2 días); si la ramificación cabe, dejamos que los edificios
+    // llenen la calle nueva antes de seguir apretando el núcleo.
+    if (this.buildingsSinceRoad >= STREET_EVERY && this.maybeExtendRoad(center)) {
+      this.buildingsSinceRoad = 0;
+      return;
+    }
     // La vivienda se reparte en una MEZCLA de densidades (variedad del pueblo,
     // §4); el resto de demandas materializan un único ítem. La lista es por
     // preferencia: si la densidad elegida no cabe, se prueba la siguiente
@@ -713,6 +732,7 @@ export class Simulation {
       this.fillHome(p.cx, p.cz, p.id, families);
     }
     this.hireAndAcquaint();
+    this.buildingsSinceRoad++; // compacidad: cuenta para la calle transversal proactiva
     this.events.push({ name: 'cityGrew', data: { ...p } });
   }
 

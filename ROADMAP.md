@@ -258,11 +258,18 @@ repetido, arbolado automático en márgenes de carretera (rasgo de identidad).
   la usa al instante (lee el grid en vivo). **Test de aceptación estrella en
   sim.test:** de 3 edificios a un pueblo con calles autotrazadas, población
   creciente y vida en la calle. Verificado también por screenshot (`?scene=farm`).
-  *Pulido pendiente:* el crecimiento tiende a RIBBON (casas a lo largo de una
-  calle) más que a trama densa 2D — las ramificaciones perpendiculares se
-  acorralan con los frentes; afinar para un pueblo más tupido, y el playtest
-  largo de 30 min. Pero el criterio "de una granja emerge un pueblo sin input"
-  ya se cumple.
+  *RIBBON RESUELTO (2026-07-05):* el crecimiento tendía a TIRA lineal porque
+  `maybeExtendRoad` era REACTIVO (solo se disparaba cuando `findParcel` fallaba,
+  cosa que casi nunca pasaba: las casitas caben de sobra en el frente inicial) →
+  el pueblo apretaba una sola calle. Ahora `maybeGrow` abre una calle transversal
+  PROACTIVA cada `STREET_EVERY` (=4) edificios (contador `buildingsSinceRoad`),
+  acotada por el mismo ritmo de `maybeExtendRoad` (1 calle/≥2 días). El pueblo
+  crece en TRAMA 2D: verificado headless (aspect del bounding box de anclas:
+  seed 100 3.18→1.28, seed 42 1.46→1.02; calles 1→6/7) y por screenshot de
+  `?scene=grown` (pueblo tupido, calles cruzadas, densidades variadas, jardines
+  y arbolado — se lee como un pueblo real, no una tira). 282 tests siguen verdes
+  (la percolación de epidemias y los umbrales de crecimiento aguantan).
+  *Pendiente:* el playtest largo de 30 min en vivo.
   *NÚCLEO HECHO:* `extendRoad(grid, from, dir, length, rng)` en `growth.ts` (puro,
   testeado en grid.test): traza calzada de 3 celdas + márgenes de hierba + arbolado
   con huecos, ortogonal, sin arrasar edificios. *Pendiente (sesión enfocada):* el
