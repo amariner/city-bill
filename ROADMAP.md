@@ -232,8 +232,20 @@ repetido, arbolado automático en márgenes de carretera (rasgo de identidad).
   escalando en Y con ease-out y remata con POP elástico; al terminar (~1.3 s de dt
   REAL, FX cosmético) se hornea en el grid de render y el andamio se retira/desvanece.
   Verificado por burst-screenshots del `?scene=farm` (andamio de madera visible
-  rodeando la obra, §4). *Pendiente:* progresión de densidad por etapas del MISMO
-  solar (casita→casa→bloque) — hoy cada demanda elige el mayor tier disponible.
+  rodeando la obra, §4).
+  *MEZCLA DE DENSIDADES HECHA (2026-07-05, robustez+consistencia):*
+  `residentialChoices(tier, rng)` en `growth.ts` — la vivienda ya NO se
+  materializa siempre en el mayor tier (que volvía el pueblo un muro de bloques
+  idénticos al desbloquearse un tier). Reparto ponderado por MADUREZ: se favorece
+  la densidad del tier desbloqueado con cola geométrica (0.55^gap) hacia densidades
+  menores → un pueblo (T2) es sobre todo adosados con casitas del casco antiguo,
+  una villa (T3) añade paneláks, una ciudad (T4) se vuelve de bloques Zlín pero
+  conserva sus casitas. `maybeGrow` prueba la lista de candidatos con FALLBACK de
+  menor huella antes de trazar calle (robustez: no se atasca por elegir un bloque
+  que no encaja). 6 tests nuevos (determinismo, tope de tier, mezcla ≥3 tipos en
+  T4, orden del fallback). Mix verificado headless (seed 42, día 50: casitas 12 +
+  adosados 3). El gradiente visual se aprecia en pueblos maduros (tier ≥2, ~10 min
+  de juego). *Pendiente:* progresión del MISMO solar (casita→casa→bloque in situ).
 - [x] **T4.3 Inmigración/emigración.** Familias llegan si hay vivienda+empleo+felicidad;
   se van si no. La población es consecuencia, no un slider. (Inmigración modulada por
   atractividad = ciclo 12; emigración digna por penuria sostenida = ciclo 14, RESEARCH.md.)

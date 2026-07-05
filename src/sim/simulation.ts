@@ -23,7 +23,7 @@ import { ACTIVITY_BY_KIND, SimContext, activityLabel, EDU_PER_HOUR, CLINIC_FEE, 
 import { SocialSystem } from './citizens/social';
 import { AgentState, ActivityKind, activityId, AGENT_STRIDE, TravelModeCode, CityStats, CitizenInfoMsg } from './protocol';
 import {
-  computeDemand, itemForDemand, findParcel, townCenter, townAttractiveness,
+  computeDemand, itemForDemand, residentialChoices, findParcel, townCenter, townAttractiveness,
   householdHardship, updateEmigrationPressure, EMIGRATE_POP_FLOOR, EMIGRATE_PRESSURE_LIMIT,
   extendRoad, GrowthPlacement, CARRYING_CAPACITY, fertilityFactor,
 } from '../world/growth';
@@ -593,21 +593,28 @@ export class Simulation {
     });
     if (!demand) return;
 
-    const id = itemForDemand(demand, this.tier);
-    const it = catalogData(id);
-    if (!it) return;
     const center = townCenter(
       this.index.buildings.filter((b) => b.data.role !== 'nature').map((b) => [b.ax, b.az]),
     );
-    const p = findParcel(this.grid, id, center, this.rng);
-    if (!p) {
-      // T4.4: hay demanda pero NO queda frente construible junto a una vía →
-      // la ciudad se traza una CALLE nueva hacia campo abierto. El siguiente
-      // intento de crecer ya encontrará parcela en ella.
-      this.maybeExtendRoad(center);
-      return;
+    // La vivienda se reparte en una MEZCLA de densidades (variedad del pueblo,
+    // §4); el resto de demandas materializan un único ítem. La lista es por
+    // preferencia: si la densidad elegida no cabe, se prueba la siguiente
+    // (menor huella) antes de trazar calle — robustez frente a atascos.
+    const candidates = demand === 'residential'
+      ? residentialChoices(this.tier, this.rng)
+      : [itemForDemand(demand, this.tier)];
+    for (const id of candidates) {
+      if (!catalogData(id)) continue;
+      const p = findParcel(this.grid, id, center, this.rng);
+      if (p) {
+        this.applyGrowth(p);
+        return;
+      }
     }
-    this.applyGrowth(p);
+    // T4.4: hay demanda pero NO queda frente construible junto a una vía → la
+    // ciudad se traza una CALLE nueva hacia campo abierto. El siguiente intento
+    // de crecer ya encontrará parcela en ella.
+    this.maybeExtendRoad(center);
   }
 
   private isRoad(cx: number, cz: number): boolean {

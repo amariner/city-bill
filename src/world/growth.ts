@@ -74,6 +74,43 @@ export function computeDemand(d: DemandInput): DemandKind {
   return null;
 }
 
+/**
+ * Vivienda por MEZCLA DE DENSIDADES (T4.2 — consistencia y variedad, §4). En vez
+ * de materializar siempre el mayor tier disponible (que volvía el pueblo un muro
+ * de bloques idénticos en cuanto se desbloqueaba un tier), la ciudad reparte
+ * densidades: la casita nunca desaparece, y los adosados/bloques entran como
+ * acento creciente. El resultado es una silueta VARIADA — un pueblo con
+ * gradiente, no un vertido de paneláks.
+ *
+ * Determinista (RNG con semilla). Devuelve una LISTA por orden de preferencia:
+ * el primero es la densidad elegida (ponderada); los demás, de menor a mayor
+ * huella, sirven de FALLBACK si la elegida no cabe junto a una vía — así el
+ * crecimiento no se atasca por elegir al azar un bloque que nunca encaja.
+ */
+export function residentialChoices(tier: Tier, rng: Rng): string[] {
+  const pool = CATALOG_DATA.filter((it) => it.role === 'residential' && it.tier > 0 && it.tier <= tier);
+  if (pool.length === 0) return ['cottage'];
+  // Gradiente por MADUREZ: se favorece la densidad del tier DESBLOQUEADO (la
+  // "moda" de construcción del momento) con una cola geométrica hacia densidades
+  // menores, que perduran como acento. Así un pueblo (T2) es sobre todo adosados
+  // con casitas sueltas; una villa (T3) añade paneláks; una ciudad (T4) se vuelve
+  // de bloques Zlín pero conserva su casco antiguo. Silueta variada Y con la
+  // aglomeración propia de cada etapa (§4 + coherencia del tejido urbano).
+  const weighted = pool.map((it) => ({ id: it.id, w: Math.pow(0.55, tier - it.tier), area: it.w * it.d }));
+  const total = weighted.reduce((s, x) => s + x.w, 0);
+  let r = rng.next() * total;
+  let pick = weighted[0].id;
+  for (const x of weighted) {
+    r -= x.w;
+    if (r <= 0) { pick = x.id; break; }
+  }
+  const rest = weighted
+    .filter((x) => x.id !== pick)
+    .sort((a, b) => a.area - b.area)
+    .map((x) => x.id);
+  return [pick, ...rest];
+}
+
 /** Ítem del catálogo que materializa cada demanda, por tier. Determinista. */
 export function itemForDemand(kind: Exclude<DemandKind, null>, tier: Tier): string {
   const pool = CATALOG_DATA.filter((it) => it.tier <= tier && it.tier > 0);
