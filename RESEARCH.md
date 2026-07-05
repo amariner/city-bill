@@ -1026,3 +1026,25 @@ una simulación, y los tratamos como tales:
   cobran del mayorista: quitarles el salario acuñado) y COMERCIO (las tiendas pagan de
   su caja/till) → el cierre monetario COMPLETO. (b) el churn vocacional (ciclo 37) para
   que la vocación mueva de verdad. (c) artesanos (producir bienes dentro).
+- 2026-07-05 · **Verificación adversarial de la sesión (ciclos 29-37bis)** · Repaso a
+  fondo del dinero (conservación), demografía (natalidad denso-dependiente NO cambia
+  el nº de tiradas de RNG → determinismo intacto), vacuna (guardas de dosis/tesoro/
+  temporada, solo susceptibles), legado (childrenRaised a AMBOS padres, solo en
+  nacimientos reales), crónica (el legado no se compacta jamás) y vocación (roles
+  reales). Empírico a 80 días, seed 42: CERO carteras negativas, CERO NaN, y el dinero
+  POR CÁPITA se aplana (572→1087→1320→1401: incrementos decrecientes) — los sumideros
+  del ciclo 32 funcionan, aunque el total crece con la población (el cierre monetario
+  completo sigue pendiente). Código SANO; sin bugs.
+- 2026-07-05 · **Ciclo 38 (REVERTIDO): consumo ostentoso → estatus** · Idea: los
+  bienes (ciclo 31) suben el prestigio (bienes de Veblen, N2→N4) para dar desigualdad
+  de ESTATUS. Falló por DOS muros estructurales, revertido: (1) el prestigio es un
+  acumulador PERMANENTE [0,1] y el `investInHomes` lleva a casi todos a 1 (todos son
+  ricos porque el dinero se acumula) → SATURACIÓN universal, sin desigualdad; añadir
+  decaimiento (0.02/día) no bastó (la inversión lo supera). (2) el prestigio ALIMENTA
+  la atractividad→inmigración, que es parte del bucle de crecimiento CAÓTICO — tocarlo
+  descuadró el crecimiento (seed 500 colapsó a 6 hab.). LECCIÓN: la desigualdad de
+  consumo necesita una señal de estatus SEPARADA del prestigio-que-mueve-inmigración,
+  y con decaimiento fuerte — un rediseño mayor, no un ciclo pequeño. Igual que el
+  ciclo 37, es señal de que las mejoras que quedan (cierre monetario, estatus
+  desacoplado, techo K atado a la economía) piden trabajo estructural con presupuesto
+  de validación completo, no parches. El árbol queda limpio y verde (269/269) en 37bis.
