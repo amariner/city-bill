@@ -41,7 +41,7 @@ export const LOGICS: LogicEntry[] = [
   { id: 'contagion', name: 'contagio (epidemias en oleadas + cuarentena)', level: 2, files: ['sim/contagion.ts', 'citizens/social.ts', 'citizens/activities.ts'], couples: ['health', 'social', 'government'] },
   { id: 'vaccination', name: 'vacunación (inmunidad de rebaño, salud pública preventiva)', level: 2, files: ['sim/contagion.ts', 'sim/simulation.ts'], couples: ['contagion', 'government', 'health'] },
   { id: 'weather', name: 'clima y estaciones', level: 0, files: ['sim/weather.ts', 'citizens/activities.ts'], couples: ['needs', 'social', 'vehicles'] },
-  { id: 'seasonal-harvest', name: 'cosecha estacional (el campo rinde poco en invierno, mucho en verano)', level: 1, files: ['economy.ts', 'sim/simulation.ts'], couples: ['food', 'weather'] },
+  { id: 'seasonal-harvest', name: 'cosecha estacional + granero-colchón (superávit en verano, reserva para el invierno)', level: 1, files: ['economy.ts', 'sim/simulation.ts'], couples: ['food', 'weather'] },
   { id: 'third-place', name: 'vecindario y pandillas (tercer lugar)', level: 3, files: ['citizens/activities.ts'], couples: ['social'] },
   { id: 'vehicles', name: 'vehículos (coche para trayectos largos)', level: 0, files: ['sim/simulation.ts', 'sim/protocol.ts'], couples: ['space', 'money', 'weather'] },
   { id: 'status', name: 'estatus y propiedad (mejoras del hogar)', level: 4, files: ['economy.ts', 'sim/simulation.ts'], couples: ['money', 'needs', 'growth'] },

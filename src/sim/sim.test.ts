@@ -1269,6 +1269,24 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
   check('cosecha: y el pueblo sigue en pie tras varios inviernos', sim.citizens.size >= 25, `→ ${sim.citizens.size} hab.`);
 }
 
+// Ciclo 40 RESEARCH.md — EL GRANERO COMO COLCHÓN (alimento↔estación): con más
+// capacidad agrícola (FOOD_PER_FARMER_HOUR 4→7) el verano produce SUPERÁVIT que
+// llena el granero y el invierno tira de él → gestión de reservas estacional
+// EMERGENTE (antes, con producción≈consumo, el granero vivía clavado a 0). El
+// dinero no se toca: el ingreso del granjero va con lo VENDIDO (acotado por el
+// consumo), no con lo producido.
+{
+  const sim = new Simulation(seedWorld(), 42);
+  let minG = Infinity, maxG = 0;
+  for (let d = 0; d < 70; d++) {
+    for (let t = 0; t < TICKS_PER_DAY; t++) sim.step();
+    minG = Math.min(minG, sim.economy.granary);
+    maxG = Math.max(maxG, sim.economy.granary);
+  }
+  check('granero: el verano acumula un COLCHÓN real (superávit sobre el arranque)', maxG > 60, `→ pico ${Math.round(maxG)}`);
+  check('granero: el invierno TIRA de él (oscila como una reserva, no se estanca)', minG < 25 && maxG - minG > 35, `→ ${Math.round(minG)}–${Math.round(maxG)}`);
+}
+
 // Determinismo: mismo snapshot final con la misma semilla.
 const a = runDays(7, 1).sim.snapshot();
 const b = runDays(7, 1).sim.snapshot();

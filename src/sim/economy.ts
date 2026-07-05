@@ -18,8 +18,13 @@ export interface Workplace {
   workers: number[];
 }
 
-/** Producción de comida por granjero y hora trabajada (lógica de alimento). */
-export const FOOD_PER_FARMER_HOUR = 4;
+/** Producción de comida por granjero y hora trabajada (lógica de alimento).
+ * Subido de 4 a 7 (ciclo 40): con la cosecha estacional (ciclo 39) el verano
+ * ahora produce SUPERÁVIT que llena el granero, y el invierno tira de él → el
+ * colchón comunal por fin FUNCIONA (gestión de reservas emergente). Es neutral
+ * para el dinero: el ingreso del granjero va con lo VENDIDO (acotado por el
+ * consumo), no con lo producido, así que el excedente solo llena la despensa. */
+export const FOOD_PER_FARMER_HOUR = 7;
 /** Estacionalidad de la cosecha (ciclo 39): el campo no rinde igual todo el año.
  * La producción escala con la calidez estacional [-1,1] → el invierno rinde poco
  * (factor 1−swing) y el verano mucho (1+swing). Así el GRANERO (colchón comunal)

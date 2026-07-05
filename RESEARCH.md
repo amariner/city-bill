@@ -1062,3 +1062,20 @@ una simulación, y los tratamos como tales:
   en invierno). Para que el colchón IMPORTE hace falta que el verano produzca SUPERÁVIT
   (más capacidad agrícola / más granjeros) — entonces el granero se llenaría en verano
   y se tiraría de él en invierno, y emergería la gestión de reservas.
+- 2026-07-05 · **Ciclo 40: EL GRANERO COMO COLCHÓN (alimento↔estación)** · Cierra la
+  carencia que dejó el ciclo 39 en un solo número: `FOOD_PER_FARMER_HOUR` de 4 a 7.
+  Ahora el verano (×1.5) produce SUPERÁVIT que llena el granero y el invierno (×0.5)
+  tira de él → la gestión de reservas estacional EMERGE de verdad (antes, con
+  producción≈consumo, el granero vivía clavado a 0 y la estacionalidad no tenía
+  colchón). Verificado (seed 42, 70 días): el granero OSCILA de ~0 en invierno a ~115
+  en verano — una reserva real que se llena y se vacía con las estaciones —, la
+  sociedad sobrevive (comida mín. 0.27) y el crecimiento sigue acotado. CLAVE de por
+  qué es seguro (no rompió ningún test): el cambio es NEUTRAL para el dinero — el
+  ingreso del granjero va con lo VENDIDO (acotado por el consumo), no con lo
+  producido, así que el excedente solo llena la despensa, no acuña dinero ni descuadra
+  la economía. 276/276 tests verdes. Un arco de alimento estacional COMPLETO (39+40):
+  el clima mueve la cosecha y el granero amortigua — sin tocar el bucle caótico.
+  Carencias observadas: (a) el granero es COMUNAL (un solo stock); un paso más realista
+  sería stock POR tienda/hogar (despensa privada que se gestiona). (b) en un invierno
+  MUY largo o con menos granjeros el colchón podría no bastar → precios de la comida
+  que suben con la escasez (hoy FOOD_PRICE es fijo) cerraría el bucle oferta-demanda.
