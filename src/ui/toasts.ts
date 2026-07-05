@@ -54,6 +54,9 @@ function styleFor(name: string, data?: Record<string, unknown>): Style | null {
     case 'dynastyFell':
       // Extinción (ciclo 44): el arco de una familia se cierra — un beat sobrio.
       return { accent: '', mark: '❧' };
+    case 'firstBuilding':
+      // Hito del pueblo (ciclo 45): estrena un tipo de edificio — desarrollo urbano.
+      return { accent: MILESTONE, mark: '⌂' };
     case 'citizenLeft':
       // Solo los LEGADOS (matriarcas/patriarcas, ciclo 35) — no cada muerte.
       return isLegacyDeath(data) ? { accent: '', mark: '†' } : null;

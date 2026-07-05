@@ -82,7 +82,7 @@ const VOCATION_QUIT_CHANCE = 0.05;
 const DYNASTY_THRESHOLD = 8;
 
 export interface SimEvent {
-  name: 'citizenBorn' | 'citizenLeft' | 'jobTaken' | 'chatStarted' | 'cityGrew' | 'tierUnlocked' | 'coupleFormed' | 'festivalDay' | 'roadExtended' | 'epidemic' | 'vocationFound' | 'dynastyRose' | 'dynastyFell';
+  name: 'citizenBorn' | 'citizenLeft' | 'jobTaken' | 'chatStarted' | 'cityGrew' | 'tierUnlocked' | 'coupleFormed' | 'festivalDay' | 'roadExtended' | 'epidemic' | 'vocationFound' | 'dynastyRose' | 'dynastyFell' | 'firstBuilding';
   data: Record<string, unknown>;
 }
 
@@ -109,6 +109,9 @@ export class Simulation {
   /** Apellido de cada tronco reconocido (ciclo 44): para narrar su extinción
    * cuando ya no queda ningún miembro vivo de quien leerlo. */
   private readonly dynastyNames = new Map<number, string>();
+  /** Tipos de edificio ya vistos (ciclo 45): se pre-puebla con los de la aldea
+   * fundacional; la ciudad anuncia el PRIMERO de cada tipo NUEVO que levanta. */
+  private readonly firstBuildingSeen = new Set<string>();
   private nextId = 1;
   private lastDay = 0;
   events: SimEvent[] = [];
@@ -162,6 +165,9 @@ export class Simulation {
     this.spawnPopulation();
     this.economy.rebuild(this.index, this.citizens);
     this.hireAndAcquaint();
+    // Hitos del pueblo (ciclo 45): los edificios de la aldea fundacional no son
+    // "primicias" — solo lo será el primer tipo NUEVO que la ciudad levante sola.
+    for (const b of this.index.buildings) this.firstBuildingSeen.add(b.id);
   }
 
   // --- Población -------------------------------------------------------------
@@ -842,6 +848,13 @@ export class Simulation {
     }
     this.hireAndAcquaint();
     this.events.push({ name: 'cityGrew', data: { ...p } });
+    // Hito del pueblo (ciclo 45): la PRIMERA vez que se levanta un tipo de edificio
+    // — el pueblo estrena escuela, tienda, consultorio, fábrica… un beat de su
+    // desarrollo (acopla con los tiers: cada tier abre tipos nuevos).
+    if (!this.firstBuildingSeen.has(p.id)) {
+      this.firstBuildingSeen.add(p.id);
+      this.events.push({ name: 'firstBuilding', data: { id: p.id, name: it.name } });
+    }
   }
 
   private stepCitizen(c: Citizen, ctx: SimContext): void {

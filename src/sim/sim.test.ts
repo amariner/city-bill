@@ -1412,6 +1412,29 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
   check('extinción: sin descendientes NI tronco, la estirpe se extingue', stillAlive([], 7, []) === false);
 }
 
+// Ciclo 45 RESEARCH.md — HITOS DEL PUEBLO (primer edificio de cada tipo): la historia
+// del LUGAR, no solo de las personas. La aldea fundacional no cuenta; cuando la ciudad
+// levanta SOLA un tipo nuevo (escuela, consultorio, adosados, fábrica…) la Crónica lo
+// celebra — un beat de desarrollo urbano, acoplado a los tiers (cada tier abre tipos).
+{
+  // Narración pura (única fuente, ciclo 18), con el nombre del catálogo.
+  check('crónica: el estreno de un edificio se narra con su nombre',
+    chronicleText('firstBuilding', { name: 'Escuela' }) === 'el pueblo estrena un edificio nuevo: Escuela');
+
+  // Emergente (seed 500, corto): la ciudad estrena tipos nuevos, cada uno UNA vez.
+  const sim = new Simulation(seedWorld(), 500);
+  const firsts: Array<Record<string, unknown>> = [];
+  for (let t = 0; t < TICKS_PER_DAY * 12; t++) {
+    sim.step();
+    for (const e of sim.takeEvents()) if (e.name === 'firstBuilding') firsts.push(e.data);
+  }
+  check('hitos: el pueblo estrena tipos de edificio al desarrollarse', firsts.length > 0, `→ ${firsts.map((f) => f.name).join(', ')}`);
+  check('hitos: cada tipo se estrena UNA sola vez (sin repetir)',
+    new Set(firsts.map((f) => f.id)).size === firsts.length);
+  check('hitos: el estreno lleva un nombre de catálogo válido',
+    firsts.every((f) => typeof f.name === 'string' && (f.name as string).length > 0 && catalogData(f.id as string) !== undefined));
+}
+
 // Determinismo: mismo snapshot final con la misma semilla.
 const a = runDays(7, 1).sim.snapshot();
 const b = runDays(7, 1).sim.snapshot();

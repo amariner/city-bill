@@ -154,6 +154,12 @@ export function chronicleText(name: string, data?: Record<string, unknown>): str
       const n = typeof data?.members === 'number' ? data.members : '?';
       return `la familia ${fam} echa raíces: ${n} descendientes vivos`;
     }
+    case 'firstBuilding': {
+      // Hito del pueblo (ciclo 45): el pueblo estrena un tipo de edificio (fórmula
+      // neutra sin artículo — los nombres del catálogo tienen género variado).
+      const label = typeof data?.name === 'string' ? data.name : 'un edificio nuevo';
+      return `el pueblo estrena un edificio nuevo: ${label}`;
+    }
     case 'dynastyFell': {
       // Extinción de estirpe (ciclo 44): el arco de una familia se cierra.
       const fam = typeof data?.surname === 'string' && data.surname ? data.surname : '';

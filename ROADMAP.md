@@ -423,3 +423,10 @@ aprieta, T3.8-T3.10 y la Fase 4 valen más que cualquier cosa de la Fase 5.
   unitario del predicado + narración (el run de 200 años disparaba la suite a >4 min).
   Con esto el arco de una familia es COMPLETO: nace (42), crece y se reconoce (43), se
   apaga (44). 297/297 tests, `tsc` limpio. Ver RESEARCH.md §4 (2026-07-05, ciclo 44).
+- 2026-07-05 (sesión Opus, LÓGICA+INTERFAZ a la par — ciclo 45) — **Hitos del pueblo
+  (primer edificio de cada tipo)**: abre la veta de la historia del LUGAR (tras el arco
+  familiar). Cuando la ciudad levanta sola un tipo de edificio que no había (escuela,
+  consultorio, adosados, fábrica…), la Crónica lo celebra ("el pueblo estrena un edificio
+  nuevo: Escuela") y un toast ⌂ lo asoma. Acoplado a los tiers (cada tier abre tipos);
+  emerge del crecimiento sin guion. 301/301 tests, `tsc` limpio, screenshot del pueblo en
+  desarrollo sin regresión. Ver RESEARCH.md §4 (2026-07-05, ciclo 45).

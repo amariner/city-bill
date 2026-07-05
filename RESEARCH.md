@@ -1286,3 +1286,22 @@ una simulación, y los tratamos como tales:
   tanto el hito de dinastía como la extinción ("tras 4 generaciones, se apaga…"); (b) el
   arco familiar ya está cerrado — siguiente veta de historia: los HITOS DEL PUEBLO (primer
   edificio de cada tipo, récord de población, la calle más larga) como beats de la Crónica.
+- 2026-07-05 · **Ciclo 45: HITOS DEL PUEBLO (primer edificio de cada tipo) — la historia
+  del LUGAR** · Nueva veta tras cerrar el arco familiar: la Crónica contaba a las PERSONAS
+  (nacer, emparejarse, morir, prosperar) pero el pueblo como LUGAR no tenía beats propios.
+  MODELAR: se pre-puebla `firstBuildingSeen` con los tipos de la aldea fundacional (no son
+  primicias); cuando la ciudad levanta SOLA (en `applyGrowth`, junto a `cityGrew`) un tipo
+  que no había → evento `firstBuilding` con el nombre de catálogo. Acopla con los tiers
+  (cada tier abre tipos nuevos: escuela/consultorio en T1, supermercado/ayuntamiento en T3,
+  fábrica/oficinas en T4), así el estreno EMERGE del crecimiento, sin guion. Sin RNG nuevo,
+  O(1)/construcción. EMERGENCIA medida: fires tempranos y fiables (seed 500: Consultorio@d5,
+  Adosados@d6, Escuela@d15, Bloque@d21, Supermercado@d21) → test BARATO posible (12 días).
+  **INTERFAZ A LA PAR**: la Crónica narra "el pueblo estrena un edificio nuevo: Escuela";
+  un toast ⌂ (MILESTONE) lo asoma. VERIFICAR: 301/301 tests (4 nuevos), `tsc` limpio,
+  screenshot del pueblo en desarrollo sin errores runtime (el estreno concreto tarda más
+  años en el mundo del navegador —seedWorld(N)— que en el del test —seedWorld() por
+  defecto—; el mecanismo se verificó por test y narración pura). Con esto la Crónica cuenta
+  DOS historias entrelazadas: la de las familias (linaje) y la del lugar (su desarrollo).
+  Carencia para próximos ciclos: (a) más hitos del lugar (récord de población, la primera
+  calle autotrazada, la primera vez que el pueblo pasa de aldea a villa por tier); (b) que
+  el hito de tier (ya existente) y estos estrenos se coordinen para no solaparse.
