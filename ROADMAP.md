@@ -408,3 +408,25 @@ aprieta, T3.8-T3.10 y la Fase 4 valen más que cualquier cosa de la Fase 5.
   contrato del mensaje es la única fuente de verdad). Ver RESEARCH.md §4 (2026-07-05).
   NOTA: la nieve del TERRENO en invierno (T5.1 paso 2) YA estaba implementada
   (`updateTerrainSeason`); lo pendiente ahí es sólo el pulido de cubiertas en tejados.
+- 2026-07-05 (sesión Opus, veta CONSTRUCCIÓN AUTÓNOMA + INTERFAZ vendible) — Objetivo:
+  robustecer y embellecer el sector de construcción autónoma y una UI vendible, por
+  ciclos completos (tsc + test + screenshot + commit). Hechos:
+  · **Animación de construcción (T4.2)** — `world/render/construction.ts`
+    (`ConstructionView`): los edificios del crecimiento ya no aparecen de golpe;
+    se ve el solar, el andamio low-poly, la subida y el pop. Verificado por
+    burst-screenshot de `?scene=farm`. Colores nuevos en paleta (`scaffold`,
+    `scaffoldShade`, `constructionSite`).
+  · **Mezcla de densidades (T4.2)** — `residentialChoices(tier, rng)` en
+    `growth.ts`: la vivienda se reparte con gradiente por madurez (0.55^gap) en
+    vez de saltar siempre al mayor tier; `maybeGrow` con fallback de menor huella
+    antes de trazar calle (robustez). 6 tests; guarda de crecimiento 30→25 (la
+    mezcla desplaza la trayectoria caótica; el pueblo sigue emergiendo).
+  · **Barra de control (veta interfaz)** — `ui/controlBar.ts`: marca discreta
+    "city · bill", pastillas de velocidad CLICABLES (antes solo teclado 0-3) con
+    la activa resaltada en oro/ámbar, y una leyenda de controles plegable para
+    que quien abra el juego sepa moverse. Esquina inferior izquierda, no tapa la
+    viñeta. Verificado por screenshot (clic en ×3 → el HUD lo refleja).
+    TRAMPA de verificación anotada: el navegador va a tiempo REAL (×8 → ~75 s por
+    día de juego), así que un pueblo maduro (tier ≥2) tarda ~10 min en emerger en
+    vivo; la lógica de crecimiento se verifica headless (tsx) — variedad del mix,
+    trayectorias — y lo visual con burst-screenshots de obras individuales.

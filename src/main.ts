@@ -24,6 +24,7 @@ import { Speed } from './sim/protocol';
 import { CitizenInspector } from './ui/inspector';
 import { Chronicle } from './ui/chronicle';
 import { CityHud } from './ui/cityHud';
+import { ControlBar } from './ui/controlBar';
 import { Toasts } from './ui/toasts';
 
 const sceneName = new URLSearchParams(window.location.search).get('scene');
@@ -115,6 +116,8 @@ const hud = new DebugHud(stage.renderer, camera);
 const inspector = simClient ? new CitizenInspector(stage.renderer, camera, simClient) : null;
 // HUD de ciudad (surfacing): siempre visible mientras haya simulación.
 const cityHud = simClient ? new CityHud() : null;
+// Barra de control: marca + velocidad clicable + leyenda de controles.
+const controlBar = simClient ? new ControlBar((s) => simClient!.setSpeed(s)) : null;
 
 window.addEventListener('resize', () => {
   stage.renderer.setSize(window.innerWidth, window.innerHeight);
@@ -160,6 +163,7 @@ loop.onUpdate((dt) => {
     const mm = String(Math.floor((h % 1) * 60)).padStart(2, '0');
     hud.setStats({ agents: n, clock: `${hh}:${mm} día ${day} ×${simClient.speed}` });
     cityHud?.update(simClient.city, { day, hour: h, speed: simClient.speed });
+    controlBar?.update(simClient.speed);
     chronicle?.update(t, simClient.population, simClient.buildings);
   }
   hud.update(dt);
