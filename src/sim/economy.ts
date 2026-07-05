@@ -140,15 +140,30 @@ export class Economy {
   lifestyleLeft = 0;
   /** Superavit del tesoro repartido a la ciudadania (ciclo 32 - metrica). */
   dividendPaid = 0;
+  /** Nómina pública pagada del tesoro, no acuñada (ciclo 37bis — cierre parcial). */
+  wagesFromTreasury = 0;
 
   /** Nómina: el trabajo mete dinero en el hogar del trabajador, menos la
    * parte que va al tesoro municipal (impuesto sobre la renta, lógica de
-   * gobierno). El tesoro es lo que luego paga pensiones. */
-  payWage(homeKey: string, hours: number, employerTier: number, skill = 0): void {
+   * gobierno). El tesoro es lo que luego paga pensiones.
+   *
+   * Cierre parcial (ciclo 37bis): el sector PÚBLICO (empleos 'civic': escuela,
+   * clínica) se paga del TESORO, no se acuña — nómina FINITA como en la realidad,
+   * y da uso al tesoro que atesoraba (ciclo 32). Cuando el tesoro cubre el bruto,
+   * ese salario crea CERO dinero nuevo (transferencia pública). Si el tesoro no
+   * llega, se acuña el resto (fallback: nadie se queda sin cobrar → sin colapso).
+   * Los demás sectores (agro, comercio, oficio) se siguen acuñando: cerrarlos del
+   * todo (tiendas de su caja, etc.) es el gran pendiente. */
+  payWage(homeKey: string, hours: number, employerTier: number, skill = 0, employerRole?: string): void {
     const skillMult = 1 + WAGE_SKILL_BONUS * Math.min(1, Math.max(0, skill));
     const gross = (WAGE_PER_HOUR + WAGE_TIER_BONUS * employerTier) * skillMult * hours;
     const tax = gross * TAX_RATE;
     const net = gross - tax;
+    if (employerRole === 'civic') {
+      const fromTreasury = Math.min(Math.max(0, this.treasury), gross);
+      this.treasury -= fromTreasury; // el erario paga a sus empleados (no se acuña)
+      this.wagesFromTreasury += fromTreasury;
+    }
     this.wallets.set(homeKey, (this.wallets.get(homeKey) ?? 0) + net);
     this.wagesPaid += net;
     this.treasury += tax;

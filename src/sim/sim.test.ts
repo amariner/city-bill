@@ -1131,10 +1131,12 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
   check('legado: quien no dejó hijos no lo menciona (no toda vida es igual)', !(die({ childrenRaised: 0 }) ?? '').includes('deja'));
 
   // Integración: con las generaciones, mueren padres que dejaron hijos → la
-  // huella es REAL y emergente, no un guion.
+  // huella es REAL y emergente, no un guion. 50 días: da tiempo a que una familia
+  // grande se forme Y su cabeza fallezca, en varias semillas (a 40 días aún es
+  // pronto y la cifra baila con cualquier perturbación de la trayectoria caótica).
   const sim = new Simulation(seedWorld(), 42);
   let legacyDeaths = 0, maxKids = 0;
-  for (let t = 0; t < TICKS_PER_DAY * 40; t++) {
+  for (let t = 0; t < TICKS_PER_DAY * 50; t++) {
     sim.step();
     for (const e of sim.takeEvents()) {
       if (e.name === 'citizenLeft' && e.data.reason === 'death') {
@@ -1197,6 +1199,41 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
   }
   const avg = (a: number[]) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0);
   check('vocación: quien ejerce su vocación está MÁS realizado (más propósito)', fit.length > 0 && unfit.length > 0 && avg(fit) > avg(unfit), `→ vocación ${avg(fit).toFixed(2)} vs a disgusto ${avg(unfit).toFixed(2)}`);
+}
+
+// Ciclo 37 (bis) RESEARCH.md — NÓMINA PÚBLICA (cierre monetario PARCIAL): tras el
+// no-op de "buscar la vocación", un paso seguro y garantizado hacia el cierre. La
+// nómina ACUÑA dinero (payWage); cerrar la del SECTOR PÚBLICO (empleos 'civic':
+// escuela, clínica) es limpio: se paga del TESORO (impuestos), no se acuña — así
+// no crea dinero nuevo y, de paso, da uso al tesoro que atesoraba (ciclo 32).
+// Defensivo: si el tesoro no llega, se acuña el resto (nadie sin cobrar).
+{
+  const civicTier = 1;
+  const e = new Economy();
+  e.treasury = 1000;
+  const before = e.treasury;
+  e.payWage('publico', 8, civicTier, 0.5, 'civic');
+  check('nómina pública: el civismo se paga del TESORO (marca lo no acuñado)', e.wagesFromTreasury > 0, `→ ${e.wagesFromTreasury.toFixed(0)}`);
+  check('nómina pública: el tesoro BAJA al pagar a su empleado (no se acuña)', e.treasury < before, `→ ${e.treasury.toFixed(0)} < ${before}`);
+  check('nómina pública: el empleado cobra su neto', e.walletOf('publico') > 0);
+
+  const priv = new Economy();
+  priv.treasury = 1000;
+  priv.payWage('tendero', 8, civicTier, 0.5, 'commerce');
+  check('nómina privada: se sigue acuñando (el tesoro solo gana el impuesto)', priv.treasury > 1000 && priv.wagesFromTreasury === 0);
+
+  const broke = new Economy();
+  broke.treasury = 0;
+  broke.payWage('maestro', 8, civicTier, 0.5, 'civic');
+  check('nómina pública: con el erario en quiebra, se cobra igual (fallback, sin colapso)', broke.walletOf('maestro') > 0);
+
+  // Integración: el erario paga de verdad a escuela/clínica y la sociedad sigue en pie.
+  const sim = new Simulation(seedWorld(), 42);
+  for (let t = 0; t < TICKS_PER_DAY * 40; t++) sim.step();
+  const cs = [...sim.citizens.values()];
+  const avgFood = cs.reduce((s, c) => s + c.needs.food, 0) / cs.length;
+  check('nómina pública: el erario paga de verdad a sus empleados públicos', sim.economy.wagesFromTreasury > 0, `→ ${sim.economy.wagesFromTreasury.toFixed(0)}`);
+  check('nómina pública: y la sociedad sigue en pie', avgFood > 0.25 && cs.length >= 25, `→ ${cs.length} hab., comida ${avgFood.toFixed(2)}`);
 }
 
 // Determinismo: mismo snapshot final con la misma semilla.

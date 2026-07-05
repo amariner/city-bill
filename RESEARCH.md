@@ -1007,3 +1007,22 @@ una simulación, y los tratamos como tales:
   DEJE y busque el suyo, generando rotación y opciones en el tiempo — no basta con
   preferir en el momento de una asignación forzada por escasez. Ese es el camino
   correcto para el "cambiar de oficio" de la carencia (a) del ciclo 36.
+- 2026-07-05 · **Ciclo 37 (bis): NÓMINA PÚBLICA (cierre monetario PARCIAL)** · Tras el
+  no-op de la vocación, un paso SEGURO y de efecto GARANTIZADO hacia el gran pendiente
+  (cierre monetario). La nómina ACUÑA dinero (`payWage`), y cerrarla del todo es
+  enorme/arriesgado; pero cerrar la del SECTOR PÚBLICO es limpio: los empleos 'civic'
+  (escuela, clínica) se pagan del TESORO (impuestos), no se acuñan. Cuando el tesoro
+  cubre el bruto, ese salario crea CERO dinero nuevo (transferencia pública, como en
+  la realidad), y de paso DA USO al tesoro que atesoraba (ciclo 32). Defensivo: si el
+  erario no llega, se acuña el resto (nadie sin cobrar → sin colapso). Medido en seed
+  42: el tesoro paga ~17k en nómina pública a día 40 y ~44k a día 80 — un trozo REAL de
+  la acuñación cerrado, y el tesoro deja de piramidar tan rápido (financia a sus
+  maestros y médicos). Crecimiento acotado (max 105 a día 40), sociedad en pie
+  (comida 0.35). 269/269 tests verdes (el test de legado del ciclo 34 se alargó a 50
+  días: a 40 la cifra de la mayor familia bailaba con esta perturbación). A diferencia
+  del ciclo 37-revertido, este SÍ
+  tiene efecto y es garantizado (los empleos públicos existen y el tesoro los cubre).
+  Carencias observadas para próximos ciclos: (a) cerrar también agro (los granjeros ya
+  cobran del mayorista: quitarles el salario acuñado) y COMERCIO (las tiendas pagan de
+  su caja/till) → el cierre monetario COMPLETO. (b) el churn vocacional (ciclo 37) para
+  que la vocación mueva de verdad. (c) artesanos (producir bienes dentro).

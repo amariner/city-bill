@@ -792,8 +792,9 @@ export class Simulation {
             const employer = catalogData(c.work.buildingId);
             // Cadena de alimento: los granjeros en faena llenan el granero.
             if (employer?.role === 'agriculture') this.economy.produceFood(`${c.home.ax},${c.home.az}`, hours);
-            // Dinero: cada hora trabajada es salario para el hogar.
-            this.economy.payWage(`${c.home.ax},${c.home.az}`, hours, employer?.tier ?? 0, c.education);
+            // Dinero: cada hora trabajada es salario para el hogar. El sector
+            // público (civic) se paga del tesoro, no se acuña (ciclo 37bis).
+            this.economy.payWage(`${c.home.ax},${c.home.az}`, hours, employer?.tier ?? 0, c.education, employer?.role);
             // Vocación (ciclo 36): trabajar en lo que uno ama COLMA el propósito.
             if (jobFitsVocation(c.personality, employer?.role)) restore(c.needs, 'purpose', VOCATION_PURPOSE_BONUS * hours);
           }
