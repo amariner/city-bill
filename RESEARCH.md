@@ -960,3 +960,20 @@ una simulación, y los tratamos como tales:
   VISIBLE en el inspector, no solo en la Crónica. (b) que la huella IMPORTE en vida
   (los mayores con muchos hijos/nietos, respetados) — con cuidado de no acoplar al caos
   del crecimiento. (c) sigue el cierre monetario TOTAL (nómina finita) y la vocación.
+- 2026-07-05 · **Ciclo 35: LEGADO PERMANENTE (memoria por niveles, §6.1)** · Profundiza
+  el ciclo 34-bis y remata el clúster del legado. La Crónica ya resumía los años viejos
+  en una línea (ciclo 21, "memoria como los humanos"), pero eso BORRABA también a los
+  pilares del pueblo. Ahora un LEGADO —quien crió una familia grande (`LEGACY_KIDS=4`)
+  o alcanzó edad venerable (90)— es un tipo de evento propio (`'legacy'`) que NO se
+  compacta: se recuerda POR NOMBRE para siempre, junto al resumen de lo rutinario de su
+  año. Así el largo plazo del pueblo conserva a sus matriarcas y patriarcas, que es
+  exactamente la condición de victoria (§6.1: ganamos cuando la Crónica cuenta las
+  historias que importan y no escribimos nosotros). Puro (clasificador `isLegacyDeath`
+  + retención en `compactChronicle`), cero riesgo de sim, headless-testable — sin coste
+  de screenshot porque el render no estiliza por tipo (el legado se distingue por
+  SOBREVIVIR, no por color). 255/255 tests verdes.
+  Carencias observadas para próximos ciclos: (a) hacer el legado y la vida VISIBLES en
+  el inspector (requiere plumbing worker→protocolo→UI + screenshot). (b) más formas de
+  legado no monetario (oficio/vocación, ser pilar por amistades) y que IMPORTE en vida.
+  (c) el gran pendiente estructural sigue siendo el cierre monetario TOTAL (nómina
+  finita: tiendas pagan de su caja, el sector público del tesoro).

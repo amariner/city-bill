@@ -15,7 +15,24 @@ import { ILLNESS_HEALTH, OLD_AGE } from '../sim/lifecycle';
 const ACTIVE_LOGICS = activeLogicNames();
 
 /** Tipo de evento para la compactación por años (RESEARCH §5). */
-export type ChronKind = 'birth' | 'death' | 'emigrated' | 'couple' | 'milestone' | 'summary';
+export type ChronKind = 'birth' | 'death' | 'emigrated' | 'couple' | 'milestone' | 'legacy' | 'summary';
+
+/** Hijos criados a partir de los cuales una muerte es LEGADO permanente (ciclo 35). */
+export const LEGACY_KIDS = 4;
+/** Edad venerable: una vida larguísima también deja legado aunque no dejara hijos. */
+const VENERABLE_AGE = 90;
+
+/** ¿La muerte de esta persona es un LEGADO que la Crónica recuerda PARA SIEMPRE
+ * (no se compacta con el resto del año)? Un pilar del pueblo: crió una familia
+ * grande o alcanzó una edad venerable. Así el largo plazo del pueblo conserva a
+ * sus matriarcas/patriarcas por nombre, mientras lo rutinario se resume (§6.1:
+ * ganamos cuando la Crónica cuenta las historias que importan). Pura y testeable. */
+export function isLegacyDeath(data?: Record<string, unknown>): boolean {
+  if (data?.reason === 'emigrated') return false;
+  const kids = typeof data?.childrenRaised === 'number' ? data.childrenRaised : 0;
+  const age = typeof data?.age === 'number' ? data.age : 0;
+  return kids >= LEGACY_KIDS || age >= VENERABLE_AGE;
+}
 
 export interface ChronEvent {
   year: number;
@@ -65,14 +82,17 @@ export function summarizeYear(year: number, events: ChronEvent[]): ChronEvent {
  * vuelve a tocar. Devuelve la nueva lista de eventos. */
 export function compactChronicle(events: ChronEvent[], currentYear: number): ChronEvent[] {
   const cutoff = currentYear - RETAIN_DETAIL_YEARS;
+  // Un LEGADO (ciclo 35) NO se compacta: se recuerda por nombre para siempre,
+  // como un 'summary'. Lo rutinario del año sí se resume en una línea.
+  const compactable = (e: ChronEvent) => e.year <= cutoff && e.kind !== 'summary' && e.kind !== 'legacy';
   const detailByYear = new Map<number, ChronEvent[]>();
   for (const e of events) {
-    if (e.year <= cutoff && e.kind !== 'summary') {
+    if (compactable(e)) {
       (detailByYear.get(e.year) ?? detailByYear.set(e.year, []).get(e.year)!).push(e);
     }
   }
   if (detailByYear.size === 0) return events;
-  const kept = events.filter((e) => !(e.year <= cutoff && e.kind !== 'summary'));
+  const kept = events.filter((e) => !compactable(e));
   const summaries = [...detailByYear.entries()].map(([y, evs]) => summarizeYear(y, evs));
   return [...kept, ...summaries].sort((a, b) => a.year - b.year);
 }
@@ -211,7 +231,7 @@ export class Chronicle {
     const kind: ChronKind =
       name === 'citizenBorn' ? 'birth'
       : name === 'coupleFormed' ? 'couple'
-      : name === 'citizenLeft' ? (data?.reason === 'emigrated' ? 'emigrated' : 'death')
+      : name === 'citizenLeft' ? (data?.reason === 'emigrated' ? 'emigrated' : isLegacyDeath(data) ? 'legacy' : 'death')
       : 'milestone';
     this.data.events.push({ year, text, kind });
     if (this.data.events.length > MAX_EVENTS) this.data.events.splice(0, this.data.events.length - MAX_EVENTS);

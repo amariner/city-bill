@@ -18,7 +18,7 @@ import { bereave, griefTick, consoleGrief, consoleGriefBy, GRIEF_PARTNER } from 
 import { maybeInfect, sickenTick, SICK_ONSET } from './contagion';
 import { chatBond } from './citizens/social';
 import { sickStayIn } from './citizens/activities';
-import { chronicleText, summarizeYear, compactChronicle, ChronEvent } from '../ui/chronicle';
+import { chronicleText, summarizeYear, compactChronicle, ChronEvent, isLegacyDeath } from '../ui/chronicle';
 import { townAttractiveness, householdHardship, updateEmigrationPressure, EMIGRATE_PRESSURE_LIMIT, computeDemand, DemandInput, fertilityFactor, CARRYING_CAPACITY } from '../world/growth';
 import { ACTIVITY_BY_KIND, SimContext } from './citizens/activities';
 import { Weather } from './weather';
@@ -1145,6 +1145,29 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
   }
   check('legado: emergen muertes que dejan hijos (la vida deja huella)', legacyDeaths > 0, `→ ${legacyDeaths} con legado`);
   check('legado: alguna vida deja una huella grande (matriarca/patriarca)', maxKids >= 2, `→ el mayor legado, ${maxKids} hijos`);
+}
+
+// Ciclo 35 RESEARCH.md — LEGADO PERMANENTE (memoria, §6.1): la Crónica compacta lo
+// rutinario de los años viejos en una línea (ciclo 21), pero un PILAR del pueblo
+// (crió una familia grande o vivió una edad venerable) se recuerda POR NOMBRE
+// para siempre — no se resume con el resto. Así el largo plazo del pueblo guarda
+// a sus matriarcas/patriarcas, que es de lo que va la condición de victoria.
+{
+  check('legado permanente: una familia grande deja legado', isLegacyDeath({ reason: 'death', childrenRaised: 5, age: 70 }));
+  check('legado permanente: una edad venerable deja legado', isLegacyDeath({ reason: 'death', childrenRaised: 0, age: 92 }));
+  check('legado permanente: una muerte corriente no', !isLegacyDeath({ reason: 'death', childrenRaised: 1, age: 78 }));
+  check('legado permanente: emigrar no es legado', !isLegacyDeath({ reason: 'emigrated', childrenRaised: 9 }));
+
+  // La Crónica conserva el legado por nombre mientras resume lo rutinario del año.
+  const evs: ChronEvent[] = [
+    { year: 0, text: 'nace Ana', kind: 'birth' },
+    { year: 0, text: 'muere Ben (75 años)', kind: 'death' },
+    { year: 0, text: 'muere Vera (94 años), una vida larga, deja 6 hijos', kind: 'legacy' },
+  ];
+  const compacted = compactChronicle(evs, 10); // el año 0 ya es viejo (RETAIN 4)
+  check('legado permanente: la Crónica conserva el legado tras compactar', compacted.some((e) => e.kind === 'legacy' && e.text.includes('Vera')));
+  check('legado permanente: lo rutinario del año viejo se resume en una línea', compacted.some((e) => e.kind === 'summary' && e.year === 0));
+  check('legado permanente: la muerte corriente ya no aparece literal', !compacted.some((e) => e.kind === 'death' && e.text.includes('Ben')));
 }
 
 // Determinismo: mismo snapshot final con la misma semilla.
