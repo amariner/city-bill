@@ -25,6 +25,8 @@ import { CitizenInspector } from './ui/inspector';
 import { Chronicle } from './ui/chronicle';
 import { CityHud } from './ui/cityHud';
 import { Toasts } from './ui/toasts';
+import { DevPanel } from './ui/devPanel';
+import { Grid, cellToWorld } from './world/grid';
 
 const sceneName = new URLSearchParams(window.location.search).get('scene');
 
@@ -53,34 +55,29 @@ let citizenView: CitizenView | null = null;
 let selectionMarker: SelectionMarker | null = null;
 let chronicle: Chronicle | null = null;
 let toasts: Toasts | null = null;
-if (sceneName === 'buildings') {
-  stage.scene.add(buildShowcase());
-  camera.setTarget(0, 0);
-} else {
-  // Semilla del mundo: aleatoria la primera vez y PERSISTIDA — cada jugador
-  // tiene su propio pueblo (no el mismo para todos) y perdura al recargar.
-  // Math.random aquí es bootstrap de sesión (elegir partida), no lógica de
-  // mundo: a partir de la semilla, todo es 100% determinista.
-  const worldSeed = pickWorldSeed();
-  // Escenario "granja" (?scene=farm): arranque mínimo para el modo autónomo
-  // (T4.4) — la ciudad se traza sus propias calles desde una sola granja.
-  const grid = sceneName === 'farm' ? seedFarm(worldSeed) : seedWorld(worldSeed);
+let inspector: CitizenInspector | null = null;
+let cityHud: CityHud | null = null;
+let devPanel: DevPanel | null = null;
+
+/** Monta el RENDER + UI a partir de un grid ya poblado, sobre el `simClient` ya
+ * creado. En el juego normal el grid es el sembrado; en el banco de pruebas
+ * (?scene=test-dev) es el grid MADURO que el worker devuelve tras pre-crecer su
+ * sim (misma ciudad que la sim, cero divergencia). El worker es dueño de la vida
+ * (gente, edades, relaciones); aquí solo se dibuja y se conecta la UI. */
+function buildRenderAndUi(grid: Grid, worldSeed: number): void {
+  const sim = simClient!;
   worldView = createWorldView(grid);
   stage.scene.add(worldView.root);
-  camera.setTarget(sceneName === 'farm' ? 0 : 20, sceneName === 'farm' ? 2 : 20);
-
-  // Simulación en worker (T3.1+). Velocidad con teclas 0-3.
-  simClient = new SimClient(worldSeed, grid.serialize());
   citizenView = new CitizenView();
   stage.scene.add(citizenView.root);
   selectionMarker = new SelectionMarker();
   stage.scene.add(selectionMarker.root);
-  // Crecimiento autónomo (T4.2): el worker construye → replicamos en el
-  // grid de render y refrescamos el chunk (misma colocación, mismo mundo).
   chronicle = new Chronicle(worldSeed);
   toasts = new Toasts(); // avisos efímeros de los eventos memorables (surfacing)
   const roadRng = createRng(worldSeed ^ 0x1d872b41); // arbolado de las vías nuevas (solo visual)
-  simClient.onEvent = (name, data) => {
+  // Crecimiento autónomo (T4.2/T4.4): el worker construye en vivo → replicamos en
+  // el grid de render y refrescamos el chunk (misma colocación, mismo mundo).
+  sim.onEvent = (name, data) => {
     chronicle?.onEvent(name, data);
     toasts?.onEvent(name, data);
     if (!data || !worldView) return;
@@ -91,7 +88,6 @@ if (sceneName === 'buildings') {
       grid.placeBuilding(id, it.w, it.d, cx, cz, rot);
       worldView.refreshChunkAt(cx, cz);
     } else if (name === 'roadExtended') {
-      // T4.4: la ciudad trazó una calle en el worker → la replicamos EN EL RENDER.
       // La calzada/márgenes son deterministas (sin RNG); el arbolado puede diferir.
       const { fromX, fromZ, dx, dz, length } = data as { fromX: number; fromZ: number; dx: number; dz: number; length: number };
       const laid = extendRoad(grid, [fromX, fromZ], { dx, dz }, length, roadRng);
@@ -101,17 +97,112 @@ if (sceneName === 'buildings') {
     }
   };
   window.addEventListener('keydown', (e) => {
-    if (e.key >= '0' && e.key <= '3') simClient!.setSpeed(Number(e.key) as Speed);
+    if (e.key >= '0' && e.key <= '3') sim.setSpeed(Number(e.key) as Speed);
   });
+
+  inspector = new CitizenInspector(stage.renderer, camera, sim);
+  cityHud = new CityHud(); // surfacing: siempre visible mientras haya simulación
+  // Panel del banco de pruebas: solo en ?scene=test-dev (fuerza/observa mecánicas).
+  if (sceneName === 'test-dev') devPanel = new DevPanel(sim);
+}
+
+/** Centra la cámara en el centro de masa de la ciudad (para el modo dev, que
+ * abre sobre un pueblo ya extendido y no sabe de antemano dónde ha crecido). */
+function centerCameraOn(centerCell: [number, number]): void {
+  const [wx, wz] = cellToWorld(centerCell[0], centerCell[1]);
+  camera.setTarget(wx, wz);
+  camera.apply();
+}
+
+if (sceneName === 'buildings') {
+  stage.scene.add(buildShowcase());
+  camera.setTarget(0, 0);
+} else if (sceneName === 'test-dev') {
+  // BANCO DE PRUEBAS: una ciudad ya avanzada y VIVA de un vistazo. El worker
+  // PRE-CRECE su propia sim (así conserva toda la vida: gente, edades, vínculos)
+  // y devuelve el grid maduro para dibujarlo. La semilla es fija (pueblo
+  // reproducible para testear a ojo), forzable con ?seed=; los días de
+  // maduración con ?days= y el encuadre con ?zoom=.
+  const params = new URLSearchParams(window.location.search);
+  const seedParam = params.get('seed');
+  const devSeed = seedParam !== null && Number.isFinite(Number(seedParam)) ? Number(seedParam) >>> 0 : 0x7e57de5;
+  const daysParam = Number(params.get('days'));
+  const growDays = Number.isFinite(daysParam) && daysParam > 0 ? Math.min(400, Math.floor(daysParam)) : 100;
+  const zoomParam = Number(params.get('zoom'));
+  const devZoom = Number.isFinite(zoomParam) ? zoomParam : 1; // ?zoom= para encuadrar el banco
+  camera.setTarget(0, 6).setZoomIndex(devZoom);
+  const overlay = makeLoadingOverlay(growDays);
+  // Semilla mínima (granja): la ciudad se traza sus propias calles al crecer — el
+  // pueblo resultante es trama 2D tupida, el más vistoso para el banco de pruebas.
+  simClient = new SimClient(devSeed, seedFarm(devSeed).serialize(), growDays);
+  simClient.onGrowProgress = (day) => overlay.progress(day);
+  simClient.onGrownGrid = (gridJson, center) => {
+    buildRenderAndUi(Grid.deserialize(gridJson), devSeed);
+    centerCameraOn(center);
+    simClient!.setSpeed(2); // arranca en ×3: la ciudad se ve vivir sin esperar
+    overlay.remove();
+  };
+} else {
+  // Semilla del mundo: aleatoria la primera vez y PERSISTIDA — cada jugador
+  // tiene su propio pueblo (no el mismo para todos) y perdura al recargar.
+  // Math.random aquí es bootstrap de sesión (elegir partida), no lógica de
+  // mundo: a partir de la semilla, todo es 100% determinista.
+  const worldSeed = pickWorldSeed();
+  // Escenario "granja" (?scene=farm): arranque mínimo para el modo autónomo
+  // (T4.4) — la ciudad se traza sus propias calles desde una sola granja.
+  const grid = sceneName === 'farm' ? seedFarm(worldSeed) : seedWorld(worldSeed);
+  camera.setTarget(sceneName === 'farm' ? 0 : 20, sceneName === 'farm' ? 2 : 20);
+  simClient = new SimClient(worldSeed, grid.serialize());
+  buildRenderAndUi(grid, worldSeed);
 }
 camera.apply();
 
 const input = new Input(stage.renderer.domElement);
 const controller = new CameraController(camera, input);
 const hud = new DebugHud(stage.renderer, camera);
-const inspector = simClient ? new CitizenInspector(stage.renderer, camera, simClient) : null;
-// HUD de ciudad (surfacing): siempre visible mientras haya simulación.
-const cityHud = simClient ? new CityHud() : null;
+
+/** Overlay de carga para el pre-crecido del banco de pruebas (pastel, discreto). */
+function makeLoadingOverlay(total: number): { progress(day: number): void; remove(): void } {
+  const el = document.createElement('div');
+  el.style.cssText = [
+    'position:fixed',
+    'inset:0',
+    'display:flex',
+    'flex-direction:column',
+    'align-items:center',
+    'justify-content:center',
+    'gap:14px',
+    'background:rgba(221,208,184,0.97)',
+    'z-index:100',
+    'color:#2d3327',
+    'font:14px/1.4 ui-monospace,monospace',
+  ].join(';');
+  const title = document.createElement('div');
+  title.textContent = 'construyendo una ciudad viva…';
+  title.style.cssText = 'font-size:16px;font-weight:600;letter-spacing:0.02em';
+  const barOuter = document.createElement('div');
+  barOuter.style.cssText = 'width:260px;height:6px;background:rgba(45,51,39,0.15);border-radius:3px;overflow:hidden';
+  const barInner = document.createElement('div');
+  barInner.style.cssText = 'height:100%;width:0%;background:#a9c286;transition:width 0.15s linear';
+  barOuter.appendChild(barInner);
+  const sub = document.createElement('div');
+  sub.style.cssText = 'opacity:0.6;font-size:12px';
+  el.appendChild(title);
+  el.appendChild(barOuter);
+  el.appendChild(sub);
+  document.body.appendChild(el);
+  return {
+    progress(day: number): void {
+      barInner.style.width = `${Math.round((day / total) * 100)}%`;
+      sub.textContent = `madurando la simulación · día ${day} de ${total}`;
+    },
+    remove(): void {
+      el.style.transition = 'opacity 0.4s ease';
+      el.style.opacity = '0';
+      setTimeout(() => el.remove(), 420);
+    },
+  };
+}
 
 window.addEventListener('resize', () => {
   stage.renderer.setSize(window.innerWidth, window.innerHeight);
@@ -156,6 +247,7 @@ loop.onUpdate((dt) => {
     const mm = String(Math.floor((h % 1) * 60)).padStart(2, '0');
     hud.setStats({ agents: n, clock: `${hh}:${mm} día ${day} ×${simClient.speed}` });
     cityHud?.update(simClient.city, { day, hour: h, speed: simClient.speed });
+    devPanel?.update();
     chronicle?.update(t, simClient.population, simClient.buildings);
   }
   hud.update(dt);

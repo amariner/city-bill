@@ -387,3 +387,47 @@ aprieta, T3.8-T3.10 y la Fase 4 valen más que cualquier cosa de la Fase 5.
   contrato del mensaje es la única fuente de verdad). Ver RESEARCH.md §4 (2026-07-05).
   NOTA: la nieve del TERRENO en invierno (T5.1 paso 2) YA estaba implementada
   (`updateTerrainSeason`); lo pendiente ahí es sólo el pulido de cubiertas en tejados.
+- 2026-07-05 (sesión Opus — BANCO DE PRUEBAS `?scene=test-dev`) — Nueva escena de
+  desarrollo: abre directamente en una ciudad MADURA y VIVA (≈90-100 hab, ~30
+  edificios, tier 3, calles auto-trazadas, economía y estaciones corriendo) para
+  testear TODAS las mecánicas de un vistazo. Es el banco de pruebas visual del
+  proyecto: cada avance nuevo debe verse aquí. Decisiones y trampas:
+  · **Pre-crecido DENTRO del worker** (no reseed con pérdida). La idea inicial del
+    brief era pre-crecer headless y sembrar el worker con `grid.serialize()`; lo
+    PROBÉ y medí: reseed desde el grid pierde toda la vida acumulada (el
+    constructor de `Simulation` sólo repuebla viviendas a capacidad → ~33 hab, sin
+    niños ni mayores, ~2 personas en la calle → ciudad casi muerta). En su lugar,
+    el worker PRE-CRECE su propia `Simulation` N días (init con `preGrowDays`) y su
+    sim ES la ciudad madura (gente, edades, vínculos, obras intactas: ~90 hab, con
+    30 niños). Devuelve el grid resultante (`grownGrid`) para que el render dibuje
+    EXACTO lo que construyó (cero divergencia). Bloquea el worker ~10 s, no el main
+    (overlay animado + barra de progreso vía `growProgress`). Contratos nuevos en
+    `protocol.ts`: `InitMsg.preGrowDays`, `GrowProgressMsg`, `GrownGridMsg`.
+  · **Determinismo**: semilla FIJA por defecto (`0x7e57de5`, pueblo reproducible
+    para testear a ojo), forzable con `?seed=`; días de maduración con `?days=`
+    (def. 100), encuadre con `?zoom=`. Semilla mínima de granja (`seedFarm`): la
+    ciudad se traza sus propias calles → trama 2D tupida, lo más vistoso.
+  · **Abre al ATARDECER (~19:00), no a mediodía.** MEDIDO headless (contando
+    agentes fuera por hora): a las 13-14h casi todos trabajan/estudian DENTRO (~9
+    en la calle); el pico es tras la jornada, ~19h (~17 fuera, ×2). Un año son 80
+    días (4 estaciones de 20, `weather.ts`); el reloj arranca a medianoche tras el
+    pre-crecido → hay que adelantar a la hora viva. Aun en el pico, la mayoría está
+    dentro (modelo de actividades): la ciudad se ve viva pero NO abarrotada — es la
+    densidad real de la sim, se disfruta mejor observándola en el tiempo.
+  · **Panel dev** (`ui/devPanel.ts`, overlay DOM plegable, sólo test-dev): velocidad,
+    saltar tiempo (+1d/+estación/+año), disparar epidemia, toggles de mecánicas
+    (crecimiento/cuarentena/vacuna/sanidad/alquiler) y contadores en vivo (pob. por
+    edad, empleo/paro, obras, tier, economía, contagio). CERO lógica de sim ahí: sólo
+    LEE `simClient.city` y ENVÍA comandos (`DevMsg` en el contrato). Los toggles
+    reflejan el estado REAL que reporta la sim (fuente de verdad), no un espejo local.
+    `CityStats` ampliado con los agregados del panel; helpers dev en `Simulation`
+    (`forceEpidemic` garantiza casos índice levantando inmunidad; `advanceDays`).
+  · **Salto de tiempo NO congela**: `advanceDays` a 0.2 s/día-de-juego bloquearía
+    el worker ~16 s en un "+año". Se ENCOLA (`pendingSkip`) y el bucle lo consume por
+    lotes (`SKIP_TICKS_PER_FRAME`) → el salto se VE correr (reloj y estaciones
+    girando) en vez de congelar. Verificado: +estación pasa otoño→invierno en ~3 s.
+  · Todo verificado end-to-end en navegador con Playwright (disparar epidemia:
+    sana→enfermos; toggles; salto con cambio de estación; sin errores de página).
+    `tsc` limpio, `grid.test` 33/33. Refactor de `main.ts`: `buildRenderAndUi(grid)`
+    separado de la creación del `SimClient` (el render se monta al llegar el grid
+    maduro; el juego normal lo llama sincrónico como antes).

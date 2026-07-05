@@ -16,7 +16,7 @@ import { createRng } from '../rng';
 export type Season = 'primavera' | 'verano' | 'otoño' | 'invierno';
 const SEASONS: Season[] = ['invierno', 'primavera', 'verano', 'otoño'];
 /** Días de juego por estación (año de 4 estaciones iguales). */
-const DAYS_PER_SEASON = 20;
+export const DAYS_PER_SEASON = 20;
 
 export interface Weather {
   season: Season;
