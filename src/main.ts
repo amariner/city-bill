@@ -23,6 +23,7 @@ import { Speed } from './sim/protocol';
 import { CitizenInspector } from './ui/inspector';
 import { Chronicle } from './ui/chronicle';
 import { CityHud } from './ui/cityHud';
+import { Toasts } from './ui/toasts';
 
 const sceneName = new URLSearchParams(window.location.search).get('scene');
 
@@ -49,6 +50,7 @@ let worldView: ReturnType<typeof createWorldView> | null = null;
 let simClient: SimClient | null = null;
 let citizenView: CitizenView | null = null;
 let chronicle: Chronicle | null = null;
+let toasts: Toasts | null = null;
 if (sceneName === 'buildings') {
   stage.scene.add(buildShowcase());
   camera.setTarget(0, 0);
@@ -72,9 +74,11 @@ if (sceneName === 'buildings') {
   // Crecimiento autónomo (T4.2): el worker construye → replicamos en el
   // grid de render y refrescamos el chunk (misma colocación, mismo mundo).
   chronicle = new Chronicle(worldSeed);
+  toasts = new Toasts(); // avisos efímeros de los eventos memorables (surfacing)
   const roadRng = createRng(worldSeed ^ 0x1d872b41); // arbolado de las vías nuevas (solo visual)
   simClient.onEvent = (name, data) => {
     chronicle?.onEvent(name, data);
+    toasts?.onEvent(name, data);
     if (!data || !worldView) return;
     if (name === 'cityGrew') {
       const { id, cx, cz, rot } = data as { id: string; cx: number; cz: number; rot: 0 | 1 | 2 | 3 };

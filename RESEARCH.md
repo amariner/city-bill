@@ -1103,3 +1103,21 @@ una simulación, y los tratamos como tales:
   Próximo en la veta: (a) enganchar eventos de sim (epidemia, tier, festival) a un
   aviso visual efímero; (b) el legado en vida (matriarcas visibles); (c) cubiertas de
   nieve en tejados (T5.1 pulido) — la nieve del terreno ya estaba hecha.
+- 2026-07-05 · **Veta INTERFAZ — SURFACING 2: avisos efímeros de eventos de vida** ·
+  Cierra la carencia (a) del surfacing 1. La sim ya EMITÍA eventos (`SimEventMsg`:
+  coupleFormed, tierUnlocked, festivalDay, epidemic, citizenLeft…) pero solo se veían
+  abriendo la Crónica (tecla C). Ahora los MEMORABLES asoman un instante como una
+  tarjetita abajo-centro y se desvanecen (`ui/toasts.ts`): la ciudad "avisa" de lo que
+  le pasa sin abrir nada. Clave de diseño: NO avisa lo rutinario (nacimiento, muerte
+  común, emigración, construcción) → sería spam; esos viven en la Crónica. Sí: hitos de
+  tier (✦), festival (✦ dorado), epidemia (! rojo), parejas (♥) y LEGADOS —solo las
+  muertes que `isLegacyDeath` marca como pilares (matriarcas/patriarcas, ciclo 35), no
+  cada muerte (†). Reutiliza `chronicleText` (única fuente de narración, ciclo 18): el
+  toast muestra la MISMA frase que la Crónica registrará, no inventa texto. Acentos con
+  colores semánticos de la paleta (signRed/signYellow/grass). Se engancha al mismo
+  `simClient.onEvent` que la Crónica, junto a ella. Verificado por screenshot: los
+  cuatro tipos apilados (pareja, verbena, epidemia, legado de 91 años con 6 hijos) leen
+  limpios, con su acento de borde, sin tapar la viñeta. Cosmético puro (setTimeout/rAF
+  de FX, permitido por §0.6); cero lógica de sim, `tsc` limpio, 276/276 tests intactos.
+  Próximo en la veta: (b) el legado/vida VISIBLE en el mundo (no solo en tarjetas);
+  (c) cubiertas de nieve en tejados (T5.1 pulido).
