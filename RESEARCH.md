@@ -995,3 +995,15 @@ una simulación, y los tratamos como tales:
   que un desajuste sostenido EMPUJE a cambiar de oficio (buscar el propio). (b) el
   cierre monetario TOTAL (nómina finita), el gran pendiente estructural. (c) producir
   bienes dentro (artesanos) y la cobertura desigual de la vacuna.
+- 2026-07-05 · **Ciclo 37 (INTENTADO Y REVERTIDO): buscar la vocación al emplearse** ·
+  Hipótesis: al buscar trabajo, un empleo que es la vocación de uno "pesa" menos
+  distancia (descuento), así la gente gravita a su llamada. Implementado y MEDIDO A/B:
+  NO-OP total — mismo crecimiento y misma tasa de encaje (33%) con y sin el descuento.
+  HALLAZGO: en un pueblo pequeño el mercado laboral es ESCASO —cuando alguien queda
+  parado suele haber una sola vacante viable a mano—, así que una PREFERENCIA en la
+  asignación nunca llega a cambiar la elección. Revertido (no tocó tests ni logics).
+  LECCIÓN: para que la vocación mueva de verdad a la gente hacen falta (a) más OFERTA
+  (varias vacantes entre las que elegir) o (b) CHURN: que el infeliz en su puesto lo
+  DEJE y busque el suyo, generando rotación y opciones en el tiempo — no basta con
+  preferir en el momento de una asignación forzada por escasez. Ese es el camino
+  correcto para el "cambiar de oficio" de la carencia (a) del ciclo 36.
