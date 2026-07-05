@@ -1147,3 +1147,13 @@ una simulación, y los tratamos como tales:
   `ClockView {day, hour, speed}` opcional; el main ya calculaba día/hora del snapshot.
   Verificado por screenshot (d0 · 02:04 · ×8). Cierra el HUD de ciudad como panel
   player-facing completo. `tsc` limpio, 276/276 tests.
+- 2026-07-05 · **Veta INTERFAZ — remate: oficio en el inspector** · El inspector
+  mostraba la VOCACIÓN (lo que uno ama) pero no el OFICIO (lo que hace para vivir),
+  aunque el rol del empleo ya viajaba en `jobRole`. Añadida la línea "oficio: …"
+  (granjero/tendero/servicio público/artesano por rol, o "sin empleo" para el adulto
+  parado) justo encima de la vocación. Emerge lo humano que el ciclo 36 buscaba HACER
+  VISIBLE: se lee de un vistazo cuándo alguien trabaja EN su vocación (✓) y cuándo no
+  — p.ej. "Emil Puig, oficio: tendero/a, vocación: labrar la tierra" (un tendero que se
+  siente llamado al campo). Puro DOM sobre datos ya presentes; verificado por
+  screenshot. Con esto el inspector cuenta una PERSONA completa: quién es, con quién
+  vive, qué hace, qué ama, qué debe, qué deja. `tsc` limpio, 276/276 tests.

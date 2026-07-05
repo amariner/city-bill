@@ -25,6 +25,14 @@ const VOCATION_LABELS: Record<string, string> = {
   tratar: 'el trato con la gente',
   cuidar: 'cuidar de otros',
 };
+/** Oficio por rol del empleo (economy.ts): lo que HACE para vivir. */
+const JOB_LABELS: Record<string, string> = {
+  agriculture: 'granjero/a',
+  commerce: 'tendero/a',
+  civic: 'servicio público',
+  work: 'artesano/a',
+  industry: 'artesano/a',
+};
 
 export class CitizenInspector {
   private el: HTMLDivElement;
@@ -185,11 +193,16 @@ export class CitizenInspector {
     const who = `${info.age} años · ${info.lifeStage}${info.partnerName ? ` · con ${info.partnerName}` : ''}`;
     // Vocación (ciclo 36) y legado (ciclo 34): lo que la sim ya modela por
     // dentro y no salía. La vocación se marca cumplida (✓) si el empleo la colma.
+    // Oficio (lo que hace) vs vocación (lo que ama): si coinciden, ✓.
+    const job = info.jobRole
+      ? `oficio: ${JOB_LABELS[info.jobRole] ?? info.jobRole}`
+      : info.age >= 18 && info.lifeStage !== 'mayor' ? 'oficio: sin empleo' : '';
     const vocLabel = VOCATION_LABELS[info.vocation] ?? info.vocation;
     const voc = `vocación: ${vocLabel}${info.vocationMet ? ' ✓' : ''}`;
     const legacy = info.childrenRaised > 0
       ? `\nlegado: ${info.childrenRaised} ${info.childrenRaised === 1 ? 'hijo criado' : 'hijos criados'}`
       : '';
-    this.el.textContent = `${info.name}\n${who}\n${info.activityLabel}${this.follow ? '  ⌖' : ''}\n\n${bars}\n${meta}\n\n${voc}${legacy}\n\n[F] seguir · [Esc] cerrar`;
+    const trade = job ? `${job}\n` : '';
+    this.el.textContent = `${info.name}\n${who}\n${info.activityLabel}${this.follow ? '  ⌖' : ''}\n\n${bars}\n${meta}\n\n${trade}${voc}${legacy}\n\n[F] seguir · [Esc] cerrar`;
   }
 }
