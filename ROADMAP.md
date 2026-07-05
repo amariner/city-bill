@@ -430,3 +430,16 @@ aprieta, T3.8-T3.10 y la Fase 4 valen más que cualquier cosa de la Fase 5.
     día de juego), así que un pueblo maduro (tier ≥2) tarda ~10 min en emerger en
     vivo; la lógica de crecimiento se verifica headless (tsx) — variedad del mix,
     trayectorias — y lo visual con burst-screenshots de obras individuales.
+  · **Vitrina `?scene=grown`** — corre la sim ~90 días en el hilo principal
+    (~3 s, con overlay "generando el pueblo…") y muestra ESTÁTICO el pueblo que
+    la construcción autónoma produjo, con caption (habitantes, edificios, calles).
+    Es demo vendible Y herramienta de verificación de la trama madura. HALLAZGO
+    al usarla: confirma el problema RIBBON de T4.4 — a 90 días el pueblo es una
+    TIRA lineal de casas a lo largo de una sola calle (seed 100: 69 hab, 15
+    edificios, 1 sola calle trazada), no una trama 2D tupida. `findParcel` casi
+    nunca falla (las casitas caben de sobra en el frente inicial), así que
+    `maybeExtendRoad` (reactivo, solo cuando findParcel falla) apenas se dispara.
+    → siguiente ciclo: compacidad (ramificar proactivo / cortar frente).
+  · **Robustez del sector VERIFICADA** (sonda headless, 8 combinaciones
+    escena×semilla, 150 días): sin excepciones, población acotada (78-89, sin
+    explosión ni colapso), vías extendidas 0-8 (sin runaway).

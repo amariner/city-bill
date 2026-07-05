@@ -10,14 +10,16 @@ import { GameLoop } from './core/loop';
 import { DebugHud } from './core/debugHud';
 import { createWorldView } from './neighborhood';
 import { seedWorld, seedFarm } from './world/seed';
-import { extendRoad } from './world/growth';
+import { extendRoad, townCenter } from './world/growth';
+import { Simulation } from './sim/simulation';
+import { CELL_SIZE } from './world/grid';
 import { createRng } from './rng';
 import { buildShowcase } from './showcase';
 import { SimClient, AgentView } from './sim/client';
 import { CitizenView } from './world/render/citizens';
 import { ConstructionView } from './world/render/construction';
 import { SelectionMarker } from './world/render/selectionMarker';
-import { DAY_GAME_SECONDS } from './sim/clock';
+import { DAY_GAME_SECONDS, TICK_GAME_S } from './sim/clock';
 import { seasonalWarmth } from './sim/weather';
 import { updateTerrainSeason } from './world/render/terrain';
 import { Speed } from './sim/protocol';
@@ -43,6 +45,36 @@ function pickWorldSeed(): number {
   return seed;
 }
 
+/** Overlay de la vitrina `?scene=grown`: mensaje de carga → caption del pueblo. */
+function showGrownOverlay(): { done: (caption: string) => void } {
+  const load = document.createElement('div');
+  load.textContent = 'generando el pueblo…';
+  load.style.cssText = [
+    'position:fixed', 'top:50%', 'left:50%', 'transform:translate(-50%,-50%)',
+    'font:14px/1.4 ui-monospace,monospace', 'color:#2d3327', 'letter-spacing:0.04em',
+    'padding:12px 20px', 'background:rgba(241,239,230,0.92)',
+    'border:1px solid rgba(45,51,39,0.18)', 'border-radius:10px',
+    'box-shadow:0 1px 8px rgba(45,51,39,0.14)', 'z-index:20', 'pointer-events:none',
+  ].join(';');
+  document.body.appendChild(load);
+  return {
+    done(caption: string) {
+      load.remove();
+      const cap = document.createElement('div');
+      cap.textContent = caption;
+      cap.style.cssText = [
+        'position:fixed', 'top:14px', 'left:50%', 'transform:translateX(-50%)',
+        'max-width:90vw', 'text-align:center',
+        'font:12px/1.4 ui-monospace,monospace', 'color:#2d3327', 'letter-spacing:0.02em',
+        'padding:8px 16px', 'background:rgba(241,239,230,0.92)',
+        'border:1px solid rgba(45,51,39,0.18)', 'border-radius:10px',
+        'box-shadow:0 1px 6px rgba(45,51,39,0.12)', 'z-index:20', 'pointer-events:none',
+      ].join(';');
+      document.body.appendChild(cap);
+    },
+  };
+}
+
 const stage = createStage();
 
 const camera = new IsoCamera();
@@ -58,6 +90,30 @@ let toasts: Toasts | null = null;
 if (sceneName === 'buildings') {
   stage.scene.add(buildShowcase());
   camera.setTarget(0, 0);
+} else if (sceneName === 'grown') {
+  // Vitrina de la CONSTRUCCIÓN AUTÓNOMA: corre la sim en el hilo principal unos
+  // días de juego y muestra el pueblo que la ciudad se ha construido sola desde
+  // una granja — calles, mezcla de densidades y todo. Estático (sin worker): es
+  // una foto del RESULTADO, para apreciar de un vistazo lo que emerge sin input.
+  const worldSeed = pickWorldSeed();
+  const overlay = showGrownOverlay();
+  camera.setTarget(0, 2);
+  camera.setZoomIndex(2);
+  // Deferimos dos frames para que el mensaje se pinte antes del cálculo bloqueante.
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    const growDays = 90;
+    const sim = new Simulation(seedFarm(worldSeed), worldSeed);
+    for (let i = 0; i < growDays * Math.round(DAY_GAME_SECONDS / TICK_GAME_S); i++) sim.step();
+    worldView = createWorldView(sim.grid);
+    stage.scene.add(worldView.root);
+    const anchors = sim.index.buildings.filter((b) => b.data.role !== 'nature').map((b) => [b.ax, b.az] as [number, number]);
+    const [ccx, ccz] = townCenter(anchors);
+    camera.setTarget(ccx * CELL_SIZE, ccz * CELL_SIZE);
+    const stats = sim.cityStats();
+    const roads = sim.roadsExtended;
+    const streets = `${roads} ${roads === 1 ? 'calle trazada' : 'calles trazadas'}`;
+    overlay.done(`Este pueblo se construyó solo — ${growDays} días desde una granja · ${stats.population} habitantes · ${sim.index.buildings.length} edificios · ${streets}`);
+  }));
 } else {
   // Semilla del mundo: aleatoria la primera vez y PERSISTIDA — cada jugador
   // tiene su propio pueblo (no el mismo para todos) y perdura al recargar.
