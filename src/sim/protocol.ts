@@ -139,7 +139,8 @@ export interface SimEventMsg {
     | 'coupleFormed'
     | 'festivalDay'
     | 'roadExtended'
-    | 'epidemic';
+    | 'epidemic'
+    | 'vocationFound';
   data?: Record<string, unknown>;
 }
 

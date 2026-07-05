@@ -44,6 +44,10 @@ function styleFor(name: string, data?: Record<string, unknown>): Style | null {
       return { accent: ALERT, mark: '!' };
     case 'coupleFormed':
       return { accent: MILESTONE, mark: '♥' };
+    case 'vocationFound':
+      // Rotación vocacional (ciclo 41): alguien encontró su llamada — historia
+      // personal digna de un aviso (la sim la genera sin guion).
+      return { accent: MILESTONE, mark: '✦' };
     case 'citizenLeft':
       // Solo los LEGADOS (matriarcas/patriarcas, ciclo 35) — no cada muerte.
       return isLegacyDeath(data) ? { accent: '', mark: '†' } : null;

@@ -66,8 +66,16 @@ const VACCINE_COST_PER_DOSE = 6;
  * campaña (otoño-invierno): la capacidad del sistema, ~toda en dos semanas. */
 const VACCINE_DAILY_FRACTION = 0.12;
 
+// --- Rotación vocacional (ciclo 41): que la vocación MUEVA a la gente ----------
+/** Probabilidad diaria de que un adulto INFELIZ en su oficio (trabaja lejos de
+ * su vocación) lo deje para buscar el suyo — pero solo si hay una vacante que sí
+ * lo colma a su alcance (`hasVocationVacancy`). Bajo a propósito: un goteo de
+ * HISTORIAS ("deja la tienda y por fin labra la tierra"), no un vuelco laboral.
+ * El ciclo 37 demostró que preferir en la asignación es un no-op sin este churn. */
+const VOCATION_QUIT_CHANCE = 0.05;
+
 export interface SimEvent {
-  name: 'citizenBorn' | 'citizenLeft' | 'jobTaken' | 'chatStarted' | 'cityGrew' | 'tierUnlocked' | 'coupleFormed' | 'festivalDay' | 'roadExtended' | 'epidemic';
+  name: 'citizenBorn' | 'citizenLeft' | 'jobTaken' | 'chatStarted' | 'cityGrew' | 'tierUnlocked' | 'coupleFormed' | 'festivalDay' | 'roadExtended' | 'epidemic' | 'vocationFound';
   data: Record<string, unknown>;
 }
 
@@ -79,6 +87,13 @@ export class Simulation {
   readonly social: SocialSystem;
   readonly paths: PathQueue;
   private rng: Rng;
+  /** RNG APARTE para el churn vocacional (ciclo 41): así el goteo de renuncias
+   * no altera el flujo del RNG general (natalidad, crecimiento…) — el resto de
+   * la sim conserva su secuencia exacta y el churn sigue siendo determinista. */
+  private churnRng: Rng;
+  /** Quienes dejaron su puesto HOY buscando su vocación (ciclo 41): se reasignan
+   * con preferencia y, si aciertan, la Crónica lo narra. Se reusa por día. */
+  private readonly churnSeekers = new Set<number>();
   private nextId = 1;
   private lastDay = 0;
   events: SimEvent[] = [];
@@ -96,6 +111,10 @@ export class Simulation {
   /** Vacunación activa (ciclo 33): salud pública preventiva. false = escenario
    * "sin vacuna" (para medir la inmunidad de rebaño contra la epidemia cruda). */
   vaccination = true;
+  /** Rotación vocacional activa (ciclo 41): los infelices en su oficio buscan su
+   * vocación. false = escenario "sin churn" (para medir cuánto ACERCA la gente a
+   * su llamada — la lección del ciclo 37: preferir sin churn es un no-op). */
+  vocationalMobility = true;
   /** Vacunaciones administradas (ciclo 33 — métrica de tests/Crónica). */
   vaccinationsGiven = 0;
   /** Tier desbloqueado (T4.5 lo ligará a población; fijo de momento). */
@@ -121,6 +140,7 @@ export class Simulation {
 
   constructor(readonly grid: Grid, readonly seed: number) {
     this.rng = createRng(seed ^ 0x5f3759df);
+    this.churnRng = createRng(seed ^ 0x243f6a88);
     this.index = new WorldIndex(grid);
     this.social = new SocialSystem(createRng(seed ^ 0x9e3779b9));
     this.paths = new PathQueue(grid);
@@ -230,9 +250,47 @@ export class Simulation {
     return c;
   }
 
-  /** Contrata parados y presenta a vecinos cercanos y compañeros de trabajo. */
-  private hireAndAcquaint(): void {
-    const hires = this.economy.assignJobs(this.citizens);
+  /** Rotación vocacional (ciclo 41): un adulto que trabaja LEJOS de su vocación
+   * puede, de tanto en tanto, DEJAR su puesto para buscar el suyo — pero solo si
+   * existe una vacante que sí lo colma a su alcance (si no, quedarse es lo cuerdo:
+   * nada de paro estéril). Marca a los que renuncian como buscadores para que la
+   * reasignación (hireAndAcquaint) los lleve a su llamada y la Crónica lo narre.
+   * Usa un RNG APARTE → no perturba el flujo general. Determinista. */
+  private vocationalChurn(): void {
+    this.churnSeekers.clear();
+    if (!this.vocationalMobility) return;
+    const quitters: Citizen[] = [];
+    for (const c of this.citizens.values()) {
+      if (!c.work || c.age < ADULT_AGE || c.age >= OLD_AGE) continue;
+      if (jobFitsVocation(c.personality, catalogData(c.work.buildingId)?.role)) continue; // ya en lo suyo
+      if (!this.economy.hasVocationVacancy(c)) continue; // sin destino: no renuncia
+      if (this.churnRng.next() < VOCATION_QUIT_CHANCE) quitters.push(c);
+    }
+    // Determinista: renuncia por orden de id (el orden del Map ya es de inserción,
+    // pero fijamos por si acaso — libera sillas antes de reasignar).
+    quitters.sort((a, b) => a.id - b.id);
+    for (const c of quitters) {
+      this.economy.vacate(c);
+      this.churnSeekers.add(c.id);
+    }
+  }
+
+  /** Tras reasignar, narra a los buscadores (ciclo 41) que aterrizaron en un
+   * empleo que COLMA su vocación: la historia que el churn genera. */
+  private reportVocationFound(): void {
+    for (const id of this.churnSeekers) {
+      const c = this.citizens.get(id);
+      if (c?.work && jobFitsVocation(c.personality, catalogData(c.work.buildingId)?.role)) {
+        this.events.push({ name: 'vocationFound', data: { id, name: c.name, vocation: vocationOf(c.personality) } });
+      }
+    }
+  }
+
+  /** Contrata parados y presenta a vecinos cercanos y compañeros de trabajo.
+   * `seekers` (ciclo 41): parados que buscan su vocación — se colocan con
+   * preferencia por los empleos que la colman. */
+  private hireAndAcquaint(seekers?: ReadonlySet<number>): void {
+    const hires = this.economy.assignJobs(this.citizens, seekers);
     for (const h of hires) this.events.push({ name: 'jobTaken', data: h as unknown as Record<string, unknown> });
     // Compañeros de trabajo se conocen.
     for (const w of this.economy.workplaces) {
@@ -348,7 +406,9 @@ export class Simulation {
       this.stepOutbreak(); // ciclo 25: en invierno, algún resfriado prende y se propaga
       this.stepEmigration(); // ciclo 14: tras la red de pensiones (última bala)
       this.economy.investInHomes(this.households.keys()); // estatus, ciclo 9
-      this.hireAndAcquaint();
+      this.vocationalChurn(); // ciclo 41: quien es infeliz en su oficio busca su vocación
+      this.hireAndAcquaint(this.churnSeekers);
+      this.reportVocationFound(); // narra a quien, tras dejar su puesto, encontró su llamada
       if (isFestivalDay(this.clock.day)) {
         // Cosecha abundante (ciclo 24): la fiesta de otoño se celebra distinta si
         // el granero rebosa — acopla festival↔alimento↔estación, sin guion.

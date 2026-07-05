@@ -1287,6 +1287,50 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
   check('granero: el invierno TIRA de él (oscila como una reserva, no se estanca)', minG < 25 && maxG - minG > 35, `→ ${Math.round(minG)}–${Math.round(maxG)}`);
 }
 
+// Ciclo 41 RESEARCH.md — ROTACIÓN VOCACIONAL (churn): que la vocación MUEVA a la
+// gente de verdad. El ciclo 37 probó que PREFERIR la vocación en la asignación es
+// un no-op (mercado escaso: una sola vacante viable), y dejó el camino: el CHURN.
+// Ahora un adulto infeliz en su oficio (trabaja lejos de su vocación) puede DEJAR
+// su puesto para buscar el suyo — solo si hay vacante que lo colma a su alcance.
+// Emergen HISTORIAS ("deja la tienda y por fin labra la tierra"), narradas por la
+// Crónica; y el encaje carácter↔oficio SUBE frente al escenario sin churn.
+{
+  // Narración pura (única fuente, ciclo 18) — la Crónica cuenta el cambio de vida.
+  check('crónica: la vocación encontrada se narra con su oficio',
+    chronicleText('vocationFound', { name: 'Emil', vocation: 'labrar' }) === 'Emil encuentra su vocación: por fin labra la tierra');
+  check('crónica: el trato se narra distinto del campo',
+    chronicleText('vocationFound', { name: 'Carme', vocation: 'tratar' }) === 'Carme encuentra su vocación: por fin vive del trato con la gente');
+  check('crónica: vocación sin detalle no rompe la narración',
+    (chronicleText('vocationFound', { name: 'Ana' }) ?? '').startsWith('Ana encuentra su vocación'));
+
+  // A/B emergente (seed 500, 40 días): el churn ACERCA a la gente a su vocación.
+  const days = 40, seed = 500;
+  const measure = (mobility: boolean) => {
+    const s = new Simulation(seedWorld(), seed);
+    s.vocationalMobility = mobility;
+    let vocationFound = 0;
+    for (let t = 0; t < TICKS_PER_DAY * days; t++) {
+      s.step();
+      for (const e of s.takeEvents()) if (e.name === 'vocationFound') vocationFound++;
+    }
+    let fit = 0, tot = 0, food = 0;
+    for (const c of s.citizens.values()) {
+      food += c.needs.food;
+      if (!c.work) continue;
+      tot++;
+      if (jobFitsVocation(c.personality, catalogData(c.work.buildingId)?.role)) fit++;
+    }
+    return { rate: tot ? fit / tot : 0, fit, tot, vocationFound, pop: s.citizens.size, avgFood: food / Math.max(1, s.citizens.size) };
+  };
+  const on = measure(true), off = measure(false);
+  check('vocación (churn): SUBE el encaje frente a sin churn (no el no-op del ciclo 37)',
+    on.rate > off.rate, `→ ON ${on.rate.toFixed(2)} (${on.fit}/${on.tot}) vs OFF ${off.rate.toFixed(2)} (${off.fit}/${off.tot})`);
+  check('vocación (churn): emergen historias de vocación encontrada',
+    on.vocationFound > 0, `→ ${on.vocationFound} eventos`);
+  check('vocación (churn): el pueblo sigue en pie (el churn no lo hunde)',
+    on.pop >= 25 && on.avgFood > 0.2, `→ ${on.pop} hab., comida ${on.avgFood.toFixed(2)}`);
+}
+
 // Determinismo: mismo snapshot final con la misma semilla.
 const a = runDays(7, 1).sim.snapshot();
 const b = runDays(7, 1).sim.snapshot();

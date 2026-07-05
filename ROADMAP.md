@@ -387,3 +387,14 @@ aprieta, T3.8-T3.10 y la Fase 4 valen más que cualquier cosa de la Fase 5.
   contrato del mensaje es la única fuente de verdad). Ver RESEARCH.md §4 (2026-07-05).
   NOTA: la nieve del TERRENO en invierno (T5.1 paso 2) YA estaba implementada
   (`updateTerrainSeason`); lo pendiente ahí es sólo el pulido de cubiertas en tejados.
+- 2026-07-05 (sesión Opus, LÓGICA+INTERFAZ a la par — ciclo 41) — **Rotación vocacional
+  (churn)**: la vocación (ciclo 36) ya no es solo un tinte de propósito, ahora MUEVE a la
+  gente. Un adulto infeliz en su oficio (trabaja lejos de su vocación) puede DEJARLO para
+  buscar el suyo, si hay vacante que lo colma a su alcance; al reasignar, gravita a su
+  llamada (descuento de distancia solo para el que busca). Salda la lección del ciclo 37
+  (preferir sin churn = no-op): medido A/B, el encaje sube (p.ej. seed 500 0.27→0.38) y
+  el suelo de comida es IDÉNTICO ON/OFF (benigno). RNG APARTE (`churnRng`) para no
+  perturbar el flujo general. **Interfaz a la par**: evento `vocationFound` → la Crónica
+  lo narra ("X encuentra su vocación: por fin labra la tierra"), un toast ✦ lo asoma, y
+  el inspector ya lo marca ✓ — se ve a alguien pasar a su vocación. 282/282 tests, `tsc`
+  limpio, screenshot de regresión limpio. Ver RESEARCH.md §4 (2026-07-05, ciclo 41).

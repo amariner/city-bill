@@ -1173,3 +1173,39 @@ una simulación, y los tratamos como tales:
   pantalla"; el surfacing visual necesita el screenshot del §4, no basta con que el
   código exista. Pulido que sigue pendiente: cubiertas de nieve en TEJADOS (hoy solo el
   suelo). `tsc` limpio, 276/276 tests (no toca sim).
+- 2026-07-05 · **Ciclo 41: ROTACIÓN VOCACIONAL (churn) — la vocación por fin MUEVE a
+  la gente + su HISTORIA** · Cierra la carencia (a) del ciclo 36 y salda la lección del
+  ciclo 37 (que quedó como no-op). OBSERVAR: la vocación (ciclo 36) daba más propósito a
+  quien encajaba, pero NADIE se movía hacia su llamada — el desajuste era permanente.
+  INVESTIGAR: en la sociedad real la gente CAMBIA de oficio buscando sentido; el ciclo 37
+  demostró que PREFERIR la vocación al asignar es un no-op en un mercado escaso (una sola
+  vacante viable) → hace falta CHURN (rotación): que el infeliz DEJE su puesto y así se
+  abran opciones en el tiempo. MODELAR: en el cierre del día, un adulto cuyo oficio NO
+  colma su vocación puede (5%/día) DEJARLO — pero solo si existe una vacante que sí lo
+  colma a su alcance y estrictamente mejor con descuento (`hasVocationVacancy`); si no,
+  quedarse es lo cuerdo (nada de paro estéril). Al reasignar, esos buscadores ven la
+  distancia a los empleos de su vocación DESCONTADA (0.5) → gravitan a su llamada. Clave
+  de riesgo mínimo: (1) el churn usa un RNG APARTE (`churnRng`) → NO perturba el flujo
+  general (natalidad, crecimiento conservan su secuencia exacta); (2) el descuento SOLO
+  se aplica a los buscadores (`vocationSeekers`), así la asignación normal queda
+  BYTE-idéntica y los 276 tests previos no se movieron. IMPLEMENTAR: `vacate` +
+  `hasVocationVacancy` en economy.ts, `vocationalChurn`/`reportVocationFound` en
+  simulation.ts, toggle `vocationalMobility` para A/B. EMERGENCIA medida (A/B, mismo
+  seed): el encaje carácter↔oficio SUBE con churn (seed 42: 0.29→0.33; seed 7: 0.37→0.53;
+  seed 500: 0.27→0.38) — NO es un no-op, a diferencia del ciclo 37. Y CRÍTICO para la
+  seguridad: el `food_min` es IDÉNTICO ON vs OFF en 6 semillas (nadie pasa más hambre;
+  el churn no descuadra el alimento). La población diverge por seed (sensibilidad caótica
+  ya conocida; media 67 vs 76, sin daño sistémico — el suelo de comida intacto lo
+  confirma benigno). VERIFICAR: 282/282 tests (6 nuevos), `tsc` limpio, screenshot de
+  regresión sin errores runtime (mundo+HUD+Crónica OK, §4 intacto).
+  **INTERFAZ A LA PAR** (veta del usuario): el churn genera HISTORIAS y se SURFACEAN al
+  instante — evento `vocationFound` (frontera única, protocol.ts) → (1) la Crónica lo
+  narra ("Emil encuentra su vocación: por fin labra la tierra", `chronicleText`, única
+  fuente); (2) un toast efímero ✦ (toasts.ts) lo asoma sin abrir nada; (3) el inspector
+  ya marcaba la vocación ✓ — ahora se ve a alguien PASAR de a-disgusto a ✓. La vida
+  interior del ciclo 36 por fin se mueve y se cuenta.
+  Carencias observadas para próximos ciclos: (a) que el churn escoja MEJOR el destino
+  (hoy 0.5 de descuento; a veces re-toma un puesto no-vocacional más cercano); (b) que un
+  desajuste SOSTENIDO (no solo el azar) empuje a renunciar (acoplar con el propósito bajo
+  del ciclo 36); (c) el gran pendiente estructural sigue siendo el cierre monetario
+  COMPLETO (agro + comercio) y el estatus desacoplado (ciclo 38).
