@@ -16,7 +16,7 @@ import { PathQueue, pathLength } from './pathfinding';
 import { CellXZ, manhattan } from './geometry';
 import { WorldIndex } from './worldIndex';
 import { Economy } from './economy';
-import { Citizen, citizenName, PlannedActivity, TravelMode, jobFitsVocation, vocationOf, VOCATION_PURPOSE_BONUS } from './citizens/citizen';
+import { Citizen, citizenName, PlannedActivity, TravelMode, jobFitsVocation, vocationOf, VOCATION_PURPOSE_BONUS, surnameOf } from './citizens/citizen';
 import { decayNeeds, restore, NEED_KEYS } from './citizens/needs';
 import { chooseActivity } from './citizens/brain';
 import { ACTIVITY_BY_KIND, SimContext, activityLabel, EDU_PER_HOUR, CLINIC_FEE, isFestivalDay } from './citizens/activities';
@@ -206,12 +206,24 @@ export class Simulation {
     return free;
   }
 
-  private spawnCitizen(ax: number, az: number, buildingId: string, age?: number): Citizen {
+  private spawnCitizen(
+    ax: number,
+    az: number,
+    buildingId: string,
+    age?: number,
+    lineage?: { surname: string; parentName: string },
+  ): Citizen {
     const b = this.index.at(ax, az);
     const door: CellXZ = b?.entrance ?? [ax, az];
+    // Linaje (ciclo 42): un hijo hereda el APELLIDO de un progenitor. Se genera
+    // igualmente el nombre completo (mismo nº de tiradas de RNG → determinismo y
+    // crecimiento intactos) y solo se SUSTITUYE el apellido por el heredado.
+    const generated = citizenName(this.rng);
+    const name = lineage ? `${generated.split(' ')[0]} ${lineage.surname}` : generated;
     const c: Citizen = {
       id: this.nextId++,
-      name: citizenName(this.rng),
+      name,
+      parent: lineage?.parentName,
       age: age ?? Math.floor(this.rng.range(18, 72)),
       personality: {
         sociable: this.rng.next(),
@@ -246,7 +258,7 @@ export class Simulation {
       inside: true, // empiezan en casa
     };
     this.citizens.set(c.id, c);
-    this.events.push({ name: 'citizenBorn', data: { id: c.id, name: c.name } });
+    this.events.push({ name: 'citizenBorn', data: { id: c.id, name: c.name, parent: c.parent } });
     return c;
   }
 
@@ -467,7 +479,13 @@ export class Simulation {
       this.events.push({ name: 'coupleFormed', data: { a: a.name, b: b.name } });
     }
     for (const b of life.births) {
-      const child = this.spawnCitizen(b.home.ax, b.home.az, b.home.buildingId, 0);
+      // Linaje (ciclo 42): el hijo hereda el apellido de un progenitor → los
+      // apellidos se perpetúan y el pueblo cría DINASTÍAS visibles en la Crónica.
+      const surname = surnameOf(b.parents[0].name);
+      const child = this.spawnCitizen(b.home.ax, b.home.az, b.home.buildingId, 0, {
+        surname,
+        parentName: b.parents[0].name,
+      });
       SocialSystem.acquaint(child, b.parents[0], 0.8);
       SocialSystem.acquaint(child, b.parents[1], 0.8);
       b.parents[0].childrenRaised++; // ciclo 34: cada vida deja rastro (legado)
@@ -1043,6 +1061,7 @@ export class Simulation {
       age: c.age,
       lifeStage,
       partnerName: partner?.name,
+      parent: c.parent,
       activity: c.activity,
       activityLabel: activityLabel(c.activity, c.phase.kind === 'moving' || c.phase.kind === 'waitingPath'),
       needs: { ...c.needs },

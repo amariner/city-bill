@@ -46,6 +46,7 @@ export const LOGICS: LogicEntry[] = [
   { id: 'vehicles', name: 'vehículos (coche para trayectos largos)', level: 0, files: ['sim/simulation.ts', 'sim/protocol.ts'], couples: ['space', 'money', 'weather'] },
   { id: 'status', name: 'estatus y propiedad (mejoras del hogar)', level: 4, files: ['economy.ts', 'sim/simulation.ts'], couples: ['money', 'needs', 'growth'] },
   { id: 'festival', name: 'fiestas de barrio (calendario emergente)', level: 5, files: ['citizens/activities.ts'], couples: ['social', 'weather'] },
+  { id: 'lineage', name: 'linaje (los hijos heredan el apellido → dinastías que perduran generación a generación)', level: 3, files: ['sim/citizens/citizen.ts', 'sim/simulation.ts', 'ui/chronicle.ts', 'ui/inspector.ts'], couples: ['life', 'legacy'] },
   { id: 'legacy', name: 'legado (la vida deja huella: los hijos criados se honran al morir)', level: 5, files: ['sim/citizens/citizen.ts', 'ui/chronicle.ts', 'sim/simulation.ts'], couples: ['life', 'social'] },
   { id: 'vocation', name: 'vocación (trabajar en lo que uno ama colma el propósito; y se busca: quien es infeliz en su oficio lo deja por su llamada)', level: 5, files: ['sim/citizens/citizen.ts', 'sim/economy.ts', 'sim/simulation.ts', 'ui/chronicle.ts'], couples: ['jobs', 'needs'] },
 ];

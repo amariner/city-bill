@@ -191,6 +191,9 @@ export class CitizenInspector {
     ].join('\n');
     // Quién es (ciclo 23): edad, etapa y pareja bajo el nombre.
     const who = `${info.age} años · ${info.lifeStage}${info.partnerName ? ` · con ${info.partnerName}` : ''}`;
+    // Linaje (ciclo 42): de quién desciende — la saga generacional, visible en la
+    // ficha (los fundadores/inmigrantes no tienen; llegaron de fuera).
+    const lineage = info.parent ? `\nhijo/a de ${info.parent}` : '';
     // Vocación (ciclo 36) y legado (ciclo 34): lo que la sim ya modela por
     // dentro y no salía. La vocación se marca cumplida (✓) si el empleo la colma.
     // Oficio (lo que hace) vs vocación (lo que ama): si coinciden, ✓.
@@ -203,6 +206,6 @@ export class CitizenInspector {
       ? `\nlegado: ${info.childrenRaised} ${info.childrenRaised === 1 ? 'hijo criado' : 'hijos criados'}`
       : '';
     const trade = job ? `${job}\n` : '';
-    this.el.textContent = `${info.name}\n${who}\n${info.activityLabel}${this.follow ? '  ⌖' : ''}\n\n${bars}\n${meta}\n\n${trade}${voc}${legacy}\n\n[F] seguir · [Esc] cerrar`;
+    this.el.textContent = `${info.name}\n${who}${lineage}\n${info.activityLabel}${this.follow ? '  ⌖' : ''}\n\n${bars}\n${meta}\n\n${trade}${voc}${legacy}\n\n[F] seguir · [Esc] cerrar`;
   }
 }

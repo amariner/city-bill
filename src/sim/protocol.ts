@@ -153,6 +153,8 @@ export interface CitizenInfoMsg {
   age: number;
   lifeStage: string;
   partnerName?: string;
+  /** Progenitor del que desciende — linaje, ciclo 42 (el inspector: "hijo/a de …"). */
+  parent?: string;
   activity: ActivityKind;
   activityLabel: string;
   needs: Record<string, number>;

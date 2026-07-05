@@ -118,8 +118,12 @@ const VOCATION_STORY: Record<string, string> = {
 export function chronicleText(name: string, data?: Record<string, unknown>): string | null {
   const who = (data?.name as string) ?? 'alguien';
   switch (name) {
-    case 'citizenBorn':
-      return `nace ${who}`;
+    case 'citizenBorn': {
+      // Linaje (ciclo 42): el nacimiento muestra de quién desciende — la saga
+      // generacional se lee en el feed (los apellidos se perpetúan por herencia).
+      const parent = typeof data?.parent === 'string' ? data.parent.split(' ')[0] : '';
+      return parent ? `nace ${who}, de ${parent}` : `nace ${who}`;
+    }
     case 'citizenLeft': {
       if (data?.reason === 'emigrated') return `${who} se marcha a otra ciudad`;
       const h = typeof data?.health === 'number' ? data.health : 1;

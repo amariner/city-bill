@@ -22,7 +22,7 @@ import { chronicleText, summarizeYear, compactChronicle, ChronEvent, isLegacyDea
 import { townAttractiveness, householdHardship, updateEmigrationPressure, EMIGRATE_PRESSURE_LIMIT, computeDemand, DemandInput, fertilityFactor, CARRYING_CAPACITY } from '../world/growth';
 import { ACTIVITY_BY_KIND, SimContext } from './citizens/activities';
 import { Weather } from './weather';
-import { Citizen, vocationOf, jobFitsVocation } from './citizens/citizen';
+import { Citizen, vocationOf, jobFitsVocation, surnameOf } from './citizens/citizen';
 import { catalogData } from '../world/catalogData';
 import { createRng } from '../rng';
 
@@ -1329,6 +1329,36 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
     on.vocationFound > 0, `→ ${on.vocationFound} eventos`);
   check('vocación (churn): el pueblo sigue en pie (el churn no lo hunde)',
     on.pop >= 25 && on.avgFood > 0.2, `→ ${on.pop} hab., comida ${on.avgFood.toFixed(2)}`);
+}
+
+// Ciclo 42 RESEARCH.md — LINAJE (apellidos heredados): la historia se vuelve SAGA
+// generacional. Un hijo hereda el APELLIDO de un progenitor (mismo nº de tiradas de
+// RNG → determinismo intacto), así los apellidos se perpetúan y emergen DINASTÍAS
+// visibles en el feed de la Crónica ("nace Ada, de Vera") y en el inspector
+// ("hijo/a de Vera Novák"). Los fundadores/inmigrantes no descienden de nadie.
+{
+  // Pura: el apellido es todo lo que sigue al primer nombre.
+  check('linaje: el apellido se extrae del nombre', surnameOf('Ada Novák') === 'Novák');
+  check('linaje: un nombre sin apellido no rompe', surnameOf('Ada') === 'Ada');
+  // Narración: el nacimiento muestra de quién desciende (única fuente, ciclo 18).
+  check('crónica: el nacimiento narra la descendencia',
+    chronicleText('citizenBorn', { name: 'Ada Novák', parent: 'Vera Novák' }) === 'nace Ada Novák, de Vera');
+  check('crónica: un nacimiento sin progenitor conocido no lo inventa',
+    chronicleText('citizenBorn', { name: 'Emil Puig' }) === 'nace Emil Puig');
+
+  // Emergente: en un pueblo con generaciones, nacen hijos que HEREDAN el apellido
+  // de su progenitor — el linaje se transmite, no se sortea de nuevo cada vez.
+  const sim = new Simulation(seedWorld(), 500);
+  for (let t = 0; t < TICKS_PER_DAY * 45; t++) sim.step();
+  let withParent = 0, surnameMatches = 0;
+  for (const c of sim.citizens.values()) {
+    if (!c.parent) continue;
+    withParent++;
+    if (surnameOf(c.name) === surnameOf(c.parent)) surnameMatches++;
+  }
+  check('linaje: nacen hijos con progenitor conocido (hay generaciones)', withParent > 0, `→ ${withParent} descendientes vivos`);
+  check('linaje: TODO hijo hereda el apellido de su progenitor (sin excepción)',
+    withParent > 0 && surnameMatches === withParent, `→ ${surnameMatches}/${withParent} heredan`);
 }
 
 // Determinismo: mismo snapshot final con la misma semilla.

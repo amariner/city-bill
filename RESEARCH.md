@@ -1209,3 +1209,31 @@ una simulación, y los tratamos como tales:
   desajuste SOSTENIDO (no solo el azar) empuje a renunciar (acoplar con el propósito bajo
   del ciclo 36); (c) el gran pendiente estructural sigue siendo el cierre monetario
   COMPLETO (agro + comercio) y el estatus desacoplado (ciclo 38).
+- 2026-07-05 · **Ciclo 42: LINAJE (apellidos heredados) — la historia se vuelve SAGA
+  generacional** · Veta de la "simulación autónoma de la historia" (la Crónica): hasta
+  ahora cada persona tenía un nombre y apellido SORTEADOS al azar, sin relación con sus
+  padres — el pueblo no criaba FAMILIAS que perduraran. OBSERVAR: en una crónica real, lo
+  que hila las generaciones son los APELLIDOS: los Novák de hoy descienden de los Novák de
+  ayer. MODELAR: un hijo hereda el apellido de un progenitor (`surnameOf` del padre[0]);
+  se genera igualmente el nombre completo (MISMO nº de tiradas de RNG → el mundo es
+  BYTE-idéntico, solo cambia el string del apellido, que no alimenta ninguna lógica) y se
+  sustituye el apellido por el heredado. Se guarda `parent` (nombre del progenitor) como
+  puro recuerdo. EMERGENCIA (test, seed 500, 45 años): nacen descendientes con progenitor
+  conocido y TODOS heredan el apellido (sin excepción) → los apellidos se perpetúan y
+  emergen dinastías. Como no toca el estado de la sim, los 282 tests previos siguen
+  byte-idénticos (determinismo intacto). **INTERFAZ A LA PAR**: (1) la Crónica narra la
+  descendencia — "nace Ada, de Vera" (el nacimiento muestra de quién viene; la saga se lee
+  en el feed y los apellidos recurrentes la hacen visible sin código extra); (2) el
+  inspector añade la filiación "hijo/a de Vera Novák" (los fundadores/inmigrantes no la
+  tienen — llegaron de fuera). VERIFICAR: 288/288 tests (6 nuevos), `tsc` limpio,
+  screenshots sin errores runtime (manifiesto muestra "N3 linaje"). Nota de método: ver
+  el feed con líneas de nacimiento-con-linaje exige varias generaciones (>2 años de juego
+  a ×8); el mecanismo se verificó por test en la Simulation real y la narración por
+  función pura, con la UI confirmada sin regresión por screenshot.
+  DESCARTADO en este ciclo (y por qué): un HITO de "dinastía" (avisar cuando un apellido
+  alcanza N vivos) sería RUIDOSO — con solo 12 apellidos en el pool, medio pueblo comparte
+  apellido por azar, no por linaje real; el hito no distinguiría una familia próspera de
+  una coincidencia. Un contador de dinastías DE VERDAD pediría un árbol de descendencia
+  (contar el subárbol de un fundador), un ciclo aparte. Carencia para próximos ciclos: (a)
+  ese árbol genealógico real (contar descendientes vivos de un tronco) daría el hito de
+  dinastía legítimo; (b) que la Crónica resuma "la familia X, N generaciones" al compactar.

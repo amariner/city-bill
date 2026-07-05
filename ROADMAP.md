@@ -398,3 +398,11 @@ aprieta, T3.8-T3.10 y la Fase 4 valen más que cualquier cosa de la Fase 5.
   lo narra ("X encuentra su vocación: por fin labra la tierra"), un toast ✦ lo asoma, y
   el inspector ya lo marca ✓ — se ve a alguien pasar a su vocación. 282/282 tests, `tsc`
   limpio, screenshot de regresión limpio. Ver RESEARCH.md §4 (2026-07-05, ciclo 41).
+- 2026-07-05 (sesión Opus, LÓGICA+INTERFAZ a la par — ciclo 42) — **Linaje (apellidos
+  heredados)**: la historia autónoma (la Crónica) se vuelve SAGA generacional. Un hijo
+  hereda el apellido de un progenitor (mismo nº de tiradas de RNG → mundo byte-idéntico,
+  282 tests previos intactos); los apellidos se perpetúan y emergen dinastías. **Interfaz
+  a la par**: la Crónica narra "nace Ada, de Vera" y el inspector muestra "hijo/a de Vera
+  Novák". Descartado un hito de dinastía por apellido (ruidoso con solo 12 apellidos;
+  pediría un árbol genealógico real — ciclo futuro). 288/288 tests, `tsc` limpio.
+  Ver RESEARCH.md §4 (2026-07-05, ciclo 42).
