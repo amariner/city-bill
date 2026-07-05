@@ -1617,3 +1617,26 @@ una simulación, y los tratamos como tales:
   compactación), `tsc` limpio. Con esto la Crónica cuenta un arco COMPLETO: el pueblo nace
   (49) → llegan y nacen sus gentes (48/42) → forman familias y dinastías (43) que crecen y
   se apagan (44) → el lugar madura de aldea a ciudad (47) y estrena sus obras (45).
+- 2026-07-05 · **Ciclo 50 (INTENTADO Y REVERTIDO): el invierno duro** · Idea: un beat
+  colectivo cuando la comida escasea en invierno (atar la cosecha estacional, ciclos 39-40,
+  a la historia). Implementado y MEDIDO (umbral saciedad media < 0.22): dispara 1 vez en 6
+  semillas × 160 días. HALLAZGO: el granero-colchón (ciclo 40) funciona TAN bien que la
+  hambruna ya casi no ocurre — la sim está bien balanceada contra el hambre, así que un
+  "invierno duro" no EMERGE de forma observable. Un beat que no aparece no se gana su sitio
+  (como los ciclos 37/38). Revertido sin tocar tests. LECCIÓN (3ª de su tipo, tras el pool
+  de 12 apellidos y la afinidad saturada): varios beats de historia "obvios" no emergen
+  porque la sim ya los previene por diseño (buen balance) — la veta de beats BARATOS de la
+  Crónica se está agotando; lo que queda pide o lógica más honda o cambiar de esfera.
+- 2026-07-05 · **Ciclo 50: LA CONSTRUCCIÓN SE LEE (y no satura la Crónica)** · Pivote a la
+  esfera de CONSTRUCCIÓN (la prioridad declarada para la siguiente fase). Dos problemas del
+  evento `cityGrew`: (1) narraba el id CRUDO ("la ciudad construye: cottage"); (2) es
+  FRECUENTE (una obra por edificio) y kind 'milestone' → inundaba el largo plazo de la
+  Crónica con una línea por casa. Arreglo: (1) el evento viaja con `label` = el nombre de
+  catálogo → "se levanta: Casita de pueblo"; (2) kind `built`, que `summarizeYear` CUENTA
+  ("N edificios nuevos") al compactar años viejos, en vez de preservar cada línea. Así el
+  feed reciente muestra las obras con su nombre legible, pero el largo plazo se resume — y
+  los ESTRENOS de tipo nuevo conservan su beat propio (firstBuilding, ciclo 45). Cero RNG,
+  cero lógica de mundo (solo narración/compactación). VERIFICAR: 330/330 tests (6 nuevos),
+  `tsc` limpio. Sirve a la vez a la HISTORIA (la construcción autónoma se lee como una
+  crónica de desarrollo) y a la UI (la Crónica no se atasca). Puente natural hacia la veta
+  de construcción robusta/vistosa del prompt de la siguiente sesión.

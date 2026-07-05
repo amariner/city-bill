@@ -906,7 +906,9 @@ export class Simulation {
       this.fillHome(p.cx, p.cz, p.id, families, true); // ciclo 48: inmigración → beat de llegada
     }
     this.hireAndAcquaint();
-    this.events.push({ name: 'cityGrew', data: { ...p } });
+    // `label` (ciclo 50): el nombre de catálogo para que la Crónica lea "se levanta
+    // una Casita de pueblo", no el id crudo "cottage". El render usa id/cx/cz/rot.
+    this.events.push({ name: 'cityGrew', data: { ...p, label: it.name } });
     // Hito del pueblo (ciclo 45): la PRIMERA vez que se levanta un tipo de edificio
     // — el pueblo estrena escuela, tienda, consultorio, fábrica… un beat de su
     // desarrollo (acopla con los tiers: cada tier abre tipos nuevos).

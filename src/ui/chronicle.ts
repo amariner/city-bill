@@ -15,7 +15,7 @@ import { ILLNESS_HEALTH, OLD_AGE } from '../sim/lifecycle';
 const ACTIVE_LOGICS = activeLogicNames();
 
 /** Tipo de evento para la compactación por años (RESEARCH §5). */
-export type ChronKind = 'birth' | 'death' | 'emigrated' | 'arrived' | 'couple' | 'milestone' | 'legacy' | 'summary' | 'founded';
+export type ChronKind = 'birth' | 'death' | 'emigrated' | 'arrived' | 'built' | 'couple' | 'milestone' | 'legacy' | 'summary' | 'founded';
 
 /** Hijos criados a partir de los cuales una muerte es LEGADO permanente (ciclo 35). */
 export const LEGACY_KIDS = 4;
@@ -59,13 +59,14 @@ const MAX_EVENTS = 120;
  * PRESERVA lo memorable (hitos: escuela, tier, fiesta). Pura y testeable.
  */
 export function summarizeYear(year: number, events: ChronEvent[]): ChronEvent {
-  let births = 0, deaths = 0, emigrated = 0, arrived = 0, couples = 0;
+  let births = 0, deaths = 0, emigrated = 0, arrived = 0, built = 0, couples = 0;
   const notes: string[] = [];
   for (const e of events) {
     if (e.kind === 'birth') births++;
     else if (e.kind === 'death') deaths++;
     else if (e.kind === 'emigrated') emigrated++;
     else if (e.kind === 'arrived') arrived++;
+    else if (e.kind === 'built') built++;
     else if (e.kind === 'couple') couples++;
     else notes.push(e.text); // hitos y eventos sin tipo: se preservan verbatim
   }
@@ -73,6 +74,7 @@ export function summarizeYear(year: number, events: ChronEvent[]): ChronEvent {
   if (births) parts.push(`${births} ${births === 1 ? 'nacimiento' : 'nacimientos'}`);
   if (arrived) parts.push(`${arrived} ${arrived === 1 ? 'llegada' : 'llegadas'} de fuera`);
   if (couples) parts.push(`${couples} ${couples === 1 ? 'pareja' : 'parejas'}`);
+  if (built) parts.push(`${built} ${built === 1 ? 'edificio nuevo' : 'edificios nuevos'}`);
   if (deaths) parts.push(`${deaths} ${deaths === 1 ? 'muerte' : 'muertes'}`);
   if (emigrated) parts.push(`${emigrated} se ${emigrated === 1 ? 'marchó' : 'marcharon'}`);
   parts.push(...notes);
@@ -144,8 +146,13 @@ export function chronicleText(name: string, data?: Record<string, unknown>): str
     }
     case 'coupleFormed':
       return `${data?.a} y ${data?.b} se emparejan`;
-    case 'cityGrew':
-      return `la ciudad construye: ${data?.id}`;
+    case 'cityGrew': {
+      // Construcción (ciclo 50): nombre de catálogo legible, no el id crudo. Es un
+      // evento FRECUENTE → kind 'built', que se CUENTA al compactar años (no llena
+      // el largo plazo; los ESTRENOS de tipo nuevo tienen su beat propio, ciclo 45).
+      const label = typeof data?.label === 'string' ? data.label : (data?.id ?? 'un edificio');
+      return `se levanta: ${label}`;
+    }
     case 'tierUnlocked':
       return `¡hito! tier ${data?.tier} desbloqueado (${data?.population} hab.)`;
     case 'festivalDay':
@@ -307,6 +314,7 @@ export class Chronicle {
       : name === 'townFounded' ? 'founded'
       : name === 'coupleFormed' ? 'couple'
       : name === 'familyArrived' ? 'arrived'
+      : name === 'cityGrew' ? 'built'
       : name === 'citizenLeft' ? (data?.reason === 'emigrated' ? 'emigrated' : isLegacyDeath(data) ? 'legacy' : 'death')
       : 'milestone';
     this.data.events.push({ year, text, kind });

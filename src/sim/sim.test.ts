@@ -1545,6 +1545,42 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
     compacted.some((e) => e.kind === 'summary' && e.year === 0));
 }
 
+// Ciclo 50 RESEARCH.md — LA CONSTRUCCIÓN SE LEE (y no satura la Crónica): cada obra
+// narraba "la ciudad construye: cottage" (id crudo) e inundaba el feed. Ahora usa el
+// NOMBRE de catálogo ("se levanta: Casita de pueblo") y es kind `built`, que se CUENTA
+// al compactar años ("N edificios nuevos") — el largo plazo no se atasca de obras; los
+// ESTRENOS de tipo nuevo conservan su beat propio (firstBuilding, ciclo 45).
+{
+  // Narración pura con nombre de catálogo (y fallback al id).
+  check('crónica: la obra se narra con su nombre de catálogo',
+    chronicleText('cityGrew', { label: 'Casita de pueblo', id: 'cottage' }) === 'se levanta: Casita de pueblo');
+  check('crónica: sin nombre, la obra cae al id (no rompe)',
+    chronicleText('cityGrew', { id: 'shop' }) === 'se levanta: shop');
+
+  // La construcción rutinaria se RESUME al compactar (no una línea por edificio).
+  const evs: ChronEvent[] = [
+    { year: 2, text: 'se levanta: Casita de pueblo', kind: 'built' },
+    { year: 2, text: 'se levanta: Tienda', kind: 'built' },
+    { year: 2, text: 'se levanta: Escuela', kind: 'built' },
+    { year: 2, text: 'nace Ada Novák, de Vera', kind: 'birth' },
+  ];
+  const compacted = compactChronicle(evs, 10); // año 2 ya es viejo (RETAIN 4)
+  const summary = compacted.find((e) => e.kind === 'summary' && e.year === 2);
+  check('construcción: el año viejo resume las obras en una cifra', summary !== undefined && /3 edificios nuevos/.test(summary.text), `→ ${summary?.text}`);
+  check('construcción: ya no queda una línea por edificio en el año viejo',
+    !compacted.some((e) => e.kind === 'built'));
+
+  // Emergente: la ciudad construye y los eventos llevan el nombre de catálogo.
+  const sim = new Simulation(seedWorld(), 42);
+  let grew = 0, withLabel = 0;
+  for (let t = 0; t < TICKS_PER_DAY * 6; t++) {
+    sim.step();
+    for (const e of sim.takeEvents()) if (e.name === 'cityGrew') { grew++; if (typeof e.data.label === 'string') withLabel++; }
+  }
+  check('construcción: la ciudad levanta obras solo (crecimiento autónomo)', grew > 0, `→ ${grew} obras`);
+  check('construcción: toda obra viaja con su nombre de catálogo', grew > 0 && withLabel === grew);
+}
+
 // Determinismo: mismo snapshot final con la misma semilla.
 const a = runDays(7, 1).sim.snapshot();
 const b = runDays(7, 1).sim.snapshot();

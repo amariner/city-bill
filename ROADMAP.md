@@ -938,3 +938,11 @@ aprieta, T3.8-T3.10 y la Fase 4 valen más que cualquier cosa de la Fase 5.
   la Crónica persiste por semilla). Con esto la Crónica cuenta un arco completo: el pueblo
   nace (49) → llegan/nacen sus gentes (48/42) → familias y dinastías (43) crecen y se apagan
   (44) → el lugar madura de aldea a ciudad (47). 324/324 tests, `tsc` limpio.
+- 2026-07-05 (sesión Opus, tras el merge — ciclo 50) — **La construcción se lee**: el
+  evento `cityGrew` narraba el id crudo ("construye: cottage") e inundaba el feed (una
+  línea por edificio). Ahora viaja con el nombre de catálogo ("se levanta: Casita de
+  pueblo") y es kind `built`, que se CUENTA al compactar años ("N edificios nuevos") — el
+  largo plazo no se atasca; los estrenos de tipo nuevo conservan su beat (firstBuilding,
+  45). Sirve a la historia (la construcción autónoma se lee como crónica de desarrollo) y a
+  la UI. Antes: intentado y REVERTIDO el "invierno duro" (no emerge: el granero-colchón del
+  ciclo 40 previene la hambruna por diseño). 330/330 tests, `tsc` limpio.
