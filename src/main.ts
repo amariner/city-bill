@@ -155,7 +155,7 @@ loop.onUpdate((dt) => {
     const hh = String(Math.floor(h)).padStart(2, '0');
     const mm = String(Math.floor((h % 1) * 60)).padStart(2, '0');
     hud.setStats({ agents: n, clock: `${hh}:${mm} día ${day} ×${simClient.speed}` });
-    cityHud?.update(simClient.city);
+    cityHud?.update(simClient.city, { day, hour: h, speed: simClient.speed });
     chronicle?.update(t, simClient.population, simClient.buildings);
   }
   hud.update(dt);

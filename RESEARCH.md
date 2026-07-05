@@ -1139,3 +1139,11 @@ una simulación, y los tratamos como tales:
   inspector enriquecido + avisos + este vínculo visual) hace la vida de la sim VISIBLE
   desde el primer vistazo, sin abrir menús.
   Próximo en la veta: (b) el legado/vida visible en el mundo; (c) nieve en tejados.
+- 2026-07-05 · **Veta INTERFAZ — remate: reloj y velocidad en el HUD de ciudad** ·
+  El paso del tiempo (día, hora) y la velocidad de sim solo se veían abriendo el debug
+  HUD (F3), pero son centrales a "verlo VIVO" y el jugador cambia velocidad con 0-3 sin
+  feedback. Añadido un chip `tiempo` al frente del HUD de ciudad: "dN · HH:MM · ×v"
+  (⏸ pausa en ámbar cuando el mundo está congelado). `CityHud.update` recibe ahora un
+  `ClockView {day, hour, speed}` opcional; el main ya calculaba día/hora del snapshot.
+  Verificado por screenshot (d0 · 02:04 · ×8). Cierra el HUD de ciudad como panel
+  player-facing completo. `tsc` limpio, 276/276 tests.

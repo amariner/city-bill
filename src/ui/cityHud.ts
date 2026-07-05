@@ -10,7 +10,7 @@
  * (signRed/signYellow), no hex sueltos — respeta la regla de arte nº 1.
  */
 import { PALETTE } from '../palette';
-import { CityStats } from '../sim/protocol';
+import { CityStats, Speed } from '../sim/protocol';
 
 /** Hex numérico de la paleta → color CSS. */
 function css(hex: number): string {
@@ -19,6 +19,17 @@ function css(hex: number): string {
 
 const ALERT = css(PALETTE.signRed);
 const WARN = css(PALETTE.signYellow);
+
+/** Reloj de juego para el HUD (el paso del tiempo, hoy solo en F3). */
+export interface ClockView {
+  day: number;
+  /** Hora de juego en [0,24). */
+  hour: number;
+  speed: Speed;
+}
+
+/** Etiqueta de velocidad: pausa o multiplicador. */
+const SPEED_LABEL: Record<Speed, string> = { 0: '⏸ pausa', 1: '×1', 2: '×3', 3: '×8' };
 
 
 interface Chip {
@@ -55,7 +66,7 @@ export class CityHud {
     ].join(';');
     document.body.appendChild(this.el);
 
-    for (const key of ['pop', 'treasury', 'jobless', 'season', 'granary', 'health', 'wealth']) {
+    for (const key of ['time', 'pop', 'treasury', 'jobless', 'season', 'granary', 'health', 'wealth']) {
       const root = document.createElement('div');
       root.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:1px';
       const label = document.createElement('span');
@@ -67,6 +78,7 @@ export class CityHud {
       this.el.appendChild(root);
       this.chips[key] = { label, value, root };
     }
+    this.chips.time.label.textContent = 'tiempo';
     this.chips.pop.label.textContent = 'población';
     this.chips.treasury.label.textContent = 'tesoro';
     this.chips.jobless.label.textContent = 'paro';
@@ -77,10 +89,13 @@ export class CityHud {
   }
 
   /** Llamar cada frame; sólo reescribe el DOM cuando algo cambia. */
-  update(city: CityStats | null): void {
+  update(city: CityStats | null, clock?: ClockView): void {
     if (!city) return;
+    const hh = clock ? String(Math.floor(clock.hour)).padStart(2, '0') : '';
+    const mm = clock ? String(Math.floor((clock.hour % 1) * 60)).padStart(2, '0') : '';
     // Firma barata para evitar tocar el DOM en cada frame (la sim va a 4 Hz).
     const sig = [
+      clock ? `${clock.day}|${hh}:${mm}|${clock.speed}` : '',
       city.population,
       city.treasury | 0,
       Math.round(city.unemployment * 100),
@@ -92,6 +107,12 @@ export class CityHud {
     ].join('|');
     if (sig === this.last) return;
     this.last = sig;
+
+    if (clock) {
+      this.chips.time.value.textContent = `d${clock.day} · ${hh}:${mm} · ${SPEED_LABEL[clock.speed]}`;
+      // La pausa se avisa en ámbar (el mundo está congelado a propósito).
+      this.chips.time.value.style.color = clock.speed === 0 ? WARN : '';
+    }
 
     this.chips.pop.value.textContent = String(city.population);
 
