@@ -278,8 +278,12 @@ repetido, arbolado automático en márgenes de carretera (rasgo de identidad).
   locomotora con sprites de esferas.
 - [ ] **T5.3 Sonido generativo.** Web Audio: viento, pájaros, campana lejana, murmullo
   al hacer zoom a ciudadanos charlando. Volumen ligado al zoom.
-- [ ] **T5.4 Juice.** Rebote elástico al colocar, humo en chimeneas al anochecer,
-  bandadas de pájaros, luces de ventanas encendiéndose una a una al caer la tarde.
+- [x] **T5.4 Juice atmosférico del anochecer.** Luces de ventana encendiéndose una a
+  una al caer la tarde (glow *emissive*, no difuso), humo de chimenea y bandada de
+  pájaros, todo sobre una "hora azul" que atenúa/enfría el pueblo para que el juice
+  cante. El *rebote elástico al colocar* queda para la Fase 2 (construcción manual, aún
+  no existe). Sistema único `render/atmosphere.ts` ligado al reloj de juego. Ver §6
+  (2026-07-05, sesión juice).
 - [ ] **T5.5 Modo foto.** Ocultar UI, encuadres presets, export PNG 4K.
 
 ### Fase 6 — Lanzamiento
@@ -489,3 +493,47 @@ aprieta, T3.8-T3.10 y la Fase 4 valen más que cualquier cosa de la Fase 5.
   verificado por screenshot "ALDEA · 16") y la Crónica celebra cada ascenso ("la aldea se
   hace pueblo (20 almas)") con toast ✦. Emerge pronto (seed 42: pueblo@d3) → test barato.
   309/309 tests, `tsc` limpio. Ver RESEARCH.md §4 (2026-07-05, ciclo 47).
+- 2026-07-05 (sesión Opus — JUICE ATMOSFÉRICO T5.4) — El atardecer del banco de
+  pruebas (`?scene=test-dev` abre a ~19 h) ahora está VIVO. Un único sistema,
+  `world/render/atmosphere.ts` (clase `Atmosphere`), ligado al reloj de JUEGO:
+  · **Luces de ventana una a una** — la señal es `lampFactor(hora)` (0 de día, 1 de
+    noche, rampa suave al anochecer 17.5→20 h y al amanecer 5.5→7.5 h; nada de
+    `if hora==X`). Cada ventana tiene un `threshold` → prende cuando `lampFactor` lo
+    supera (efecto "una a una", escalonado). Dos mecanismos por rendimiento/estética:
+    (a) bloques urbanos (`windowGrid`): el brillo cálido va como EMISSIVE por
+    instancia vía un atributo `aGlow` (vec3) + parche mínimo de shader
+    (`onBeforeCompile`, se suma a `totalEmissiveRadiance`, SIN tocar el difuso →
+    apagadas = cristal frío normal, encendidas brillan aunque el pueblo se atenúe);
+    (b) casas pequeñas (`litWindow`, mesh suelto): material propio cuyo
+    `emissiveIntensity` sube Atmosphere (0 de día → cálido de noche). Añadidas
+    ventanas encendibles a `cottage`/`farmhouse`/`rowHouses` para que el PUEBLO
+    entero se ilumine, no sólo los bloques. Escalonado por posición de mundo
+    (determinista, sin RNG).
+  · **"Hora azul"** (`updateNight` en `renderer.ts`) — TRAMPA/decisión clave: el mundo
+    NO oscurecía nunca (la elevación del sol es fija por regla de arte §4, no hay
+    atenuación nocturna), así que un glow difuso cálido se PERDÍA contra las paredes
+    crema a plena luz. Sin un pueblo que se atenúe, "encender luces" no se lee. Añadida
+    una atenuación nocturna suave y fría (nunca a negro, §4: silueta legible) que modula
+    intensidad de sol/ambiente/hemi y tiñe cielo+ambiente hacia el crepúsculo. Es motivo
+    documentado para tocar la luz firmada (regla §0.3/§0.4). La ELEVACIÓN del sol NO se
+    toca: sólo intensidad/color/cielo → las sombras siguen largas. Colores nuevos en
+    `palette.ts`: `windowLit` (subido a ámbar), `skyNight`, `ambientNight`, `smoke`,
+    `bird` (+`windowDay` sin uso final).
+  · **Humo de chimenea** — bocanadas (InstancedMesh de esferas facetadas pálidas,
+    `depthWrite:false`) que suben, derivan y se deshacen encogiendo; sólo emiten al
+    anochecer/amanecer (`lampFactor>0.2`). Chimeneas marcadas con `userData.kind` +
+    `topOffset` en `farmhouse`/`cottage`/`factory`. Es FX cosmético efímero → usa
+    `Math.random` (permitido, §0.6). El resto (luces, bandada) es determinista.
+  · **Bandada** — una bandada (InstancedMesh de conos triangulares oscuros) que gira
+    sobre el centro de la ciudad al alba (~7 h) y al ocaso (~18.5 h), dormida el resto.
+  · **Escaneo del mundo**: Atmosphere recorre el árbol de render y cachea ventanas
+    (`kind:'windows'`/`'litWindow'`) y chimeneas; `invalidate()` en `cityGrew` re-escanea
+    tras crecer la ciudad (ventanas/chimeneas nuevas). Las ventanas sólo se repintan
+    cuando el crepúsculo se MUEVE (`lastLamp`); de día/noche pleno, gratis.
+  · Verificado con Playwright (headless swiftshader) en `?scene=test-dev` (dusk vivo:
+    ventanas cálidas por todo el pueblo, humo, bandada, hora azul) y en `?scene=buildings`
+    (de día: ventanas = cristal frío, cero glow, sin artefactos del shader). `tsc` limpio;
+    `npm test` 33/33 + 276/276 verde. Coste medido: +14 draw calls sobre la base (2 FX
+    instanciados + ~12 ventanas de casa); la base del banco ya son ~425 (edificios como
+    grupos de meshes, NO instanciados — deuda pre-existente de T1.6/T6.1, no de T5.4).
+    NOTA fps=10 del HUD headless es artefacto de swiftshader (SW render), no hardware real.
