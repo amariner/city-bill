@@ -926,3 +926,20 @@ una simulación, y los tratamos como tales:
   tener cobertura desigual (los barrios ricos se vacunan antes — injusticia sanitaria
   real) o dudas/rechazo. (d) subir por fin a N4/N5 (legado, vocación) — la pirámide
   está muy desarrollada en la base y fina en la cúspide.
+- 2026-07-05 · **Ciclo 34 (INTENTADO Y REVERTIDO): estatus por consumo (N4)** ·
+  Hipótesis: el consumo ostentoso (bienes/vida, ciclos 31/32) confiere PRESTIGIO, y el
+  prestigio DECAE (hay que mantenerlo) → la desigualdad económica se vuelve desigualdad
+  SOCIAL visible. Implementado (gainPrestige por gasto + decayPrestige diario) y MEDIDO:
+  no funciona. HALLAZGO (valioso): TODOS los hogares acaban con prestigio 1.00, sin
+  diferenciar. Dos causas encadenadas: (1) el `investInHomes` del ciclo 9 ya maxea el
+  prestigio de cualquier hogar con ahorro ≥ 80, y (2) la economía CERRADA (ciclos 29-32:
+  nómina + dividendo + pensiones) no deja hogares POBRES — todos superan 80. Sin
+  desigualdad económica, ningún estatus atado a la riqueza puede diferenciar: el
+  prestigio se satura para todos. El crecimiento sí quedó acotado (max 120 a día 40).
+  Revertido el código (economy.ts, simulation.ts); no llegó a tocar tests ni logics.
+  LECCIÓN para el futuro N4/N5: la estima significativa NO puede colgar de la riqueza
+  mientras la economía sea igualitaria. Dos caminos limpios: (a) introducir DESIGUALDAD
+  económica persistente primero (que la haya de verdad, no todos cómodos), o —mejor y
+  más humano— (b) que el estatus/la estima nazca de LOGROS NO monetarios que varían de
+  forma natural: criar hijos, longevidad, ser pilar del barrio, VOCACIÓN cumplida,
+  LEGADO recordado (§6.1). Ese es el siguiente ataque a la cúspide de la pirámide.
