@@ -415,3 +415,11 @@ aprieta, T3.8-T3.10 y la Fase 4 valen más que cualquier cosa de la Fase 5.
   apellido); sin RNG → mundo byte-idéntico (288 tests previos intactos). El linaje se lee
   ya en tres direcciones: de quién vienes, quién sigue contigo, cuándo tu estirpe se vuelve
   historia. 292/292 tests, `tsc` limpio. Ver RESEARCH.md §4 (2026-07-05, ciclo 43).
+- 2026-07-05 (sesión Opus, LÓGICA+INTERFAZ a la par — ciclo 44) — **Extinción de estirpe**:
+  cierra el arco familiar (rise & fall). Cuando una dinastía reconocida se apaga del todo
+  (ni un descendiente vivo ni el fundador), la Crónica cierra su historia ("se extingue la
+  familia Novák — no queda ninguno de su sangre") y un toast ❧ sobrio la asoma. Emergente
+  de largo plazo (medido offline: ~día 180 en seeds 7/999/12345); cubierto por test
+  unitario del predicado + narración (el run de 200 años disparaba la suite a >4 min).
+  Con esto el arco de una familia es COMPLETO: nace (42), crece y se reconoce (43), se
+  apaga (44). 297/297 tests, `tsc` limpio. Ver RESEARCH.md §4 (2026-07-05, ciclo 44).

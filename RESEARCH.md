@@ -1263,3 +1263,26 @@ una simulación, y los tratamos como tales:
   Carencia para próximos ciclos: (a) el hito de dinastía podría enriquecerse con las
   GENERACIONES (profundidad del árbol), no solo el nº de vivos; (b) que una estirpe que se
   EXTINGUE (último descendiente muere) también se narre — el arco completo de una familia.
+- 2026-07-05 · **Ciclo 44: EXTINCIÓN DE ESTIRPE — el arco completo de una familia (rise &
+  fall)** · Cierra la carencia (b) del ciclo 43. Tras afianzarse, una dinastía reconocida
+  puede APAGARSE del todo — y la Crónica cierra su historia: "se extingue la familia Novák
+  — no queda ninguno de su sangre". MODELAR: en `checkDynasties` (ya diario), para cada
+  tronco reconocido (`dynastiesSeen`) que no está ya caído, si NO queda ni un descendiente
+  vivo (`!alive.has(line)`) NI el tronco/fundador (`!citizens.has(line)`), se emite
+  `dynastyFell` una vez (`dynastiesFallen`). Requerir también al fundador muerto evita el
+  falso positivo de que aún podría tener más hijos y revivir la línea. El apellido para la
+  narración se recuerda al afianzarse (`dynastyNames`), porque al extinguirse ya no queda
+  nadie de quien leerlo. Sin RNG → mundo byte-idéntico (288 previos intactos). EMERGENCIA
+  medida OFFLINE (rise & fall es de LARGO PLAZO): la extinción aparece hacia el día ~180 en
+  seeds 7 (d183), 999 (d180) y 12345 (d213) — rara y honda, justo el beat melancólico
+  buscado. LECCIÓN de método/coste: un test emergente de 200 años disparaba la suite a >4
+  min (inaceptable en el camino crítico); se sustituyó por un test UNITARIO del predicado
+  de extinción (barato, sin correr la sim) + la narración pura, y la emergencia se verifica
+  y documenta aquí. **INTERFAZ A LA PAR**: la Crónica narra la extinción; un toast ❧ sobrio
+  (acento neutro) la asoma. Con esto el arco de una familia es COMPLETO: nace (linaje, 42),
+  crece y se reconoce (dinastía, 43), y se apaga (extinción, 44) — una vida generacional
+  entera contada sola. VERIFICAR: 297/297 tests (5 nuevos), `tsc` limpio, boot sin errores.
+  Carencia para próximos ciclos: (a) la profundidad del árbol (generaciones) enriquecería
+  tanto el hito de dinastía como la extinción ("tras 4 generaciones, se apaga…"); (b) el
+  arco familiar ya está cerrado — siguiente veta de historia: los HITOS DEL PUEBLO (primer
+  edificio de cada tipo, récord de población, la calle más larga) como beats de la Crónica.

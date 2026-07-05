@@ -51,6 +51,9 @@ function styleFor(name: string, data?: Record<string, unknown>): Style | null {
     case 'dynastyRose':
       // Dinastía (ciclo 43): una estirpe se afianza — un hito del largo plazo.
       return { accent: GOLDEN, mark: '❦' };
+    case 'dynastyFell':
+      // Extinción (ciclo 44): el arco de una familia se cierra — un beat sobrio.
+      return { accent: '', mark: '❧' };
     case 'citizenLeft':
       // Solo los LEGADOS (matriarcas/patriarcas, ciclo 35) — no cada muerte.
       return isLegacyDeath(data) ? { accent: '', mark: '†' } : null;

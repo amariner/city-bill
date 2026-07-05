@@ -82,7 +82,7 @@ const VOCATION_QUIT_CHANCE = 0.05;
 const DYNASTY_THRESHOLD = 8;
 
 export interface SimEvent {
-  name: 'citizenBorn' | 'citizenLeft' | 'jobTaken' | 'chatStarted' | 'cityGrew' | 'tierUnlocked' | 'coupleFormed' | 'festivalDay' | 'roadExtended' | 'epidemic' | 'vocationFound' | 'dynastyRose';
+  name: 'citizenBorn' | 'citizenLeft' | 'jobTaken' | 'chatStarted' | 'cityGrew' | 'tierUnlocked' | 'coupleFormed' | 'festivalDay' | 'roadExtended' | 'epidemic' | 'vocationFound' | 'dynastyRose' | 'dynastyFell';
   data: Record<string, unknown>;
 }
 
@@ -104,6 +104,11 @@ export class Simulation {
   /** Troncos de estirpe ya reconocidos como dinastía (ciclo 43): el hito se narra
    * UNA vez por línea, cuando cruza el umbral de descendientes vivos. */
   private readonly dynastiesSeen = new Set<number>();
+  /** Dinastías ya extinguidas (ciclo 44): su caída se narra una sola vez. */
+  private readonly dynastiesFallen = new Set<number>();
+  /** Apellido de cada tronco reconocido (ciclo 44): para narrar su extinción
+   * cuando ya no queda ningún miembro vivo de quien leerlo. */
+  private readonly dynastyNames = new Map<number, string>();
   private nextId = 1;
   private lastDay = 0;
   events: SimEvent[] = [];
@@ -315,10 +320,22 @@ export class Simulation {
       if (count < DYNASTY_THRESHOLD || this.dynastiesSeen.has(line)) continue;
       this.dynastiesSeen.add(line);
       const founder = this.citizens.get(line); // vivo aún? (puede haber muerto)
+      const fam = surname.get(line) ?? '';
+      this.dynastyNames.set(line, fam);
       this.events.push({
         name: 'dynastyRose',
-        data: { line, surname: surname.get(line), members: count, founder: founder?.name },
+        data: { line, surname: fam, members: count, founder: founder?.name },
       });
+    }
+    // Extinción (ciclo 44): una dinastía reconocida cuya SANGRE se apaga del todo
+    // — ni un descendiente vivo (alive) ni el tronco (el fundador) — cierra su arco.
+    // Requerir también al fundador muerto evita el falso positivo de que aún podría
+    // tener más hijos y revivir la línea. Se narra una sola vez.
+    for (const line of this.dynastiesSeen) {
+      if (this.dynastiesFallen.has(line)) continue;
+      if (alive.has(line) || this.citizens.has(line)) continue; // aún hay sangre
+      this.dynastiesFallen.add(line);
+      this.events.push({ name: 'dynastyFell', data: { line, surname: this.dynastyNames.get(line) } });
     }
   }
 

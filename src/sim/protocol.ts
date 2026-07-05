@@ -141,7 +141,8 @@ export interface SimEventMsg {
     | 'roadExtended'
     | 'epidemic'
     | 'vocationFound'
-    | 'dynastyRose';
+    | 'dynastyRose'
+    | 'dynastyFell';
   data?: Record<string, unknown>;
 }
 

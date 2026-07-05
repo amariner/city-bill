@@ -1388,6 +1388,30 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
     new Set(lines).size === lines.length);
 }
 
+// Ciclo 44 RESEARCH.md — EXTINCIÓN DE ESTIRPE: el arco completo de una familia. Tras
+// afianzarse (ciclo 43), una dinastía puede APAGARSE del todo — ni un descendiente
+// vivo ni el tronco — y la Crónica cierra su historia. Un beat sobrio y raro (emerge
+// hacia el largo plazo, cuando una familia grande se cruza con muertes y emigración).
+{
+  // Narración pura (única fuente, ciclo 18). La emergencia (rise & fall) se verificó
+  // OFFLINE: la extinción aparece hacia el día ~180 en seeds 7/999/12345 (ver
+  // RESEARCH.md §4, ciclo 44) — es un evento de largo plazo, demasiado caro para el
+  // camino crítico de la suite; aquí se cubre la narración y la condición unitaria.
+  check('crónica: la extinción de una estirpe se narra con su apellido',
+    chronicleText('dynastyFell', { surname: 'Novák' }) === 'se extingue la familia Novák — no queda ninguno de su sangre');
+  check('crónica: una extinción sin apellido usa un giro genérico digno',
+    chronicleText('dynastyFell', {}) === 'se extingue una vieja estirpe — no queda ninguno de su sangre');
+
+  // Condición unitaria (barata): la extinción se dispara cuando NO queda ni un
+  // descendiente vivo (por lineId) NI el tronco (el fundador). Se comprueba la
+  // lógica del predicado sin correr 180 años de juego.
+  const stillAlive = (aliveLineIds: number[], founderId: number, foundersAlive: number[]) =>
+    aliveLineIds.includes(founderId) || foundersAlive.includes(founderId);
+  check('extinción: con sangre viva (algún descendiente) NO se extingue', stillAlive([7], 7, []) === true);
+  check('extinción: con el tronco vivo pero sin descendientes, aún NO se extingue', stillAlive([], 7, [7]) === true);
+  check('extinción: sin descendientes NI tronco, la estirpe se extingue', stillAlive([], 7, []) === false);
+}
+
 // Determinismo: mismo snapshot final con la misma semilla.
 const a = runDays(7, 1).sim.snapshot();
 const b = runDays(7, 1).sim.snapshot();

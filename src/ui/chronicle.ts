@@ -154,6 +154,13 @@ export function chronicleText(name: string, data?: Record<string, unknown>): str
       const n = typeof data?.members === 'number' ? data.members : '?';
       return `la familia ${fam} echa raíces: ${n} descendientes vivos`;
     }
+    case 'dynastyFell': {
+      // Extinción de estirpe (ciclo 44): el arco de una familia se cierra.
+      const fam = typeof data?.surname === 'string' && data.surname ? data.surname : '';
+      return fam
+        ? `se extingue la familia ${fam} — no queda ninguno de su sangre`
+        : 'se extingue una vieja estirpe — no queda ninguno de su sangre';
+    }
     case 'vocationFound': {
       // Rotación vocacional (ciclo 41): alguien dejó su oficio y encontró su
       // llamada — una historia que el churn genera, no un guion.
