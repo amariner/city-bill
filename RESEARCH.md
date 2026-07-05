@@ -1048,3 +1048,17 @@ una simulación, y los tratamos como tales:
   ciclo 37, es señal de que las mejoras que quedan (cierre monetario, estatus
   desacoplado, techo K atado a la economía) piden trabajo estructural con presupuesto
   de validación completo, no parches. El árbol queda limpio y verde (269/269) en 37bis.
+- 2026-07-05 · **Ciclo 39: COSECHA ESTACIONAL (clima↔alimento)** · Tras dos muros en
+  la esfera económica-caótica (37, 38), cambio a una veta FRESCA y de menor riesgo. El
+  campo rendía IGUAL todo el año (irreal). Ahora la producción del granjero escala con
+  la calidez estacional (`seasonalWarmth` [-1,1], ya existía para el render): invierno
+  ×(1−0.5)=0.5, verano ×1.5. Acopla clima↔alimento sin guion. Verificado (seed 42, 60
+  días): la comida media ONDULA con la estación (0.30 en pleno invierno vs 0.52 en
+  primavera) y la sociedad SOBREVIVE (mínimo 0.28 > umbral; sin hambruna), crecimiento
+  acotado (max 127 a día 40), determinismo intacto. 274/274 tests verdes. Modesto pero
+  REAL (a diferencia de 37/38): añade relieve estacional al alimento.
+  Carencia observada: el GRANERO no llega a funcionar como COLCHÓN (producción ≈
+  consumo → se queda vaciado ~0 siempre, no se acumula excedente en verano para gastar
+  en invierno). Para que el colchón IMPORTE hace falta que el verano produzca SUPERÁVIT
+  (más capacidad agrícola / más granjeros) — entonces el granero se llenaría en verano
+  y se tiraría de él en invierno, y emergería la gestión de reservas.

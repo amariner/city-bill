@@ -20,6 +20,12 @@ export interface Workplace {
 
 /** Producción de comida por granjero y hora trabajada (lógica de alimento). */
 export const FOOD_PER_FARMER_HOUR = 4;
+/** Estacionalidad de la cosecha (ciclo 39): el campo no rinde igual todo el año.
+ * La producción escala con la calidez estacional [-1,1] → el invierno rinde poco
+ * (factor 1−swing) y el verano mucho (1+swing). Así el GRANERO (colchón comunal)
+ * por fin IMPORTA: hay que acumular en verano para pasar el invierno, como en un
+ * pueblo real. Acopla clima↔alimento. Moderado, para no matar de hambre. */
+export const SEASON_YIELD_SWING = 0.5;
 
 // --- Lógica de dinero (ciclo 2 de RESEARCH.md) --------------------------------
 /** Salario base por hora trabajada; los tiers altos pagan más. */
@@ -280,8 +286,8 @@ export class Economy {
 
   /** Los granjeros en faena llenan el granero; se recuerda quién produjo
    * (por hogar) para que la liquidación de fin de día le pague su parte. */
-  produceFood(farmerHomeKey: string, hours: number): void {
-    this.granary += FOOD_PER_FARMER_HOUR * hours;
+  produceFood(farmerHomeKey: string, hours: number, yieldFactor = 1): void {
+    this.granary += FOOD_PER_FARMER_HOUR * hours * yieldFactor;
     this.farmerHoursToday.set(farmerHomeKey, (this.farmerHoursToday.get(farmerHomeKey) ?? 0) + hours);
   }
 

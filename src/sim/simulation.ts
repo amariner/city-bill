@@ -28,12 +28,12 @@ import {
   extendRoad, GrowthPlacement, CARRYING_CAPACITY, fertilityFactor,
 } from '../world/growth';
 import { lifeYear, ADULT_AGE, OLD_AGE } from './lifecycle';
-import { STARTING_MONEY, PENSION_PER_DAY, RENT_PER_DAY, RENT_TIER_FACTOR } from './economy';
+import { STARTING_MONEY, PENSION_PER_DAY, RENT_PER_DAY, RENT_TIER_FACTOR, SEASON_YIELD_SWING } from './economy';
 import { catalogData, Tier } from '../world/catalogData';
 import { healthTick, CLINIC_RECOVERY_PER_HOUR, WORK_BLOCK_HEALTH } from './health';
 import { griefTick, consoleGrief, bereave, GRIEF_PARTNER, GRIEF_FRIEND, GRIEF_FRIEND_AFFINITY } from './grief';
 import { sickenTick, treatSick, SICK_ONSET, VACCINE_IMMUNITY } from './contagion';
-import { weatherAt, seasonalFestivalName, Weather } from './weather';
+import { weatherAt, seasonalFestivalName, seasonalWarmth, Weather } from './weather';
 
 /** Velocidad al caminar, en celdas por tick (0.25 s reales a vel. 1). */
 const WALK_CELLS_PER_TICK = 0.9; // ≈ 7 km/h de juego a escala urbana
@@ -791,7 +791,12 @@ export class Simulation {
           if (c.activity === 'work' && c.work) {
             const employer = catalogData(c.work.buildingId);
             // Cadena de alimento: los granjeros en faena llenan el granero.
-            if (employer?.role === 'agriculture') this.economy.produceFood(`${c.home.ax},${c.home.az}`, hours);
+            if (employer?.role === 'agriculture') {
+              // Cosecha estacional (ciclo 39): el campo rinde menos en invierno,
+              // más en verano → hay que acumular granero para pasar el frío.
+              const yieldFactor = 1 + SEASON_YIELD_SWING * seasonalWarmth(this.clock.day);
+              this.economy.produceFood(`${c.home.ax},${c.home.az}`, hours, yieldFactor);
+            }
             // Dinero: cada hora trabajada es salario para el hogar. El sector
             // público (civic) se paga del tesoro, no se acuña (ciclo 37bis).
             this.economy.payWage(`${c.home.ax},${c.home.az}`, hours, employer?.tier ?? 0, c.education, employer?.role);

@@ -10,7 +10,7 @@
 import { seedWorld, seedFarm } from '../world/seed';
 import { Simulation } from './simulation';
 import { TICK_GAME_S, DAY_GAME_SECONDS } from './clock';
-import { FOOD_PRICE, Economy, GOODS_COMFORT_FLOOR, GOODS_MAX_SPEND, LIFESTYLE_COMFORT } from './economy';
+import { FOOD_PRICE, Economy, GOODS_COMFORT_FLOOR, GOODS_MAX_SPEND, LIFESTYLE_COMFORT, SEASON_YIELD_SWING, FOOD_PER_FARMER_HOUR } from './economy';
 import { weatherAt, seasonalWarmth, seasonalFestivalName } from './weather';
 import { deathChance, lifeYear, OLD_AGE, ADULT_AGE } from './lifecycle';
 import { CLINIC_RECOVERY_PER_HOUR } from './health';
@@ -1234,6 +1234,39 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
   const avgFood = cs.reduce((s, c) => s + c.needs.food, 0) / cs.length;
   check('nómina pública: el erario paga de verdad a sus empleados públicos', sim.economy.wagesFromTreasury > 0, `→ ${sim.economy.wagesFromTreasury.toFixed(0)}`);
   check('nómina pública: y la sociedad sigue en pie', avgFood > 0.25 && cs.length >= 25, `→ ${cs.length} hab., comida ${avgFood.toFixed(2)}`);
+}
+
+// Ciclo 39 RESEARCH.md — COSECHA ESTACIONAL (clima↔alimento): el campo no rinde
+// igual todo el año. La producción escala con la calidez estacional → el invierno
+// rinde poco, el verano mucho. Da relieve al alimento (el invierno aprieta) y, a la
+// larga, sentido al granero como colchón. Acopla clima↔alimento sin guion.
+{
+  // (a) Puro: a igual faena, el invierno (día ~10, frío) produce MENOS que el
+  //     verano (día ~50, cálido), y algo se produce siempre (no hay hambruna total).
+  const winterFactor = 1 + SEASON_YIELD_SWING * seasonalWarmth(10);
+  const summerFactor = 1 + SEASON_YIELD_SWING * seasonalWarmth(50);
+  const yieldOf = (factor: number): number => {
+    const e = new Economy();
+    const before = e.granary;
+    e.produceFood('f', 5, factor);
+    return e.granary - before;
+  };
+  const winter = yieldOf(winterFactor), summer = yieldOf(summerFactor);
+  check('cosecha: el invierno rinde MENOS que el verano', winter < summer, `→ ${winter.toFixed(0)} vs ${summer.toFixed(0)}`);
+  check('cosecha: aun en invierno el campo produce algo (no hambruna por decreto)', winter > 0, `→ ${winter.toFixed(0)}`);
+  check('cosecha: sin estación (factor 1) rinde lo de siempre', Math.abs(yieldOf(1) - FOOD_PER_FARMER_HOUR * 5) < 1e-9);
+
+  // (b) Integración: la ciudad SOBREVIVE el ciclo estacional (varios inviernos) —
+  //     el alimento aprieta pero no colapsa, y el pueblo sigue creciendo.
+  const sim = new Simulation(seedWorld(), 42);
+  let minFood = 1;
+  for (let d = 0; d < 45; d++) {
+    for (let t = 0; t < TICKS_PER_DAY; t++) sim.step();
+    const cz = [...sim.citizens.values()];
+    minFood = Math.min(minFood, cz.reduce((s, c) => s + c.needs.food, 0) / cz.length);
+  }
+  check('cosecha: la sociedad sobrevive el invierno (aprieta, no colapsa)', minFood > 0.2, `→ comida mínima ${minFood.toFixed(2)}`);
+  check('cosecha: y el pueblo sigue en pie tras varios inviernos', sim.citizens.size >= 25, `→ ${sim.citizens.size} hab.`);
 }
 
 // Determinismo: mismo snapshot final con la misma semilla.
