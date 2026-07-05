@@ -5,8 +5,9 @@
  * los chunks fuera de cámara. El render LEE el grid; nunca lo modifica.
  */
 import * as THREE from 'three';
-import { PALETTE, SEASON_PALETTES, Season } from '../../palette';
+import { PALETTE, SEASON_PALETTES } from '../../palette';
 import { createRng } from '../../rng';
+import { Season } from '../../sim/weather';
 import { Grid, Chunk, Terrain, CELL_SIZE, Cell } from '../grid';
 
 const LAYER_Y: Record<Terrain, number> = {
@@ -78,13 +79,34 @@ function emitCell(buf: QuadBuffers, cx: number, cz: number, cell: Cell, c: THREE
   }
 }
 
+// Material ÚNICO compartido por todos los chunks de terreno: así el tinte
+// estacional (T5.1 paso 2) se aplica una sola vez para todo el suelo.
+export const terrainMaterial = new THREE.MeshLambertMaterial({ vertexColors: true });
+
+const _snow = new THREE.Color(PALETTE.snow);
+/**
+ * Nieve por estación (T5.1 paso 2): en el frío del invierno el suelo se cubre de
+ * blanco. Se hace con EMISSIVE (aditivo → ilumina hacia el blanco; un multiply
+ * solo oscurecería), proporcional a la crudeza invernal. `warmth` ∈ [-1,1].
+ *
+ * El factor (0.85) está calibrado para que la nieve LEA de verdad —a 0.42 apenas
+ * se notaba sobre el suelo ya claro y las estaciones "solo se veían en luz/cielo"—
+ * pero SIN saturar: por encima de ~1.2 el emissive clampa a blanco plano y borra
+ * las sombras largas del suelo (checklist §4). A 0.85 el manto se lee como nieve
+ * y, como el emissive no llega a 1, las sombras de árboles/casas siguen marcándose.
+ */
+export function updateTerrainSeason(warmth: number): void {
+  const winter = Math.max(0, -warmth); // 0 (templado) … 1 (pleno invierno)
+  terrainMaterial.emissive.copy(_snow).multiplyScalar(0.85 * winter);
+}
+
 function finish(buf: QuadBuffers): THREE.Mesh {
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(buf.positions, 3));
   geo.setAttribute('normal', new THREE.Float32BufferAttribute(buf.normals, 3));
   geo.setAttribute('color', new THREE.Float32BufferAttribute(buf.colors, 3));
   geo.computeBoundingSphere();
-  const mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true }));
+  const mesh = new THREE.Mesh(geo, terrainMaterial);
   mesh.receiveShadow = true;
   mesh.name = 'terrain';
   return mesh;

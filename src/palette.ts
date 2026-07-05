@@ -3,6 +3,8 @@
  * tonos tierra desaturados, verdes suaves y acentos rojizos apagados.
  * Ningún material debe definir un color fuera de este archivo.
  */
+import type { Season } from './sim/weather';
+
 export const PALETTE = {
   // Suelo y campos de cultivo (patchwork beige)
   groundBase: 0xd8cab0,
@@ -72,20 +74,33 @@ export const PALETTE = {
 
   // Luces
   sun: 0xfff2dd,
+  sunGolden: 0xffd9a6, // hora dorada (mañana/tarde) — T1.8, más cálido
   ambient: 0xcfd8e8,
+
+  // Tinte estacional (T5.1 paso 1): crossfade lento entre invierno frío/pálido y
+  // verano cálido. Se aplican a cielo y ambiente, no a la geometría.
+  skyWinter: 0xdfe4ea, // cielo invernal, frío y lavado
+  skySummer: 0xe6dcc0, // cielo estival, cálido y dorado
+  ambientWinter: 0xc4d2e6, // relleno frío azulado (nieve, sombra fría)
+  ambientSummer: 0xdcd8c8, // relleno cálido de verano
+  snow: 0xeef2f7, // manto de nieve del terreno en invierno (emissive, T5.1 paso 2)
+
+  // UI diegética
+  selectRing: 0xd8b25a, // anillo bajo el ciudadano seleccionado en el inspector
 } as const;
 
 /**
- * Paleta estacional (T5.1): variantes de terreno y vegetación por estación
- * (`sim/weather.ts` ya calcula la estación; esto le da su reflejo visual,
- * carencia anotada desde el ciclo 6 de RESEARCH.md). El verano ES la
- * paleta base de arriba (el juego se diseñó y verificó visualmente en
- * verano) — las otras tres son variaciones sobre las mismas familias de
- * color, nunca un hex nuevo fuera de aquí. `cypress` no varía: es de hoja
- * perenne, se queda verde todo el año incluso en invierno.
+ * Paleta estacional (T5.1 paso 1, terreno/vegetación): variantes de terreno y
+ * vegetación por estación. El verano ES la paleta base de arriba (el juego se
+ * diseñó y verificó visualmente en verano) — las otras tres son variaciones
+ * sobre las mismas familias de color, nunca un hex nuevo fuera de aquí.
+ * `cypress` no varía: es de hoja perenne, se queda verde todo el año incluso
+ * en invierno. Complementa (no sustituye) el crossfade continuo de cielo/luz/
+ * nieve de `skyWinter`/`skySummer`/`snow` arriba: aquella es una transición
+ * suave por emissive/color de luz; ésta es la paleta BASE del terreno, que se
+ * repinta al reconstruir el chunk (corte discreto — el crossfade de esta parte
+ * sigue pendiente, ver ROADMAP §2 T5.1).
  */
-export type Season = 'primavera' | 'verano' | 'otoño' | 'invierno';
-
 export interface SeasonPalette {
   groundBase: number;
   fields: readonly number[];

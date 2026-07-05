@@ -49,3 +49,48 @@ export function createStage(): Stage {
 
   return { renderer, scene, sun, ambient, hemi };
 }
+
+// --- Ciclo de luz (T1.8) ------------------------------------------------------
+// El sol deriva LENTAMENTE su azimut a lo largo del día de juego, entre la hora
+// dorada de la mañana y la de la tarde, y se entibia en los extremos. La
+// ELEVACIÓN no cambia: las sombras siguen siendo largas SIEMPRE (regla de arte).
+// La derivada por frame es minúscula (un día = 10 min reales), imperceptible.
+const SUN_RADIUS = 108.2; // = hipotenusa horizontal del sol base (-90,·,60)
+const SUN_HEIGHT = 110; // altura fija → elevación fija → sombras largas fijas
+const SUN_BASE_AZ = Math.atan2(60, -90); // dirección base (la firma de siempre)
+const SUN_SWING = (24 * Math.PI) / 180; // ±24° de barrido a lo largo del día
+const _midday = new THREE.Color(PALETTE.sun);
+const _golden = new THREE.Color(PALETTE.sunGolden);
+
+/** Actualiza el sol según la fracción de día [0,1). Llamar cada frame con el
+ * reloj de JUEGO (no el real): así el ciclo va ligado a la sim, no a los fps. */
+export function updateSun(sun: THREE.DirectionalLight, dayFraction: number): void {
+  const swing = Math.sin(dayFraction * Math.PI * 2); // periódico: sin saltos a medianoche
+  const az = SUN_BASE_AZ + swing * SUN_SWING;
+  sun.position.set(Math.cos(az) * SUN_RADIUS, SUN_HEIGHT, Math.sin(az) * SUN_RADIUS);
+  // Calidez en los extremos del barrido (mañana/tarde doradas), neutra a mediodía.
+  const warmth = Math.abs(swing);
+  sun.color.copy(_midday).lerp(_golden, warmth);
+  sun.intensity = 2.6 - 0.45 * warmth; // la hora dorada, algo más suave
+}
+
+// --- Tinte estacional (T5.1, primer paso: luz y cielo) ------------------------
+// Crossfade LENTO del ambiente frío y el cielo entre invierno (pálido, frío,
+// algo más tenue) y verano (cálido, luminoso), según `seasonalWarmth` [-1,1].
+// No repinta la geometría (la nieve del terreno queda como paso 2 de T5.1).
+const _skyWinter = new THREE.Color(PALETTE.skyWinter);
+const _skySummer = new THREE.Color(PALETTE.skySummer);
+const _ambWinter = new THREE.Color(PALETTE.ambientWinter);
+const _ambSummer = new THREE.Color(PALETTE.ambientSummer);
+const _sky = new THREE.Color();
+const _amb = new THREE.Color();
+
+/** Grada cielo + ambiente por estación. `warmth` ∈ [-1,1] (−1 invierno, +1 verano). */
+export function updateSeason(stage: Pick<Stage, 'scene' | 'ambient'>, warmth: number): void {
+  const t = (warmth + 1) / 2; // [0,1]: 0 invierno, 1 verano
+  _sky.copy(_skyWinter).lerp(_skySummer, t);
+  _amb.copy(_ambWinter).lerp(_ambSummer, t);
+  (stage.scene.background as THREE.Color).copy(_sky);
+  stage.ambient.color.copy(_amb);
+  stage.ambient.intensity = 1.15 + 0.4 * t; // invierno más recogido, verano luminoso
+}

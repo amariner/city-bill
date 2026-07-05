@@ -9,18 +9,140 @@
  */
 import { DAY_GAME_SECONDS } from '../sim/clock';
 import { activeLogicNames } from '../sim/logics';
+import { ILLNESS_HEALTH, OLD_AGE } from '../sim/lifecycle';
 
 /** Lógicas integradas — la fuente de verdad es sim/logics.ts (manifiesto). */
 const ACTIVE_LOGICS = activeLogicNames();
 
+/** Tipo de evento para la compactación por años (RESEARCH §5). */
+export type ChronKind = 'birth' | 'death' | 'emigrated' | 'couple' | 'milestone' | 'legacy' | 'summary';
+
+/** Hijos criados a partir de los cuales una muerte es LEGADO permanente (ciclo 35). */
+export const LEGACY_KIDS = 4;
+/** Edad venerable: una vida larguísima también deja legado aunque no dejara hijos. */
+const VENERABLE_AGE = 90;
+
+/** ¿La muerte de esta persona es un LEGADO que la Crónica recuerda PARA SIEMPRE
+ * (no se compacta con el resto del año)? Un pilar del pueblo: crió una familia
+ * grande o alcanzó una edad venerable. Así el largo plazo del pueblo conserva a
+ * sus matriarcas/patriarcas por nombre, mientras lo rutinario se resume (§6.1:
+ * ganamos cuando la Crónica cuenta las historias que importan). Pura y testeable. */
+export function isLegacyDeath(data?: Record<string, unknown>): boolean {
+  if (data?.reason === 'emigrated') return false;
+  const kids = typeof data?.childrenRaised === 'number' ? data.childrenRaised : 0;
+  const age = typeof data?.age === 'number' ? data.age : 0;
+  return kids >= LEGACY_KIDS || age >= VENERABLE_AGE;
+}
+
+export interface ChronEvent {
+  year: number;
+  text: string;
+  kind?: ChronKind;
+}
+
 interface ChronicleData {
   /** [año, población, edificios] por año de la ciudad. */
   series: Array<[number, number, number]>;
-  events: Array<{ year: number; text: string }>;
-  counters: { births: number; deaths: number; couples: number; retirements: number };
+  events: ChronEvent[];
+  counters: { births: number; deaths: number; couples: number; emigrated?: number; retirements?: number };
 }
 
-const MAX_EVENTS = 60;
+/** Cuántos años recientes se guardan en DETALLE antes de resumirse. */
+const RETAIN_DETAIL_YEARS = 4;
+/** Tope duro de líneas (con compactación, rara vez se toca). */
+const MAX_EVENTS = 120;
+
+/**
+ * Compacta los eventos de UN año en una sola línea-resumen (RESEARCH §5:
+ * "memoria por niveles como los humanos" — los años viejos se recuerdan
+ * resumidos, no borrados). Cuenta lo rutinario (nacimientos, muertes…) y
+ * PRESERVA lo memorable (hitos: escuela, tier, fiesta). Pura y testeable.
+ */
+export function summarizeYear(year: number, events: ChronEvent[]): ChronEvent {
+  let births = 0, deaths = 0, emigrated = 0, couples = 0;
+  const notes: string[] = [];
+  for (const e of events) {
+    if (e.kind === 'birth') births++;
+    else if (e.kind === 'death') deaths++;
+    else if (e.kind === 'emigrated') emigrated++;
+    else if (e.kind === 'couple') couples++;
+    else notes.push(e.text); // hitos y eventos sin tipo: se preservan verbatim
+  }
+  const parts: string[] = [];
+  if (births) parts.push(`${births} ${births === 1 ? 'nacimiento' : 'nacimientos'}`);
+  if (couples) parts.push(`${couples} ${couples === 1 ? 'pareja' : 'parejas'}`);
+  if (deaths) parts.push(`${deaths} ${deaths === 1 ? 'muerte' : 'muertes'}`);
+  if (emigrated) parts.push(`${emigrated} se ${emigrated === 1 ? 'marchó' : 'marcharon'}`);
+  parts.push(...notes);
+  return { year, text: `año ${year}: ${parts.join(', ') || 'sin novedades'}`, kind: 'summary' };
+}
+
+/** Reemplaza el detalle de los años ya "viejos" (≤ currentYear − RETAIN) por una
+ * línea-resumen cada uno. Idempotente: un año ya resumido (kind 'summary') no se
+ * vuelve a tocar. Devuelve la nueva lista de eventos. */
+export function compactChronicle(events: ChronEvent[], currentYear: number): ChronEvent[] {
+  const cutoff = currentYear - RETAIN_DETAIL_YEARS;
+  // Un LEGADO (ciclo 35) NO se compacta: se recuerda por nombre para siempre,
+  // como un 'summary'. Lo rutinario del año sí se resume en una línea.
+  const compactable = (e: ChronEvent) => e.year <= cutoff && e.kind !== 'summary' && e.kind !== 'legacy';
+  const detailByYear = new Map<number, ChronEvent[]>();
+  for (const e of events) {
+    if (compactable(e)) {
+      (detailByYear.get(e.year) ?? detailByYear.set(e.year, []).get(e.year)!).push(e);
+    }
+  }
+  if (detailByYear.size === 0) return events;
+  const kept = events.filter((e) => !compactable(e));
+  const summaries = [...detailByYear.entries()].map(([y, evs]) => summarizeYear(y, evs));
+  return [...kept, ...summaries].sort((a, b) => a.year - b.year);
+}
+
+/** Edad a partir de la cual una muerte se narra como "una vida larga". */
+const LONG_LIFE_AGE = 85;
+
+/**
+ * Evento de sim → frase de la Crónica (PURA y testeable — ciclo 18). La Crónica
+ * es la memoria del juego (§3/§6.1: ganamos cuando cuenta historias que no
+ * escribimos nosotros), así que las despedidas se narran con contexto AFECTIVO:
+ * la causa (enfermedad/vejez), una vida larga, y sobre todo la VIUDEZ — quién
+ * queda sin su pareja (acopla con el duelo, ciclos 16/17). Devuelve null para
+ * los eventos que no narran.
+ */
+export function chronicleText(name: string, data?: Record<string, unknown>): string | null {
+  const who = (data?.name as string) ?? 'alguien';
+  switch (name) {
+    case 'citizenBorn':
+      return `nace ${who}`;
+    case 'citizenLeft': {
+      if (data?.reason === 'emigrated') return `${who} se marcha a otra ciudad`;
+      const h = typeof data?.health === 'number' ? data.health : 1;
+      const age = typeof data?.age === 'number' ? data.age : 0;
+      const partner = typeof data?.partnerName === 'string' ? data.partnerName : '';
+      const kids = typeof data?.childrenRaised === 'number' ? data.childrenRaised : 0;
+      const cause = h < ILLNESS_HEALTH && age < OLD_AGE ? ' por enfermedad' : '';
+      const longLife = !cause && age >= LONG_LIFE_AGE ? ', una vida larga' : '';
+      // Legado (ciclo 34, N5): una vida deja huella — los hijos criados se honran
+      // al morir. La estima nace de lo VIVIDO (no del dinero, ver §4 ciclo 34).
+      const legacy = kids > 0 ? `, deja ${kids} ${kids === 1 ? 'hijo' : 'hijos'}` : '';
+      const widowing = partner ? ` — ${partner} pierde a su pareja` : '';
+      return `muere ${who} (${age || '?'} años)${cause}${longLife}${legacy}${widowing}`;
+    }
+    case 'coupleFormed':
+      return `${data?.a} y ${data?.b} se emparejan`;
+    case 'cityGrew':
+      return `la ciudad construye: ${data?.id}`;
+    case 'tierUnlocked':
+      return `¡hito! tier ${data?.tier} desbloqueado (${data?.population} hab.)`;
+    case 'festivalDay':
+      return typeof data?.name === 'string' ? data.name : 'fiesta mayor del pueblo';
+    case 'epidemic':
+      return `una epidemia recorre la ciudad (${data?.sick ?? '?'} enfermos)`;
+    case 'citizenRetired':
+      return `${who} se jubila`;
+    default:
+      return null;
+  }
+}
 
 export class Chronicle {
   private el: HTMLDivElement;
@@ -73,15 +195,11 @@ export class Chronicle {
   private load(): ChronicleData {
     try {
       const raw = localStorage.getItem(this.key);
-      if (raw) {
-        const parsed = JSON.parse(raw) as ChronicleData;
-        parsed.counters.retirements ??= 0; // crónicas guardadas antes de la lógica de jubilación
-        return parsed;
-      }
+      if (raw) return JSON.parse(raw) as ChronicleData;
     } catch {
       /* corrupto: se empieza crónica nueva */
     }
-    return { series: [], events: [], counters: { births: 0, deaths: 0, couples: 0, retirements: 0 } };
+    return { series: [], events: [], counters: { births: 0, deaths: 0, couples: 0 } };
   }
 
   private save(): void {
@@ -95,38 +213,32 @@ export class Chronicle {
   /** Evento de sim → texto de crónica. Devuelve null para los que no narran. */
   onEvent(name: string, data?: Record<string, unknown>): void {
     const year = this.lastYear < 0 ? 0 : this.lastYear;
-    let text: string | null = null;
+    // Fundadores: no inundar la crónica con el nacimiento inicial.
+    if (name === 'citizenBorn' && year === 0) return;
+    // Contadores (memoria numérica; la narración va aparte, en chronicleText).
     switch (name) {
       case 'citizenBorn':
-        if (year === 0) return; // fundadores: no inundar la crónica
-        text = `nace ${data?.name ?? 'alguien'}`;
         this.data.counters.births++;
         break;
       case 'citizenLeft':
-        text = `muere ${data?.name ?? 'alguien'} (${data?.age ?? '?'} años)`;
-        this.data.counters.deaths++;
+        if (data?.reason === 'emigrated') this.data.counters.emigrated = (this.data.counters.emigrated ?? 0) + 1;
+        else this.data.counters.deaths++;
         break;
       case 'coupleFormed':
-        text = `${data?.a} y ${data?.b} se emparejan`;
         this.data.counters.couples++;
         break;
-      case 'cityGrew':
-        text = `la ciudad construye: ${data?.id}`;
-        break;
-      case 'tierUnlocked':
-        text = `¡hito! tier ${data?.tier} desbloqueado (${data?.population} hab.)`;
-        break;
-      case 'festivalDay':
-        text = 'fiesta mayor del pueblo';
-        break;
       case 'citizenRetired':
-        text = `${data?.name ?? 'alguien'} se jubila`;
-        this.data.counters.retirements++;
+        this.data.counters.retirements = (this.data.counters.retirements ?? 0) + 1;
         break;
-      default:
-        return;
     }
-    this.data.events.push({ year, text });
+    const text = chronicleText(name, data);
+    if (!text) return;
+    const kind: ChronKind =
+      name === 'citizenBorn' ? 'birth'
+      : name === 'coupleFormed' ? 'couple'
+      : name === 'citizenLeft' ? (data?.reason === 'emigrated' ? 'emigrated' : isLegacyDeath(data) ? 'legacy' : 'death')
+      : 'milestone';
+    this.data.events.push({ year, text, kind });
     if (this.data.events.length > MAX_EVENTS) this.data.events.splice(0, this.data.events.length - MAX_EVENTS);
     this.dirty = true;
   }
@@ -138,6 +250,9 @@ export class Chronicle {
       this.lastYear = year;
       const last = this.data.series[this.data.series.length - 1];
       if (!last || last[0] !== year) this.data.series.push([year, population, buildings]);
+      // Memoria por niveles (ciclo 21 / RESEARCH §5): al pasar de año, los años
+      // ya viejos se recuerdan resumidos en una línea, no borrados ni intactos.
+      this.data.events = compactChronicle(this.data.events, year);
       this.dirty = true;
       if (this.visible) this.render();
     } else if (this.data.series.length > 0) {
@@ -161,8 +276,9 @@ export class Chronicle {
     const head =
       `CRÓNICA DE LA CIUDAD — año ${last[0]}\n` +
       `población ${last[1]} · edificios ${last[2]}\n` +
-      `nacimientos ${d.counters.births} · muertes ${d.counters.deaths} · parejas ${d.counters.couples}\n` +
-      `jubilaciones ${d.counters.retirements}`;
+      `nacimientos ${d.counters.births} · muertes ${d.counters.deaths} · parejas ${d.counters.couples}` +
+      (d.counters.emigrated ? ` · emigrados ${d.counters.emigrated}` : '') +
+      (d.counters.retirements ? ` · jubilaciones ${d.counters.retirements}` : '');
 
     const feed = d.events
       .slice(-14)

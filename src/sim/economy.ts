@@ -18,19 +18,76 @@ export interface Workplace {
   workers: number[];
 }
 
-/** Producción de comida por granjero y hora trabajada (lógica de alimento). */
-export const FOOD_PER_FARMER_HOUR = 4;
+/** Producción de comida por granjero y hora trabajada (lógica de alimento).
+ * Subido de 4 a 7 (ciclo 40): con la cosecha estacional (ciclo 39) el verano
+ * ahora produce SUPERÁVIT que llena el granero, y el invierno tira de él → el
+ * colchón comunal por fin FUNCIONA (gestión de reservas emergente). Es neutral
+ * para el dinero: el ingreso del granjero va con lo VENDIDO (acotado por el
+ * consumo), no con lo producido, así que el excedente solo llena la despensa. */
+export const FOOD_PER_FARMER_HOUR = 7;
+/** Estacionalidad de la cosecha (ciclo 39): el campo no rinde igual todo el año.
+ * La producción escala con la calidez estacional [-1,1] → el invierno rinde poco
+ * (factor 1−swing) y el verano mucho (1+swing). Así el GRANERO (colchón comunal)
+ * por fin IMPORTA: hay que acumular en verano para pasar el invierno, como en un
+ * pueblo real. Acopla clima↔alimento. Moderado, para no matar de hambre. */
+export const SEASON_YIELD_SWING = 0.5;
 
 // --- Lógica de dinero (ciclo 2 de RESEARCH.md) --------------------------------
 /** Salario base por hora trabajada; los tiers altos pagan más. */
 export const WAGE_PER_HOUR = 10;
 export const WAGE_TIER_BONUS = 4; // por nivel de tier del empleador
+/** Retorno a la educación (ciclo 28): un trabajador plenamente cualificado
+ * (education 1) cobra este % más que uno sin estudios — desigualdad realista y
+ * la educación por fin PAGA (además de abrir empleos de tier alto). */
+export const WAGE_SKILL_BONUS = 0.6;
+/** Alquiler diario por familia (ciclo 29): el mayor gasto real de un hogar.
+ * Escala con el tier de la vivienda (una casa mejor cuesta más). Soaks el
+ * exceso de ahorro (el dinero pasa a importar) y circula vía el tesoro. */
+export const RENT_PER_DAY = 35;
+export const RENT_TIER_FACTOR = 0.5;
 /** Precio de la unidad de comida. */
 export const FOOD_PRICE = 2;
 /** Gasto de capricho al ir de compras (si el hogar puede permitírselo). */
 export const SHOP_TREAT_PRICE = 5;
 /** Con qué llega una familia inmigrante. */
 export const STARTING_MONEY = 60;
+
+// --- Lógica de bienes (ciclo 31): consumo discrecional que CIRCULA -------------
+// El segundo bien tras el alimento. Antes el "capricho" gastaba 5 fijos que se
+// ESFUMABAN (leak: spend() sin destino). Ahora es un gasto en bienes duraderos
+// PROPORCIONAL al excedente del hogar (el rico consume más — desigualdad y
+// sumidero del ahorro ocioso que el alquiler no llega a drenar) y CONSERVADO: va
+// a la caja del comercio (su margen) y al tesoro (IVA) — circula, no desaparece.
+/** Ahorro por debajo del cual no hay caprichos (primero se cubre lo básico). */
+export const GOODS_COMFORT_FLOOR = 40;
+/** Fracción del excedente (ahorro − suelo) que se gasta en bienes por visita. */
+export const GOODS_PROPENSITY = 0.12;
+/** Tope de gasto en bienes por visita (un capricho no vacía la cuenta). */
+export const GOODS_MAX_SPEND = 30;
+/** IVA de los bienes: la parte del gasto que va al tesoro (el resto financia la
+ * importación del bien y sale del pueblo — sumidero que equilibra la nómina). */
+export const GOODS_SALES_TAX = 0.15;
+
+// --- Lógica de coste de la vida (ciclo 32): el cierre monetario, del lado del gasto
+// La nómina ACUÑA dinero (payWage), así que sin un sumidero que escale con el
+// ingreso el ahorro trepa sin fin (los hogares se hacen infinitamente ricos —
+// irreal). El coste de la vida escala con la RIQUEZA (lifestyle inflation, muy
+// real: quien más tiene, más gasta en servicios, ocio y mantenimiento). Drena una
+// fracción del ahorro EXCEDENTE cada día → el ahorro se ESTABILIZA en una meseta
+// (equilibrio: ingreso = gasto). Parte va al tesoro (servicios locales) y el resto
+// SALE del pueblo (ocio/servicios de fuera) — el sumidero que equilibra la acuñación.
+/** Colchón de ahorro por debajo del cual no hay coste de vida (se protege al pobre). */
+export const LIFESTYLE_COMFORT = 90;
+/** Fracción del ahorro EXCEDENTE (sobre el colchón) que se gasta en vivir, al día. */
+export const LIFESTYLE_DRAIN = 0.14;
+/** Parte del coste de vida que queda en el pueblo (tesoro); el resto sale fuera. */
+export const LIFESTYLE_LOCAL_SHARE = 0.3;
+/** El tesoro no ATESORA sin fin (ciclo 32): guarda una reserva prudente por
+ * habitante y GASTA el superávit en la ciudadanía (obra pública / dividendo) →
+ * el dinero público circula de vuelta en vez de piramidarse. Reserva por cabeza: */
+export const TREASURY_RESERVE_PER_CAPITA = 300;
+/** Fracción del superávit del tesoro que se reparte cada día (flujo suave). */
+export const DIVIDEND_RATE = 0.25;
 
 // --- Lógica de gobierno (ciclo 3): impuestos y pensiones ----------------------
 /** Parte del salario que va al tesoro municipal. */
@@ -108,14 +165,40 @@ export class Economy {
   /** Métricas de la economía circular (tests/crónica). */
   wholesalePaid = 0;
   corpTaxCollected = 0;
+  /** Gasto total en bienes discrecionales (ciclo 31 — métrica tests/crónica). */
+  goodsSold = 0;
+  /** Parte de ese gasto que salió del pueblo (importaciones — sumidero). */
+  goodsImported = 0;
+  /** Coste de vida total drenado (ciclo 32 — métrica tests/crónica). */
+  lifestyleSpent = 0;
+  /** Parte del coste de vida que salió del pueblo (sumidero que equilibra la nómina). */
+  lifestyleLeft = 0;
+  /** Superavit del tesoro repartido a la ciudadania (ciclo 32 - metrica). */
+  dividendPaid = 0;
+  /** Nómina pública pagada del tesoro, no acuñada (ciclo 37bis — cierre parcial). */
+  wagesFromTreasury = 0;
 
   /** Nómina: el trabajo mete dinero en el hogar del trabajador, menos la
    * parte que va al tesoro municipal (impuesto sobre la renta, lógica de
-   * gobierno). El tesoro es lo que luego paga pensiones. */
-  payWage(homeKey: string, hours: number, employerTier: number): void {
-    const gross = (WAGE_PER_HOUR + WAGE_TIER_BONUS * employerTier) * hours;
+   * gobierno). El tesoro es lo que luego paga pensiones.
+   *
+   * Cierre parcial (ciclo 37bis): el sector PÚBLICO (empleos 'civic': escuela,
+   * clínica) se paga del TESORO, no se acuña — nómina FINITA como en la realidad,
+   * y da uso al tesoro que atesoraba (ciclo 32). Cuando el tesoro cubre el bruto,
+   * ese salario crea CERO dinero nuevo (transferencia pública). Si el tesoro no
+   * llega, se acuña el resto (fallback: nadie se queda sin cobrar → sin colapso).
+   * Los demás sectores (agro, comercio, oficio) se siguen acuñando: cerrarlos del
+   * todo (tiendas de su caja, etc.) es el gran pendiente. */
+  payWage(homeKey: string, hours: number, employerTier: number, skill = 0, employerRole?: string): void {
+    const skillMult = 1 + WAGE_SKILL_BONUS * Math.min(1, Math.max(0, skill));
+    const gross = (WAGE_PER_HOUR + WAGE_TIER_BONUS * employerTier) * skillMult * hours;
     const tax = gross * TAX_RATE;
     const net = gross - tax;
+    if (employerRole === 'civic') {
+      const fromTreasury = Math.min(Math.max(0, this.treasury), gross);
+      this.treasury -= fromTreasury; // el erario paga a sus empleados (no se acuña)
+      this.wagesFromTreasury += fromTreasury;
+    }
     this.wallets.set(homeKey, (this.wallets.get(homeKey) ?? 0) + net);
     this.wagesPaid += net;
     this.treasury += tax;
@@ -246,8 +329,8 @@ export class Economy {
 
   /** Los granjeros en faena llenan el granero; se recuerda quién produjo
    * (por hogar) para que la liquidación de fin de día le pague su parte. */
-  produceFood(farmerHomeKey: string, hours: number): void {
-    this.granary += FOOD_PER_FARMER_HOUR * hours;
+  produceFood(farmerHomeKey: string, hours: number, yieldFactor = 1): void {
+    this.granary += FOOD_PER_FARMER_HOUR * hours * yieldFactor;
     this.farmerHoursToday.set(farmerHomeKey, (this.farmerHoursToday.get(farmerHomeKey) ?? 0) + hours);
   }
 
@@ -265,6 +348,64 @@ export class Economy {
     this.tills.set(shopKey, (this.tills.get(shopKey) ?? 0) + got * FOOD_PRICE);
     this.foodSoldTodayByShop.set(shopKey, (this.foodSoldTodayByShop.get(shopKey) ?? 0) + got);
     return got;
+  }
+
+  /** Compra de BIENES discrecionales (ciclo 31): un hogar con excedente se da un
+   * capricho en durables, PROPORCIONAL a lo que le sobra (el rico consume más →
+   * desigualdad y sumidero del ahorro ocioso que el alquiler no drena). Sustituye
+   * al viejo capricho de 5 fijos que se esfumaba. El IVA va al tesoro (→ circula
+   * a pensiones); el resto paga bienes IMPORTADOS de fuera del pueblo, así que
+   * SALE de la economía local — un sumidero REALISTA (las importaciones) que
+   * equilibra la nómina, que "acuña" dinero de la nada. Un ciclo futuro los
+   * producirá dentro (artesanos) y ese dinero se quedará. Devuelve lo gastado. */
+  buyGoods(homeKey: string): number {
+    const surplus = this.walletOf(homeKey) - GOODS_COMFORT_FLOOR;
+    if (surplus <= 0) return 0;
+    const want = Math.min(GOODS_MAX_SPEND, surplus * GOODS_PROPENSITY);
+    const spent = this.spend(homeKey, want);
+    if (spent <= 0) return 0;
+    const tax = spent * GOODS_SALES_TAX;
+    this.treasury += tax;
+    this.taxesCollected += tax;
+    this.goodsImported += spent - tax; // sale del pueblo (importación) — sumidero
+    this.goodsSold += spent;
+    return spent;
+  }
+
+  /** Coste de la vida (ciclo 32): un hogar gasta en vivir (servicios, ocio,
+   * mantenimiento) una fracción de su ahorro EXCEDENTE — cuanto más tiene, más
+   * gasta (lifestyle inflation). Es el SUMIDERO que faltaba para cerrar la
+   * economía: sin él el ahorro trepa sin fin porque la nómina acuña dinero. Parte
+   * queda en el pueblo (tesoro, servicios locales) y el resto SALE (ocio de
+   * fuera), equilibrando la acuñación. Protege un colchón. Devuelve lo gastado. */
+  spendLifestyle(homeKey: string): number {
+    const excess = this.walletOf(homeKey) - LIFESTYLE_COMFORT;
+    if (excess <= 0) return 0;
+    const spent = this.spend(homeKey, excess * LIFESTYLE_DRAIN);
+    if (spent <= 0) return 0;
+    const local = spent * LIFESTYLE_LOCAL_SHARE;
+    this.treasury += local;
+    this.taxesCollected += local;
+    this.lifestyleLeft += spent - local; // sale del pueblo — sumidero
+    this.lifestyleSpent += spent;
+    return spent;
+  }
+
+  /** Dividendo público (ciclo 32): el tesoro guarda una reserva prudente (por
+   * habitante) y REPARTE parte del superávit entre los hogares (obra pública que
+   * revierte, dividendo ciudadano) — así el dinero público CIRCULA de vuelta en
+   * vez de piramidarse en las arcas. Flujo suave (una fracción al día). Devuelve
+   * lo repartido. Determinista (reparto por igual, orden no importa). */
+  payPublicDividend(homeKeys: string[], population: number): number {
+    const reserve = TREASURY_RESERVE_PER_CAPITA * population;
+    const surplus = this.treasury - reserve;
+    if (surplus <= 0 || homeKeys.length === 0) return 0;
+    const shared = surplus * DIVIDEND_RATE;
+    const per = shared / homeKeys.length;
+    for (const k of homeKeys) this.wallets.set(k, (this.wallets.get(k) ?? 0) + per);
+    this.treasury -= shared;
+    this.dividendPaid += shared;
+    return shared;
   }
 
   tillOf(shopKey: string): number {

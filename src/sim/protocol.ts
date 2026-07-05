@@ -5,11 +5,16 @@
  * Snapshot de agentes: Float32Array plano transferible, AGENT_STRIDE floats
  * por agente → [id, x, z, heading, state, activity, mode, grief]. x/z en
  * CELDAS (float); el main convierte a metros con CELL_SIZE al renderizar.
+ * `grief` [0,1] viaja en el snapshot (no solo en el inspector) para que el
+ * render apague la ropa del doliente — lógica de duelo (ciclos 16-20).
  *
  * Si cambias AGENT_STRIDE: actualiza TAMBIÉN `simulation.snapshot()`
  * (escritor) y `client.view()` (lector) en el MISMO commit — es la única
  * frontera y las tres piezas deben coincidir en el layout.
  */
+
+import type { Season } from './weather';
+import type { Vocation } from './citizens/citizen';
 
 export type Speed = 0 | 1 | 2 | 3;
 
@@ -62,16 +67,13 @@ export interface InitMsg {
   seed: number;
   /** Grid serializado (grid.serialize()); el worker lo deserializa. */
   gridJson: string;
-  /** Guardado (T2.6): JSON de `Simulation.serialize()`. Si viene, el worker
-   * restaura ciudadanos/economía/reloj en vez de poblar una ciudad nueva —
-   * `gridJson` debe ser entonces el grid YA evolucionado, coherente con este
-   * blob (main.ts los guarda y carga siempre juntos). */
-  saveBlob?: string;
-}
-
-/** Petición de guardado (T2.6): el worker responde con `SaveBlobMsg`. */
-export interface SaveMsg {
-  type: 'save';
+  /** Banco de pruebas (?scene=test-dev): si >0, el worker PRE-CRECE su sim estos
+   * días de juego antes de ir en vivo → su `Simulation` ES la ciudad madura
+   * (población, edades, relaciones, obras intactas, sin reseed con pérdida) y
+   * arranca a mediodía (la hora con más gente en la calle). Emite `growProgress`
+   * mientras crece y `grownGrid` con el grid resultante para que el render
+   * dibuje EXACTAMENTE lo que la sim construyó. */
+  preGrowDays?: number;
 }
 
 export interface SetSpeedMsg {
@@ -94,7 +96,28 @@ export interface QueryCitizenMsg {
   id: number;
 }
 
-export type MainToWorker = InitMsg | SetSpeedMsg | ActionMsg | QueryCitizenMsg | SaveMsg;
+/** Banderas de sim conmutables en caliente desde el banco de pruebas
+ * (?scene=test-dev). Ya son campos públicos de `Simulation`; el modo dev solo
+ * las alterna para OBSERVAR la mecánica (p.ej. epidemia con/sin cuarentena). */
+export type DevFlag =
+  | 'quarantine'
+  | 'vaccination'
+  | 'clinicHealing'
+  | 'rentEnabled'
+  | 'autonomousGrowth';
+
+/** Comando del panel dev (solo ?scene=test-dev): fuerza/observa mecánicas que
+ * la sim ya tiene. NO añade lógica nueva de mundo — alterna banderas, siembra
+ * un caso índice existente o avanza el reloj de golpe (saltar de estación). */
+export interface DevMsg {
+  type: 'dev';
+  cmd:
+    | { kind: 'setFlag'; flag: DevFlag; value: boolean }
+    | { kind: 'forceEpidemic' }
+    | { kind: 'advanceDays'; days: number };
+}
+
+export type MainToWorker = InitMsg | SetSpeedMsg | ActionMsg | QueryCitizenMsg | DevMsg;
 
 // --- worker → main -----------------------------------------------------------
 
@@ -107,8 +130,53 @@ export interface SnapshotMsg {
   count: number;
   /** Nº de edificios del índice de sim (para la Crónica). */
   buildings: number;
+  /** Estado agregado de la ciudad — para el HUD de ciudad (surfacing). */
+  city: CityStats;
   /** count * AGENT_STRIDE floats. TRANSFERIDO (zero-copy). */
   agents: Float32Array;
+}
+
+/** Estado agregado de la ciudad que la sim ya conoce por dentro y el HUD saca
+ * a la superficie: tesoro, paro, estación/cosecha, epidemia, riqueza media.
+ * Puros números derivados del estado real de la sim (nada de THREE). */
+export interface CityStats {
+  population: number;
+  /** Caja pública (impuestos − gasto). */
+  treasury: number;
+  /** Fracción de adultos SIN empleo [0,1]. */
+  unemployment: number;
+  /** Estación en curso (calendario, weather.ts). */
+  season: Season;
+  /** Reserva del granero comunal (colchón estacional, ciclo 40). */
+  granary: number;
+  /** Ahorro medio por hogar. */
+  avgWealth: number;
+  /** ¿Hay oleada epidémica declarada? (ciclo 25). */
+  epidemic: boolean;
+  /** Nº de enfermos contagiosos ahora mismo. */
+  sick: number;
+  /** Tier desbloqueado por población (T4.5). */
+  tier: number;
+  /** Reparto por edad (banco de pruebas): niños/adultos/mayores. */
+  children: number;
+  adults: number;
+  elders: number;
+  /** Mercado laboral: empleados y puestos totales (paro = 1 − empleados/adultos). */
+  employed: number;
+  jobs: number;
+  /** Nº de edificios del índice de sim. */
+  buildings: number;
+  /** Contadores acumulados que la sim ya lleva (banco de pruebas). */
+  roadsExtended: number;
+  carTrips: number;
+  vaccinationsGiven: number;
+  /** Estado ACTUAL de las banderas conmutables (para que el panel dev las
+   * refleje sin mantener estado propio — la sim es la fuente de verdad). */
+  quarantine: boolean;
+  vaccination: boolean;
+  clinicHealing: boolean;
+  rentEnabled: boolean;
+  autonomousGrowth: boolean;
 }
 
 export interface SimEventMsg {
@@ -122,10 +190,14 @@ export interface SimEventMsg {
     | 'tierUnlocked'
     | 'coupleFormed'
     | 'festivalDay'
+    | 'roadExtended'
+    | 'epidemic'
+    // Jubilación (ciclo 12, local): un ciudadano deja el empleo al llegar a la edad.
+    | 'citizenRetired'
+    // Reflejo visual de la economía en el mundo (render rico, local): el prestigio
+    // de una vivienda (jardín, ciclo 9) y la faena agrícola agregada (surcos, T3.8).
     | 'homePrestige'
-    | 'cultivationChanged'
-    | 'roadBuilt'
-    | 'citizenRetired';
+    | 'cultivationChanged';
   data?: Record<string, unknown>;
 }
 
@@ -134,6 +206,10 @@ export interface CitizenInfoMsg {
   type: 'citizenInfo';
   id: number;
   name: string;
+  /** Quién es (ciclo 23): edad, etapa de vida y pareja. */
+  age: number;
+  lifeStage: string;
+  partnerName?: string;
   activity: ActivityKind;
   activityLabel: string;
   needs: Record<string, number>;
@@ -145,16 +221,38 @@ export interface CitizenInfoMsg {
   pantry: number;
   /** Prestigio de la vivienda [0,1] — ciclo 9. */
   prestige: number;
-  /** Duelo [0,1] — lógica de duelo. */
+  /** Duelo [0,1] — ciclo 16. Solo el inspector lo pinta cuando pesa. */
   grief: number;
+  /** Enfermedad contagiosa [0,1] — ciclo 25. El inspector la pinta si está enfermo. */
+  sick: number;
+  /** Vocación por carácter — ciclo 36 (N5, autorrealización). */
+  vocation: Vocation;
+  /** ¿Su empleo actual COLMA su vocación? (rol del puesto ∈ vocación). */
+  vocationMet: boolean;
+  /** Rol del empleo actual, si trabaja (agriculture/commerce/civic/work…). */
+  jobRole?: string;
+  /** Hijos criados — legado, ciclo 34 (N5). Puro recuerdo, varía por vida vivida. */
+  childrenRaised: number;
+  /** Alquiler diario de la vivienda — ciclo 29 (situación económica). */
+  rent: number;
 }
 
-/** Respuesta a `SaveMsg` (T2.6): JSON de `Simulation.serialize()`, opaco para
- * el main — lo guarda tal cual (localStorage) y lo reenvía en un futuro
- * `InitMsg.saveBlob` sin tocarlo. */
-export interface SaveBlobMsg {
-  type: 'saveBlob';
-  blob: string;
+/** Progreso del pre-crecido del banco de pruebas (worker → main): alimenta el
+ * overlay de carga sin bloquear el hilo principal (el worker computa, el main
+ * solo pinta la barra). */
+export interface GrowProgressMsg {
+  type: 'growProgress';
+  day: number;
+  total: number;
 }
 
-export type WorkerToMain = SnapshotMsg | SimEventMsg | CitizenInfoMsg | SaveBlobMsg;
+/** Grid ya maduro tras el pre-crecido (worker → main): el render se construye
+ * DESDE aquí, así dibuja exactamente lo que la sim del worker construyó (misma
+ * ciudad, cero divergencia). `center` es el centro urbano para encuadrar. */
+export interface GrownGridMsg {
+  type: 'grownGrid';
+  gridJson: string;
+  center: [number, number];
+}
+
+export type WorkerToMain = SnapshotMsg | SimEventMsg | CitizenInfoMsg | GrowProgressMsg | GrownGridMsg;

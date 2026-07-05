@@ -13,27 +13,37 @@ import { SocialSystem } from './citizens/social';
 import { Rng } from '../rng';
 
 export const ADULT_AGE = 18;
-/** Edad de jubilación: deja el empleo y no vuelve a ser contratado (ver
- * `economy.assignJobs`). Antes de esto no existía ningún límite — un
- * anciano de 90 años seguía siendo "parado" activo y competía por
- * vacantes igual que uno de 20, lo cual no es cómo funciona la vida real
- * ni cómo se pretendía que funcionara esta simulación. */
-export const RETIREMENT_AGE = 65;
 /** Edad desde la que la muerte empieza a rondar (y la salud, ciclo 5, decae más). */
 export const OLD_AGE = 72;
+
+/** Edad de jubilación (ciclo 12): deja el empleo y no vuelve a ser contratado
+ * (ver `economy.assignJobs`, que excluye a los mayores de esta edad del pool).
+ * Antes no existía ningún límite — un anciano de 90 años seguía siendo "parado"
+ * activo y competía por vacantes igual que uno de 20. */
+export const RETIREMENT_AGE = 65;
+
+// --- Acoplamiento salud→mortalidad (ciclo 11 de RESEARCH.md) ------------------
+// La edad marca el riesgo BASE; la fragilidad (mala salud) lo MULTIPLICA, y una
+// enfermedad crítica puede matar incluso al joven. Un cuerpo sano (health=1) no
+// altera la curva de siempre: el acoplamiento solo "muerde" a quien está frágil.
+/** Cuánto multiplica la peor salud el riesgo por edad (health 0 → ×(1+esto)). */
+const FRAILTY_STRENGTH = 2;
+/** Salud por debajo de la cual la enfermedad mata por sí sola (aún joven). */
+export const ILLNESS_HEALTH = 0.2;
+/** Prob. anual máxima de morir por enfermedad crítica (salud 0). */
+const ILLNESS_MAX = 0.08;
+
 /**
- * Prob. de muerte por año una vez mayor (rampa suave por edad), modulada por
- * `health` [0,1] (ciclo 5 de RESEARCH.md, acoplamiento pendiente desde
- * entonces): un anciano sano (salud 1) aguanta la mitad de riesgo que la
- * rampa base; uno desatendido (salud 0) lo eleva un 50%. Neutro en 0.5 (el
- * valor típico de un adulto sin crisis) para no desestabilizar la curva ya
- * calibrada. La edad sigue siendo la puerta: sin ella, la salud no mata.
+ * Prob. de muerte por año. `health` [0,1] la modula (ciclo 11): la fragilidad
+ * multiplica el riesgo por edad y la enfermedad crítica añade su propio riesgo.
+ * Con salud plena equivale exactamente a la curva de edad original.
  */
-export function deathChance(age: number, health: number): number {
-  if (age < OLD_AGE) return 0;
-  const base = Math.min(0.5, (age - OLD_AGE) / 25);
-  const healthFactor = 1 + (0.5 - health);
-  return Math.min(0.5, base * healthFactor);
+export function deathChance(age: number, health = 1): number {
+  const h = Math.min(1, Math.max(0, health));
+  const base = age < OLD_AGE ? 0 : Math.min(0.5, (age - OLD_AGE) / 25);
+  const frailty = 1 + FRAILTY_STRENGTH * (1 - h);
+  const illness = h < ILLNESS_HEALTH ? (ILLNESS_MAX * (ILLNESS_HEALTH - h)) / ILLNESS_HEALTH : 0;
+  return Math.min(0.6, base * frailty + illness);
 }
 
 /** Afinidad mínima para emparejarse. */
@@ -46,29 +56,34 @@ export interface LifeEvents {
   deaths: Citizen[];
   births: Array<{ home: Citizen['home']; parents: [Citizen, Citizen] }>;
   couples: Array<[Citizen, Citizen]>;
+  /** Jubilados este año (ciclo 12): el orquestador libera su puesto y narra. */
   retirements: Citizen[];
 }
 
 /**
  * Un año de vida para todos. NO muta población (nacer/morir): devuelve los
  * hechos y el orquestador los aplica (spawn/despawn tocan índices que esta
- * lógica no debe conocer). La jubilación SÍ se muta aquí directamente
- * (como `partnerId` en el emparejamiento de abajo): no cambia quién existe
- * en la población, solo libera `c.work` — mismo criterio que ya se aplica
- * al resto de mutaciones de esta función.
+ * lógica no debe conocer). La jubilación SÍ se muta aquí (como `partnerId` en el
+ * emparejamiento): no cambia quién existe, solo libera `c.work`.
+ *
+ * `fertility` [0,1] modula la natalidad (ciclo 30, capacidad de carga): un
+ * pueblo cerca de su techo tiene menos hijos (coste de la vida, vivienda cara,
+ * transición demográfica real). NO cambia cuántas TIRADAS de RNG se consumen
+ * (una por pareja fértil, siempre) — solo el umbral —, así que amortiguar la
+ * natalidad no baraja el flujo determinista: el efecto es SEÑAL, no ruido.
  */
-export function lifeYear(citizens: Map<number, Citizen>, rng: Rng): LifeEvents {
+export function lifeYear(citizens: Map<number, Citizen>, rng: Rng, fertility = 1): LifeEvents {
   const out: LifeEvents = { deaths: [], births: [], couples: [], retirements: [] };
 
   for (const c of citizens.values()) {
     c.age += 1;
+    // `rng.next()` se consume SIEMPRE (una vez por ciudadano): la jubilación va
+    // en `else if` tras la muerte para no cambiar el flujo determinista del RNG.
     if (rng.next() < deathChance(c.age, c.health)) out.deaths.push(c);
     // >= (no ===): un fundador de la partida puede nacer YA por encima de
-    // RETIREMENT_AGE (los adultos iniciales se sortean entre 18 y 72 años,
-    // ver Simulation.spawnCitizen) y jamás cruzaría el umbral exacto si
-    // solo comparásemos igualdad — se quedaría trabajando para siempre. El
-    // propio `c.work !== null` hace que esto dispare UNA sola vez por
-    // persona: en cuanto se jubila, la condición deja de cumplirse.
+    // RETIREMENT_AGE (los adultos iniciales se sortean 18-72, ver
+    // Simulation.spawnCitizen) y jamás cruzaría el umbral exacto. El propio
+    // `c.work !== null` hace que esto dispare UNA vez: al jubilarse deja de cumplirse.
     else if (c.age >= RETIREMENT_AGE && c.work !== null) {
       c.work = null;
       out.retirements.push(c);
@@ -113,7 +128,7 @@ export function lifeYear(citizens: Map<number, Citizen>, rng: Rng): LifeEvents {
     seen.add(c.id);
     seen.add(p.id);
     if (Math.min(c.age, p.age) >= FERTILE_MAX) continue;
-    if (rng.next() < BIRTH_CHANCE) out.births.push({ home: { ...c.home }, parents: [c, p] });
+    if (rng.next() < BIRTH_CHANCE * fertility) out.births.push({ home: { ...c.home }, parents: [c, p] });
   }
 
   return out;

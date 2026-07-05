@@ -19,6 +19,20 @@ const NEED_LABELS: Record<string, string> = {
   fun: 'ocio',
   purpose: 'deber',
 };
+/** Vocación (ciclo 36) en palabras del inspector: a qué se siente llamado. */
+const VOCATION_LABELS: Record<string, string> = {
+  labrar: 'labrar la tierra',
+  tratar: 'el trato con la gente',
+  cuidar: 'cuidar de otros',
+};
+/** Oficio por rol del empleo (economy.ts): lo que HACE para vivir. */
+const JOB_LABELS: Record<string, string> = {
+  agriculture: 'granjero/a',
+  commerce: 'tendero/a',
+  civic: 'servicio público',
+  work: 'artesano/a',
+  industry: 'artesano/a',
+};
 
 export class CitizenInspector {
   private el: HTMLDivElement;
@@ -134,6 +148,11 @@ export class CitizenInspector {
     }
   }
 
+  /** Id del ciudadano seleccionado (para el marcador visual en el mundo). */
+  get selected(): number | null {
+    return this.selectedId;
+  }
+
   /** El main nos presta la lista del frame para el picking. */
   lastAgents: AgentView[] | null = null;
   lastCount = 0;
@@ -160,13 +179,33 @@ export class CitizenInspector {
       .join('\n');
     const meta = [
       `salud   ${bar(info.health)}`,
+      // Enfermedad contagiosa (ciclo 25): solo cuando está enfermo.
+      ...(info.sick > 0.05 ? [`enfermo ${bar(info.sick)}`] : []),
+      // Duelo (ciclo 16): solo se muestra cuando pesa — un doliente reconocible.
+      ...(info.grief > 0.05 ? [`duelo   ${bar(info.grief)}`] : []),
       `dinero  ${info.wallet.toFixed(0)}`,
+      // Situación económica (ciclo 29): el alquiler que paga el hogar.
+      ...(info.rent > 0 ? [`alquiler ${info.rent.toFixed(0)}/día`] : []),
       `despensa ${info.pantry.toFixed(0)} uds`,
       `hogar   ${bar(info.prestige)}`,
       // Solo se muestra si hay duelo real: no es un fondo permanente como
       // salud/prestigio, es un estado que casi siempre está en cero.
       ...(info.grief > 0.01 ? [`duelo   ${bar(info.grief)}`] : []),
     ].join('\n');
-    this.el.textContent = `${info.name}\n${info.activityLabel}${this.follow ? '  ⌖' : ''}\n\n${bars}\n${meta}\n\n[F] seguir · [Esc] cerrar`;
+    // Quién es (ciclo 23): edad, etapa y pareja bajo el nombre.
+    const who = `${info.age} años · ${info.lifeStage}${info.partnerName ? ` · con ${info.partnerName}` : ''}`;
+    // Vocación (ciclo 36) y legado (ciclo 34): lo que la sim ya modela por
+    // dentro y no salía. La vocación se marca cumplida (✓) si el empleo la colma.
+    // Oficio (lo que hace) vs vocación (lo que ama): si coinciden, ✓.
+    const job = info.jobRole
+      ? `oficio: ${JOB_LABELS[info.jobRole] ?? info.jobRole}`
+      : info.age >= 18 && info.lifeStage !== 'mayor' ? 'oficio: sin empleo' : '';
+    const vocLabel = VOCATION_LABELS[info.vocation] ?? info.vocation;
+    const voc = `vocación: ${vocLabel}${info.vocationMet ? ' ✓' : ''}`;
+    const legacy = info.childrenRaised > 0
+      ? `\nlegado: ${info.childrenRaised} ${info.childrenRaised === 1 ? 'hijo criado' : 'hijos criados'}`
+      : '';
+    const trade = job ? `${job}\n` : '';
+    this.el.textContent = `${info.name}\n${who}\n${info.activityLabel}${this.follow ? '  ⌖' : ''}\n\n${bars}\n${meta}\n\n${trade}${voc}${legacy}\n\n[F] seguir · [Esc] cerrar`;
   }
 }

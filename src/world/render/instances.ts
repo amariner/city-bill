@@ -5,8 +5,9 @@
  * Toda la vegetación cuesta ~4 draw calls, escale a miles de árboles.
  */
 import * as THREE from 'three';
-import { PALETTE, SEASON_PALETTES, Season } from '../../palette';
+import { PALETTE, SEASON_PALETTES } from '../../palette';
 import { createRng } from '../../rng';
+import { Season } from '../../sim/weather';
 import { Grid, Chunk, CELL_SIZE, Cell } from '../grid';
 import { mat } from '../../props';
 

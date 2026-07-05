@@ -16,18 +16,24 @@ import { PathQueue, pathLength } from './pathfinding';
 import { CellXZ, manhattan } from './geometry';
 import { WorldIndex } from './worldIndex';
 import { Economy } from './economy';
-import { Citizen, citizenName, PlannedActivity, TravelMode } from './citizens/citizen';
+import { Citizen, citizenName, PlannedActivity, TravelMode, jobFitsVocation, vocationOf, VOCATION_PURPOSE_BONUS } from './citizens/citizen';
 import { decayNeeds, restore, NEED_KEYS } from './citizens/needs';
 import { chooseActivity } from './citizens/brain';
-import { ACTIVITY_BY_KIND, SimContext, activityLabel, EDU_PER_HOUR, CLINIC_FEE, isFestivalDay, CLUB_AFFINITY } from './citizens/activities';
-import { SocialSystem, SocialSaveState } from './citizens/social';
-import { AgentState, ActivityKind, activityId, AGENT_STRIDE, TravelModeCode } from './protocol';
-import { computeDemand, itemForDemand, findParcel, townCenter, GrowthPlacement, extendRoad } from '../world/growth';
-import { lifeYear, RETIREMENT_AGE } from './lifecycle';
-import { STARTING_MONEY, SHOP_TREAT_PRICE, PENSION_PER_DAY, EconomySaveState } from './economy';
+import { ACTIVITY_BY_KIND, SimContext, activityLabel, EDU_PER_HOUR, CLINIC_FEE, isFestivalDay } from './citizens/activities';
+import { SocialSystem } from './citizens/social';
+import { AgentState, ActivityKind, activityId, AGENT_STRIDE, TravelModeCode, CityStats, CitizenInfoMsg } from './protocol';
+import {
+  computeDemand, itemForDemand, findParcel, townCenter, townAttractiveness,
+  householdHardship, updateEmigrationPressure, EMIGRATE_POP_FLOOR, EMIGRATE_PRESSURE_LIMIT,
+  extendRoad, GrowthPlacement, CARRYING_CAPACITY, fertilityFactor,
+} from '../world/growth';
+import { lifeYear, ADULT_AGE, OLD_AGE, RETIREMENT_AGE } from './lifecycle';
+import { STARTING_MONEY, PENSION_PER_DAY, RENT_PER_DAY, RENT_TIER_FACTOR, SEASON_YIELD_SWING } from './economy';
 import { catalogData, Tier } from '../world/catalogData';
 import { healthTick, CLINIC_RECOVERY_PER_HOUR, WORK_BLOCK_HEALTH } from './health';
-import { weatherAt, Weather } from './weather';
+import { griefTick, consoleGrief, bereave, GRIEF_PARTNER, GRIEF_FRIEND, GRIEF_FRIEND_AFFINITY } from './grief';
+import { sickenTick, treatSick, SICK_ONSET, VACCINE_IMMUNITY } from './contagion';
+import { weatherAt, seasonalFestivalName, seasonalWarmth, Weather } from './weather';
 
 /** Velocidad al caminar, en celdas por tick (0.25 s reales a vel. 1). */
 const WALK_CELLS_PER_TICK = 0.9; // ≈ 7 km/h de juego a escala urbana
@@ -45,136 +51,34 @@ const CAR_CELLS_PER_TICK_ROAD = 3.6;
  * similar al peatón, no vuela por el campo. */
 const CAR_CELLS_PER_TICK_OFFROAD = WALK_CELLS_PER_TICK;
 
-/** Acoplamiento clima↔vehículos (ciclo 6/8 de RESEARCH.md): cuánto exprime el
- * mal tiempo la velocidad base según el modo. A pie se nota de verdad
- * (charcos, viento); en coche, protegido, casi nada. Exportada (pura) para
- * poder testearla sin levantar una Simulation entera. */
-export function weatherSpeedFactor(mode: 'foot' | 'car', outdoor: number): number {
-  return mode === 'foot' ? 0.6 + 0.4 * outdoor : 0.92 + 0.08 * outdoor;
-}
-
-// --- Lógica de duelo (nueva carencia observada: la muerte no afectaba a
-// nadie más que al difunto) ----------------------------------------------
-/** Duelo al morir la pareja: máximo, llena el depósito entero. */
-const PARTNER_GRIEF = 1;
-/** Duelo al morir un amigo CERCANO (misma barra que "tercer lugar" — no
- * cualquier conocido, un vínculo de verdad): más suave que perder pareja. */
-export const FRIEND_GRIEF = 0.45;
-/** El duelo no lo restaura ninguna actividad — solo se apaga con el tiempo,
- * a lo largo de unas dos semanas de juego (mismo orden que un luto real). */
-const GRIEF_DECAY_PER_HOUR = 1 / (24 * 14);
-/** Mientras dura el duelo, cuesta más disfrutar: nada sabe tan bien. */
-const GRIEF_FUN_DECAY_PER_HOUR = 1 / 10;
-
-/** Duelo tras `hours` horas: nada lo restaura, solo el tiempo lo apaga —
- * lineal hasta 0, nunca negativo. Exportada (pura) para testear la curva
- * sin levantar una Simulation entera. */
-export function griefDecay(grief: number, hours: number): number {
-  return Math.max(0, grief - GRIEF_DECAY_PER_HOUR * hours);
-}
-
-/** Cuántos adultos llegan a una vivienda nueva (inmigración): 1-3, con un
- * barrio de posibles (prestigio medio [0,1] de la ciudad) atrayendo
- * familias más completas — acoplamiento prestigio→inmigración (RESEARCH.md,
- * carencia anotada en los ciclos 9/10) — y un pueblo de luto (duelo medio
- * [0,1]) atrayendo familias más cautas, en sentido contrario — acoplamiento
- * duelo→inmigración (ciclo 11). En `avgPrestige=avgGrief=0` es exactamente
- * la curva original (1-3, sin sesgo). El rango nunca baja de 0.6 (mínimo
- * garantizado: 1 adulto siempre, ni el peor duelo deja una vivienda
- * vacía). Exportada (pura) para testear sin levantar una Simulation entera. */
-export function familySize(rng: Rng, avgPrestige: number, avgGrief = 0): number {
-  const range = Math.max(0.6, 2.4 + avgPrestige * 0.6 - avgGrief * 0.6);
-  return 1 + Math.floor(rng.next() * range);
-}
-
 // --- Lógica de estatus y propiedad (ciclo 9) ----------------------------------
 /** Bonus de 'fun' por hora en casa, a prestigio máximo (se escala por él). */
 const COMFORT_FUN_PER_HOUR = 0.15;
 
-// --- Lógica de jubilación (carencia observada: los ancianos trabajaban
-// hasta morir, sin ningún límite de edad) --------------------------------
+/** Granero por encima del cual la fiesta de la cosecha es "abundante" (ciclo 24). */
+const BOUNTIFUL_GRANARY = 40;
+
+// --- Lógica de jubilación (ciclo 12) ------------------------------------------
 /** Ritmo al que un jubilado reconstruye 'purpose' FUERA del trabajo, PROPORCIONAL
- * al déficit: `k·(1 - purpose)` por hora. La forma importa tanto como el número.
- *
- * Un primer intento usó un restore PLANO (una constante por hora, como el resto
- * de needs.ts). Pero un jubilado no tiene ninguna actividad que restaure
- * 'purpose' — 'work' es la única y `assignJobs` lo excluye —, así que ese
- * restore plano competía cada hora contra un decay TAMBIÉN plano
- * (decayRate('purpose', p) = (1/12)·(0.5 + trabajador) ∈ [0.042, 0.125]/h). Dos
- * ritmos planos no tienen equilibrio intermedio: quien decae más despacio que la
- * constante satura a 1 y quien decae más rápido cae a 0 y se queda ahí de por
- * vida — la población de jubilados se partía en dos castas permanentes (~70% en
- * 1, ~30% en 0). El test agregado (media > 0.1) no lo veía porque solo mira el
- * promedio, no al individuo (revisión adversarial de esta sesión).
- *
- * Hacerlo proporcional al déficit le da al sistema un ATRACTOR por persona:
- * v* = 1 - d/k (donde d es el decay propio). Con k = 1/5, cada jubilado se
- * estabiliza entre 0.375 (el más 'trabajador', a quien más le cuesta el retiro)
- * y 0.79 (el más hogareño, que lo abraza) — un continuo suave, nunca 0 ni 1,
- * siempre por debajo de lo que da un empleo real. k debe superar el decay máximo
- * (0.125) para que hasta el más trabajador tenga un punto fijo positivo. */
+ * al déficit: `k·(1 - purpose)` por hora. La forma importa: un restore PLANO
+ * (constante/hora) no tiene equilibrio intermedio contra el decay plano de
+ * needs.ts (satura a 1 o cae a 0 → dos castas). Proporcional al déficit da un
+ * ATRACTOR por persona (v* = 1 - d/k), un continuo suave en [0.375, 0.79] con
+ * k = 1/5 — nunca 0 ni 1, siempre por debajo de lo que da un empleo real.
+ * k debe superar el decay máximo (0.125) para que hasta el más 'trabajador'
+ * tenga punto fijo positivo. Ver RESEARCH.md (ciclo 12). */
 const RETIREMENT_PURPOSE_RECOVERY = 1 / 5;
 
-/** Ciudadano tal cual se guarda (T2.6): `friends` como pares en vez de Map
- * (JSON no serializa Maps). Un `phase: 'waitingPath'` se normaliza a
- * 'deciding' AL GUARDAR — su ticket apunta a una búsqueda de `PathQueue` que
- * no se persiste (es barata de recalcular y vive solo un puñado de ticks);
- * conservarlo tal cual dejaría un ticket colgado que nunca resolvería tras
- * restaurar. */
-type SerializedCitizen = Omit<Citizen, 'friends' | 'phase'> & {
-  friends: [number, number][];
-  phase: Exclude<Citizen['phase'], { kind: 'waitingPath' }>;
-};
-
-function serializeCitizen(c: Citizen): SerializedCitizen {
-  const phase = c.phase.kind === 'waitingPath' ? ({ kind: 'deciding' } as const) : c.phase;
-  return { ...c, phase, friends: [...c.friends] };
-}
-
-function restoreCitizen(s: SerializedCitizen): Citizen {
-  return { ...s, friends: new Map(s.friends) };
-}
-
-/** Formato de guardado completo de la sim (T2.6, adelantado desde Fase 2 por
- * el objetivo de la demo pública persistente — ver ROADMAP.md §6). Cubre TODO
- * lo que hace falta para continuar exactamente donde se dejó: ciudadanos,
- * economía, reloj, charlas y los DOS streams de rng (general + social). El
- * grid (con lo que la ciudad ha crecido) se guarda aparte con
- * `grid.serialize()` — `simState` no lo incluye para no duplicar la fuente
- * de verdad. `workplaces` de Economy tampoco se guarda: se recalcula con
- * `economy.rebuild()` a partir de `citizens[].work` + el índice. */
-export interface SimSaveState {
-  version: 1;
-  seed: number;
-  rngState: number;
-  clockTime: number;
-  clockTick: number;
-  nextId: number;
-  lastDay: number;
-  tier: Tier;
-  autonomousGrowth: boolean;
-  carTrips: number;
-  households: [string, number][];
-  pantry: [string, number][];
-  citizens: SerializedCitizen[];
-  social: SocialSaveState;
-  economy: EconomySaveState;
-}
+// --- Lógica de vacunación (ciclo 33): salud pública preventiva -----------------
+/** Coste por dosis que paga el tesoro (acopla contagio↔gobierno: la salud
+ * pública cuesta; un pueblo en quiebra no puede permitírsela). */
+const VACCINE_COST_PER_DOSE = 6;
+/** Fracción de la población a la que se ofrece la vacuna al día durante la
+ * campaña (otoño-invierno): la capacidad del sistema, ~toda en dos semanas. */
+const VACCINE_DAILY_FRACTION = 0.12;
 
 export interface SimEvent {
-  name:
-    | 'citizenBorn'
-    | 'citizenLeft'
-    | 'jobTaken'
-    | 'chatStarted'
-    | 'cityGrew'
-    | 'tierUnlocked'
-    | 'coupleFormed'
-    | 'festivalDay'
-    | 'homePrestige'
-    | 'cultivationChanged'
-    | 'roadBuilt'
-    | 'citizenRetired';
+  name: 'citizenBorn' | 'citizenLeft' | 'jobTaken' | 'chatStarted' | 'cityGrew' | 'tierUnlocked' | 'coupleFormed' | 'festivalDay' | 'roadExtended' | 'epidemic' | 'citizenRetired' | 'homePrestige' | 'cultivationChanged';
   data: Record<string, unknown>;
 }
 
@@ -191,6 +95,20 @@ export class Simulation {
   events: SimEvent[] = [];
   /** T4.4: la ciudad crece sola. Activado por defecto (es el alma del juego). */
   autonomousGrowth = true;
+  /** Sanidad activa (ciclo 15): si es false, la clínica no cura — permite medir
+   * cuánta vida SALVA la sanidad (escenario "sin sistema de salud"). */
+  clinicHealing = true;
+  /** Autoaislamiento activo (ciclo 26): los enfermos se recogen en casa y
+   * aplanan la curva. false = escenario "sin cuarentena" (para medir/estudiar). */
+  quarantine = true;
+  /** Alquiler activo (ciclo 29): los hogares pagan por la vivienda. false =
+   * escenario "vivienda gratis" (para medir cuánto drena y cómo circula). */
+  rentEnabled = true;
+  /** Vacunación activa (ciclo 33): salud pública preventiva. false = escenario
+   * "sin vacuna" (para medir la inmunidad de rebaño contra la epidemia cruda). */
+  vaccination = true;
+  /** Vacunaciones administradas (ciclo 33 — métrica de tests/Crónica). */
+  vaccinationsGiven = 0;
   /** Tier desbloqueado (T4.5 lo ligará a población; fijo de momento). */
   tier: Tier = 1;
   /** Familias alojadas por vivienda ('ax,az') — para la demanda de techo. */
@@ -199,69 +117,27 @@ export class Simulation {
   readonly pantry = new Map<string, number>();
   /** Trayectos en coche acumulados (ciclo 8 — métrica de tests/Crónica). */
   carTrips = 0;
+  /** Emigraciones acumuladas (ciclo 14 — métrica de tests/Crónica). */
+  emigrations = 0;
+  /** Tramos de vía trazados por la ciudad sola (T4.4 — métrica de tests). */
+  roadsExtended = 0;
+  /** Último día en que se trazó vía (T4.4 — ritmo: una calle no cada tick). */
+  private lastRoadDay = -10;
+  /** Presión migratoria por hogar ('ax,az') — penuria sostenida (ciclo 14). */
+  private emigrationPressure = new Map<string, number>();
+  /** Ciudadanos decididos a marcharse: caminan a la salida y despawnean allí. */
+  private leaving = new Set<number>();
+  /** Recogidos al LLEGAR a la salida este tick; se despawnean tras el bucle. */
+  private departed: Citizen[] = [];
 
-  /** `restore` (T2.6): si viene, reconstruye el estado exacto de un guardado
-   * en vez de poblar una ciudad nueva — `grid` debe ser YA el grid guardado
-   * (con todo lo crecido), no la semilla original. */
-  constructor(readonly grid: Grid, readonly seed: number, restore?: SimSaveState) {
+  constructor(readonly grid: Grid, readonly seed: number) {
+    this.rng = createRng(seed ^ 0x5f3759df);
     this.index = new WorldIndex(grid);
+    this.social = new SocialSystem(createRng(seed ^ 0x9e3779b9));
     this.paths = new PathQueue(grid);
-    if (restore) {
-      this.rng = createRng(restore.rngState);
-      this.social = new SocialSystem(createRng(0)); // su rng interno se sobreescribe en applyRestore()
-      this.applyRestore(restore);
-    } else {
-      this.rng = createRng(seed ^ 0x5f3759df);
-      this.social = new SocialSystem(createRng(seed ^ 0x9e3779b9));
-      this.spawnPopulation();
-      this.economy.rebuild(this.index, this.citizens);
-      this.hireAndAcquaint();
-    }
-  }
-
-  private applyRestore(state: SimSaveState): void {
-    this.clock.time = state.clockTime;
-    this.clock.tick = state.clockTick;
-    this.nextId = state.nextId;
-    this.lastDay = state.lastDay;
-    this.tier = state.tier;
-    this.autonomousGrowth = state.autonomousGrowth;
-    this.carTrips = state.carTrips;
-    this.households = new Map(state.households);
-    this.pantry.clear();
-    for (const [k, v] of state.pantry) this.pantry.set(k, v);
-    this.citizens.clear();
-    for (const sc of state.citizens) this.citizens.set(sc.id, restoreCitizen(sc));
-    this.social.restore(state.social);
-    this.economy.restore(state.economy);
-    // `workplaces` no se guarda (derivado): se reconstruye ahora que
-    // ciudadanos e índice ya están en su estado restaurado. A propósito NO
-    // se llama a `hireAndAcquaint()` aquí — reforzaría afinidades y
-    // recontrataría cada vez que alguien recarga la página, divergiendo de
-    // una partida que simplemente hubiera seguido corriendo sin recargar.
+    this.spawnPopulation();
     this.economy.rebuild(this.index, this.citizens);
-  }
-
-  /** Guardado (T2.6): todo lo necesario para continuar exactamente donde se
-   * dejó. Ver `SimSaveState` para qué se excluye y por qué. */
-  serialize(): SimSaveState {
-    return {
-      version: 1,
-      seed: this.seed,
-      rngState: this.rng.state,
-      clockTime: this.clock.time,
-      clockTick: this.clock.tick,
-      nextId: this.nextId,
-      lastDay: this.lastDay,
-      tier: this.tier,
-      autonomousGrowth: this.autonomousGrowth,
-      carTrips: this.carTrips,
-      households: [...this.households],
-      pantry: [...this.pantry],
-      citizens: [...this.citizens.values()].map(serializeCitizen),
-      social: this.social.serialize(),
-      economy: this.economy.serialize(),
-    };
+    this.hireAndAcquaint();
   }
 
   // --- Población -------------------------------------------------------------
@@ -280,10 +156,8 @@ export class Simulation {
     // Los recién llegados traen algo de comida y unos ahorros en la mudanza.
     this.pantry.set(k, (this.pantry.get(k) ?? 0) + 3 * count);
     this.economy.wallets.set(k, (this.economy.wallets.get(k) ?? 0) + STARTING_MONEY * count);
-    const prestige = this.avgPrestige();
-    const grief = this.avgGrief();
     for (let h = 0; h < count; h++) {
-      const adults = familySize(this.rng, prestige, grief);
+      const adults = 1 + Math.floor(this.rng.next() * 2.4); // 1-3
       const family: Citizen[] = [];
       for (let a = 0; a < adults; a++) family.push(this.spawnCitizen(ax, az, buildingId));
       for (let i = 0; i < family.length; i++)
@@ -298,24 +172,20 @@ export class Simulation {
     return sum / this.citizens.size;
   }
 
-  /** Duelo medio de la ciudad AHORA (0 si nadie está de luto). Base del
-   * acoplamiento duelo→inmigración (ciclo 11): un pueblo que ha sufrido
-   * muertes recientes es menos goloso para quien se plantea mudarse. */
-  private avgGrief(): number {
-    if (this.citizens.size === 0) return 0;
+  private avgFood(): number {
+    if (this.citizens.size === 0) return 1;
     let sum = 0;
-    for (const c of this.citizens.values()) sum += c.grief;
+    for (const c of this.citizens.values()) sum += c.needs.food;
     return sum / this.citizens.size;
   }
 
-  /** Prestigio medio de la ciudad YA construida (0 si nadie ha invertido
-   * aún). Base del acoplamiento prestigio→inmigración: un pueblo "de
-   * posibles" es más goloso para quien llega. */
+  /** Fama media de los hogares (prestigio, ciclo 9). Alimenta la atractividad. */
   private avgPrestige(): number {
-    if (this.economy.prestige.size === 0) return 0;
+    const homes = this.index.ofRole('residential');
+    if (homes.length === 0) return 0;
     let sum = 0;
-    for (const p of this.economy.prestige.values()) sum += p;
-    return sum / this.economy.prestige.size;
+    for (const b of homes) sum += this.economy.prestigeOf(`${b.ax},${b.az}`);
+    return sum / homes.length;
   }
 
   /** Huecos de familia libres en todas las viviendas. */
@@ -354,6 +224,9 @@ export class Simulation {
       education: age === undefined ? this.rng.range(0.2, 0.9) : 0,
       health: this.rng.range(0.75, 1),
       grief: 0,
+      sick: 0,
+      immune: 0,
+      childrenRaised: 0,
       x: door[0] + 0.5,
       z: door[1] + 0.5,
       heading: this.rng.range(0, Math.PI * 2),
@@ -381,55 +254,14 @@ export class Simulation {
           if (a && b) SocialSystem.acquaint(a, b, 0.3);
         }
     }
-    // Vecinos a < 40 celdas se conocen de vista. Hash espacial por buckets
-    // de 40 celdas sobre la posición del HOGAR (estable, no cambia tick a
-    // tick) — mismo patrón que `social.detectEncounters`. Antes era un
-    // barrido O(n²) sobre TODA la población: medido, ~650 ms YA a 3000
-    // habitantes (muy por encima del presupuesto de 50 ms/tick, y el
-    // verdadero cuello de botella que impedía llegar a los 10.000 de
-    // RESEARCH.md §5 pese a que los ticks normales sí escalaban bien).
-    // Bucket=40=umbral: dos hogares con distancia Manhattan <40 SIEMPRE
-    // caen en buckets iguales o adyacentes en cada eje (floor(x/40) solo
-    // puede diferir en más de 1 si |dx|>40), así que mirar el 3×3 vecino no
-    // pierde ningún par real.
-    //
-    // SEGUNDO cuello de botella real, encontrado midiendo el primero: un
-    // bloque de pisos denso (apartmentSlab/brickBlock, decenas de familias
-    // en la MISMA ancla) mete a cientos de vecinos en un solo bucket — el
-    // hash por celda no ayuda si la concentración está DENTRO de la celda,
-    // no entre celdas. HOME_NEIGHBOR_CAP acota cuántos vecinos de bucket se
-    // procesan por persona (determinista: siempre los primeros del bucket,
-    // orden estable). Es además más realista, no solo más rápido: en un
-    // bloque de 200 vecinos nadie conoce a los 199 restantes en la vida
-    // real tampoco — mismo espíritu que el tope de amistades "máx 12" ya
-    // anotado como plan en RESEARCH.md §5.
-    const HOME_NEIGHBOR_RANGE = 40;
-    const HOME_NEIGHBOR_CAP = 12;
-    const bkey = (x: number, z: number) => (Math.floor(x / HOME_NEIGHBOR_RANGE) + 4096) * 8192 + (Math.floor(z / HOME_NEIGHBOR_RANGE) + 4096);
-    const homeBuckets = new Map<number, Citizen[]>();
-    for (const c of this.citizens.values()) {
-      const k = bkey(c.home.ax, c.home.az);
-      (homeBuckets.get(k) ?? homeBuckets.set(k, []).get(k)!).push(c);
-    }
-    // El tope se aplica por ÍNDICE del bucket (los primeros K), no por
-    // "primeros que cumplan" — así el coste por persona está acotado de
-    // verdad SIEMPRE, sin importar cuántos vecinos con id mayor/menor haya
-    // delante (con id habría que recorrer el bucket entero para los últimos
-    // en llegar, volviendo a ser O(n) por persona en el caso denso).
-    for (const a of this.citizens.values()) {
-      for (let dx = -1; dx <= 1; dx++) {
-        for (let dz = -1; dz <= 1; dz++) {
-          const cell = homeBuckets.get(bkey(a.home.ax + dx * HOME_NEIGHBOR_RANGE, a.home.az + dz * HOME_NEIGHBOR_RANGE));
-          if (!cell) continue;
-          const limit = Math.min(cell.length, HOME_NEIGHBOR_CAP);
-          for (let k = 0; k < limit; k++) {
-            const b = cell[k];
-            if (b.id === a.id) continue;
-            if (manhattan([a.home.ax, a.home.az], [b.home.ax, b.home.az]) < HOME_NEIGHBOR_RANGE) SocialSystem.acquaint(a, b);
-          }
-        }
+    // Vecinos a < 12 celdas se conocen de vista.
+    const all = [...this.citizens.values()];
+    for (let i = 0; i < all.length; i++)
+      for (let j = i + 1; j < all.length; j++) {
+        const a = all[i];
+        const b = all[j];
+        if (manhattan([a.home.ax, a.home.az], [b.home.ax, b.home.az]) < 40) SocialSystem.acquaint(a, b);
       }
-    }
   }
 
   // --- Tick -------------------------------------------------------------------
@@ -451,6 +283,8 @@ export class Simulation {
       pantry: this.pantry,
       wallets: this.economy.wallets,
       weather: this.weather,
+      quarantine: this.quarantine,
+      epidemic: this.inEpidemic,
     };
   }
 
@@ -469,32 +303,25 @@ export class Simulation {
 
     for (const c of this.citizens.values()) {
       decayNeeds(c.needs, c.personality, hours);
-      if (c.grief > 0) {
-        // Duelo: nada lo restaura, solo se apaga con el tiempo; mientras
-        // dura, cuesta más disfrutar (fun decae más rápido de lo normal).
-        c.grief = griefDecay(c.grief, hours);
-        c.needs.fun = Math.max(0, c.needs.fun - c.grief * GRIEF_FUN_DECAY_PER_HOUR * hours);
-      }
       healthTick(c, hours); // lógica de salud: fondo, no una actividad
+      griefTick(c, hours); // lógica de duelo (ciclo 16): apaga la alegría del doliente
+      sickenTick(c, hours); // contagio (ciclo 25): la enfermedad aguda mella y se pasa
+      // Jubilación (ciclo 12): un jubilado no tiene 'work' que le reponga el
+      // propósito, así que se lo damos aquí, PROPORCIONAL al déficit — le da un
+      // atractor por persona en un continuo suave (ver RETIREMENT_PURPOSE_RECOVERY).
+      if (c.age >= RETIREMENT_AGE && !c.work) {
+        restore(c.needs, 'purpose', RETIREMENT_PURPOSE_RECOVERY * (1 - c.needs.purpose) * hours);
+      }
       // Estatus (ciclo 9): una vivienda mejorada es más agradable — quien
       // está EN CASA (durmiendo, comiendo) recupera algo más de ánimo.
       if (c.inside && (c.activity === 'sleep' || c.activity === 'eat' || c.activity === 'none')) {
         const prestige = this.economy.prestigeOf(`${c.home.ax},${c.home.az}`);
         if (prestige > 0) restore(c.needs, 'fun', prestige * COMFORT_FUN_PER_HOUR * hours);
       }
-      // Jubilación: sin trabajo que restaure 'purpose' (solo 'work' lo
-      // hace), un jubilado sentiría una presión de propósito CRECIENTE Y
-      // PERPETUA sin ninguna salida — ya no busca empleo, así que nunca se
-      // resolvería. Encuentra sentido fuera del trabajo (aficiones, familia,
-      // ayudar) PROPORCIONAL a lo que le falta: mucho cuando está vacío, poco
-      // cuando ya se siente pleno. Eso le da un equilibrio estable por
-      // persona (ver RETIREMENT_PURPOSE_RECOVERY) en vez de saturar o
-      // colapsar — no sustituye el empleo, pero evita la desesperación sin fin.
-      if (c.age >= RETIREMENT_AGE) {
-        restore(c.needs, 'purpose', RETIREMENT_PURPOSE_RECOVERY * (1 - c.needs.purpose) * hours);
-      }
       if (this.social.isChatting(c.id)) {
         c.activity = 'chat';
+        // El consuelo de la charla lo aplica social.advance() escalado por
+        // intimidad y duelo compartido (ciclo 19), que conoce al interlocutor.
         continue; // parado charlando; social.ts le restaura
       }
       this.stepCitizen(c, ctx);
@@ -503,7 +330,7 @@ export class Simulation {
     }
 
     // Encuentros emergentes entre caminantes.
-    const started = this.social.detectEncounters(walkers, this.clock.tick);
+    const started = this.social.detectEncounters(walkers, this.clock.tick, this.quarantine);
     for (const chat of started) {
       const a = this.citizens.get(chat.a)!;
       const b = this.citizens.get(chat.b)!;
@@ -516,6 +343,9 @@ export class Simulation {
       this.events.push({ name: 'chatStarted', data: { a: a.id, b: b.id } });
     }
 
+    // Los que llegaron a la salida este tick se marchan de verdad (ciclo 14).
+    if (this.departed.length > 0) this.processDepartures();
+
     // Crecimiento autónomo: un intento por hora de juego, solo de día
     // (los edificios "brotan" con luz — cosmética barata y determinista).
     if (this.autonomousGrowth && this.clock.tick % 100 === 0 && this.clock.darkness < 0.5) {
@@ -527,17 +357,28 @@ export class Simulation {
       this.lastDay = this.clock.day;
       this.stepLife();
       this.economy.endOfDay();
-      this.events.push({ name: 'cultivationChanged', data: { level: this.economy.cultivation } });
+      this.chargeRent(); // ciclo 29: la vivienda cuesta (antes de pensiones: la red cubre a quien no llega)
+      this.chargeLifestyle(); // ciclo 32: el coste de la vida escala con la riqueza (drena el ahorro excedente)
       this.payPensions();
-      // estatus, ciclo 9: cada hogar mejorado emite su evento para que el
-      // render decore ESA vivienda (jardín/fachada) sin re-sincronizar todo.
+      this.vaccinate(); // ciclo 33: salud pública preventiva (antes del dividendo: la salud primero)
+      this.economy.payPublicDividend([...this.households.keys()], this.citizens.size); // ciclo 32: el tesoro no atesora sin fin — reparte su superávit
+      this.stepOutbreak(); // ciclo 25: en invierno, algún resfriado prende y se propaga
+      this.stepEmigration(); // ciclo 14: tras la red de pensiones (última bala)
+      // Estatus (ciclo 9): cada hogar que mejora emite su evento para que el
+      // render decore ESA vivienda (jardín) sin re-sincronizar todo (render rico).
       for (const u of this.economy.investInHomes(this.households.keys())) {
         const [ax, az] = u.key.split(',').map(Number);
         this.events.push({ name: 'homePrestige', data: { ax, az, prestige: u.prestige } });
       }
+      // Faena agrícola agregada (T3.8): el render pinta surcos sobre el barbecho.
+      this.events.push({ name: 'cultivationChanged', data: { level: this.economy.cultivation } });
       this.hireAndAcquaint();
       if (isFestivalDay(this.clock.day)) {
-        this.events.push({ name: 'festivalDay', data: { day: this.clock.day } });
+        // Cosecha abundante (ciclo 24): la fiesta de otoño se celebra distinta si
+        // el granero rebosa — acopla festival↔alimento↔estación, sin guion.
+        let festName = seasonalFestivalName(this.clock.day);
+        if (festName === 'fiesta de la cosecha' && this.economy.granary > BOUNTIFUL_GRANARY) festName += ' abundante';
+        this.events.push({ name: 'festivalDay', data: { day: this.clock.day, name: festName } });
       }
       const pop = this.citizens.size;
       const unlocked: Tier = pop >= 200 ? 4 : pop >= 80 ? 3 : pop >= 25 ? 2 : 1;
@@ -569,27 +410,22 @@ export class Simulation {
 
   /** Un año por día de juego: envejecer, emparejar, nacer, morir. */
   private stepLife(): void {
-    const life = lifeYear(this.citizens, this.rng);
+    // Natalidad denso-dependiente (ciclo 30): cerca del techo se tienen menos
+    // hijos — el freno vegetativo que, junto al corte de inmigración, aplana el
+    // crecimiento en meseta estable en vez de una exponencial caótica.
+    const life = lifeYear(this.citizens, this.rng, fertilityFactor(this.citizens.size));
     for (const d of life.deaths) {
       const partner = d.partnerId !== null ? this.citizens.get(d.partnerId) : undefined;
-      if (partner) {
-        partner.partnerId = null;
-        partner.grief = Math.max(partner.grief, PARTNER_GRIEF);
-      }
-      // Duelo (lógica nueva): quien tuviera al difunto como amigo CERCANO
-      // (no cualquier conocido — el mismo umbral que el "tercer lugar" de
-      // vecindario) también lo siente, más suave que perder pareja.
-      for (const c of this.citizens.values()) {
-        const aff = c.friends.get(d.id);
-        if (aff !== undefined && aff >= CLUB_AFFINITY) c.grief = Math.max(c.grief, FRIEND_GRIEF);
-      }
+      if (partner) partner.partnerId = null;
+      this.mournFor(d); // duelo (ciclo 16): la pareja y los amigos íntimos penan
       this.citizens.delete(d.id);
+      this.leaving.delete(d.id);
       const k = `${d.home.ax},${d.home.az}`;
       // Ojo: la familia sigue en la casa; solo liberamos el hueco si era el último.
       if (![...this.citizens.values()].some((c) => c.home.ax === d.home.ax && c.home.az === d.home.az)) {
         this.households.set(k, Math.max(0, (this.households.get(k) ?? 1) - 1));
       }
-      this.events.push({ name: 'citizenLeft', data: { id: d.id, name: d.name, age: d.age } });
+      this.events.push({ name: 'citizenLeft', data: { id: d.id, name: d.name, age: d.age, health: d.health, reason: 'death', partnerName: partner?.name, childrenRaised: d.childrenRaised } });
     }
     for (const [a, b] of life.couples) {
       this.events.push({ name: 'coupleFormed', data: { a: a.name, b: b.name } });
@@ -598,15 +434,165 @@ export class Simulation {
       const child = this.spawnCitizen(b.home.ax, b.home.az, b.home.buildingId, 0);
       SocialSystem.acquaint(child, b.parents[0], 0.8);
       SocialSystem.acquaint(child, b.parents[1], 0.8);
+      b.parents[0].childrenRaised++; // ciclo 34: cada vida deja rastro (legado)
+      b.parents[1].childrenRaised++;
     }
+    // Jubilación (ciclo 12): lifeYear ya liberó su `work`; aquí solo se narra.
     for (const r of life.retirements) {
       this.events.push({ name: 'citizenRetired', data: { id: r.id, name: r.name } });
     }
-    // La jubilación también libera un puesto (igual que una muerte): sin
-    // esto, el hueco quedaría fantasma en workplaces[].workers hasta la
-    // próxima muerte o construcción, retrasando la contratación de quien
-    // sí lo busca.
+    // Muertes y jubilaciones liberan puestos → recontratar (reconstruye el índice).
     if (life.deaths.length > 0 || life.retirements.length > 0) this.economy.rebuild(this.index, this.citizens);
+  }
+
+  // --- Emigración digna (ciclo 14 — cierra T4.3, RESEARCH.md §6.2) --------------
+
+  /** Cierre de año: acumula la penuria de cada hogar; si alguno lleva años sin
+   * salida (y tras la red de pensiones), UNA familia decide marcharse (despacio,
+   * como el crecimiento). No se despawnea: se marca para caminar a la salida. */
+  private stepEmigration(): void {
+    interface Agg { workingAdults: number; employed: number; anyLeaving: boolean }
+    const byHome = new Map<string, Agg>();
+    for (const c of this.citizens.values()) {
+      const k = `${c.home.ax},${c.home.az}`;
+      let h = byHome.get(k);
+      if (!h) { h = { workingAdults: 0, employed: 0, anyLeaving: false }; byHome.set(k, h); }
+      if (c.age >= ADULT_AGE && c.age < OLD_AGE) { h.workingAdults++; if (c.work) h.employed++; }
+      if (this.leaving.has(c.id)) h.anyLeaving = true;
+    }
+
+    let worstKey: string | null = null;
+    let worstPressure = -1;
+    for (const [k, h] of byHome) {
+      const hardship = householdHardship({ workingAdults: h.workingAdults, employed: h.employed, wallet: this.economy.walletOf(k) });
+      const p = updateEmigrationPressure(this.emigrationPressure.get(k) ?? 0, hardship);
+      this.emigrationPressure.set(k, p);
+      // Un pueblo diminuto no se despuebla; y no re-elige a quien ya se marcha.
+      if (this.citizens.size <= EMIGRATE_POP_FLOOR || h.anyLeaving) continue;
+      if (p >= EMIGRATE_PRESSURE_LIMIT && p > worstPressure) { worstPressure = p; worstKey = k; }
+    }
+
+    if (!worstKey) return;
+    // Toda la familia hace las maletas: caminarán a la salida y se marcharán.
+    for (const c of this.citizens.values()) {
+      if (`${c.home.ax},${c.home.az}` !== worstKey) continue;
+      this.leaving.add(c.id);
+      c.phase = { kind: 'deciding' };
+    }
+    this.emigrationPressure.delete(worstKey);
+  }
+
+  /** Despawn DIGNO de quienes llegaron a la salida: se marchan a otra ciudad,
+   * narrado en la Crónica (nunca en silencio — RESEARCH.md §6.2). */
+  private processDepartures(): void {
+    for (const c of this.departed) {
+      if (!this.citizens.has(c.id)) continue;
+      const partner = c.partnerId !== null ? this.citizens.get(c.partnerId) : undefined;
+      if (partner) partner.partnerId = null;
+      this.mournFor(c); // el pueblo pena por quien se marcha (ciclo 16)
+      this.citizens.delete(c.id);
+      this.leaving.delete(c.id);
+      const k = `${c.home.ax},${c.home.az}`;
+      if (![...this.citizens.values()].some((o) => o.home.ax === c.home.ax && o.home.az === c.home.az)) {
+        this.households.set(k, Math.max(0, (this.households.get(k) ?? 1) - 1));
+      }
+      this.emigrations++;
+      this.events.push({ name: 'citizenLeft', data: { id: c.id, name: c.name, age: c.age, reason: 'emigrated' } });
+    }
+    this.departed = [];
+    this.economy.rebuild(this.index, this.citizens);
+  }
+
+  /** true mientras una oleada supera el umbral epidémico (para narrar una sola vez). */
+  private inEpidemic = false;
+
+  /** Alquiler (ciclo 29): cada hogar ocupado paga por su vivienda al cierre del
+   * día, según cuántas familias alberga y el tier de la casa (mejor casa, más
+   * cara). Paga lo que puede (sin desahucio: la pensión cubre a quien no llega).
+   * El alquiler entra en el tesoro → circula (financia pensiones). */
+  private chargeRent(): void {
+    if (!this.rentEnabled) return;
+    for (const b of this.index.ofRole('residential')) {
+      const k = `${b.ax},${b.az}`;
+      const families = this.households.get(k) ?? 0;
+      if (families <= 0) continue;
+      const rent = RENT_PER_DAY * families * (1 + RENT_TIER_FACTOR * (b.data.tier ?? 0));
+      this.economy.treasury += this.economy.spend(k, rent);
+    }
+  }
+
+  /** Coste de la vida (ciclo 32): cada hogar gasta en vivir una fracción de su
+   * ahorro excedente — el sumidero que faltaba para que el ahorro no trepe sin
+   * fin (la nómina acuña dinero). Escala con la riqueza (lifestyle inflation). */
+  private chargeLifestyle(): void {
+    for (const k of this.households.keys()) this.economy.spendLifestyle(k);
+  }
+
+  /** Vacunación (ciclo 33): salud pública PREVENTIVA. En la temporada de brotes
+   * (otoño-invierno) el sistema sanitario ofrece la vacuna a los SUSCEPTIBLES
+   * (ni enfermos ni ya inmunes), que confiere inmunidad SIN pasar la enfermedad.
+   * Cuando una fracción alta queda inmune emerge la INMUNIDAD DE REBAÑO: el
+   * contagio (social.ts salta a los inmunes) no encuentra a quién saltar y la
+   * oleada se apaga sola. Requiere clínica (infraestructura) y la paga el tesoro
+   * (acopla contagio↔gobierno↔salud): un pueblo en quiebra no la puede costear.
+   * Determinista (orden de inserción del Map). */
+  private vaccinate(): void {
+    if (!this.vaccination) return;
+    const season = this.weather.season;
+    if (season !== 'otoño' && season !== 'invierno') return; // campaña de temporada
+    if (!this.index.buildings.some((b) => b.id === 'clinic')) return; // hace falta clínica
+    let doses = Math.ceil(this.citizens.size * VACCINE_DAILY_FRACTION);
+    for (const c of this.citizens.values()) {
+      if (doses <= 0) break;
+      if (c.sick > 0 || c.immune > 0) continue; // solo susceptibles
+      if (this.economy.treasury < VACCINE_COST_PER_DOSE) break; // sin fondos, se para la campaña
+      this.economy.treasury -= VACCINE_COST_PER_DOSE;
+      c.immune = VACCINE_IMMUNITY;
+      this.vaccinationsGiven++;
+      doses--;
+    }
+  }
+
+  /** Contagio (ciclo 25): en el frío del invierno, con cierta probabilidad
+   * prende un resfriado en alguien sano (caso índice). A partir de ahí se
+   * propaga solo en los encuentros (social.ts). Además, VIGILA la oleada: si más
+   * de ~1/4 de la ciudad enferma, la Crónica narra la epidemia (una vez). */
+  private stepOutbreak(): void {
+    const pop = this.citizens.size;
+    if (pop >= 6) {
+      // Vigilancia de la oleada (para la Crónica).
+      let sick = 0;
+      for (const c of this.citizens.values()) if (c.sick > 0.1) sick++;
+      const frac = sick / pop;
+      // Umbral bajo a propósito (12%): con la cuarentena (ciclo 26) las oleadas
+      // se aplanan, y un 12% de la ciudad enferma ya es una epidemia que contar.
+      if (!this.inEpidemic && frac > 0.12) {
+        this.inEpidemic = true;
+        this.events.push({ name: 'epidemic', data: { sick, population: pop } });
+      } else if (this.inEpidemic && frac < 0.05) {
+        this.inEpidemic = false;
+      }
+      // Caso índice espontáneo en invierno.
+      if (this.weather.season === 'invierno' && this.rng.next() < 0.12) {
+        const arr = [...this.citizens.values()];
+        const c = arr[Math.floor(this.rng.next() * arr.length)];
+        if (c && c.sick <= 0 && c.immune <= 0) c.sick = SICK_ONSET;
+      }
+    }
+  }
+
+  /** Duelo (ciclo 16): cuando alguien se va (muere o emigra), su pareja sufre el
+   * mayor golpe y sus amigos ÍNTIMOS (afinidad alta) también penan, menos. */
+  private mournFor(gone: Citizen): void {
+    if (gone.partnerId !== null) {
+      const partner = this.citizens.get(gone.partnerId);
+      if (partner) bereave(partner, GRIEF_PARTNER);
+    }
+    for (const [id, aff] of gone.friends) {
+      if (id === gone.partnerId || aff < GRIEF_FRIEND_AFFINITY) continue;
+      const f = this.citizens.get(id);
+      if (f) bereave(f, GRIEF_FRIEND);
+    }
   }
 
   // --- Crecimiento autónomo (T4.1-T4.3) ---------------------------------------
@@ -631,6 +617,8 @@ export class Simulation {
       studentSlots: this.index.buildings.reduce((n, b) => n + (b.data.students ?? 0), 0),
       avgHealth: this.avgHealth(),
       hasClinic: this.index.buildings.some((b) => b.id === 'clinic'),
+      totalPopulation: this.citizens.size,
+      carryingCapacity: CARRYING_CAPACITY,
     });
     if (!demand) return;
 
@@ -640,17 +628,87 @@ export class Simulation {
     const center = townCenter(
       this.index.buildings.filter((b) => b.data.role !== 'nature').map((b) => [b.ax, b.az]),
     );
-    let p = findParcel(this.grid, id, center, this.rng);
+    const p = findParcel(this.grid, id, center, this.rng);
     if (!p) {
-      // T4.4 — modo autónomo: sin parcela servible junto a una vía existente,
-      // la ciudad se abre un ramal nuevo antes de rendirse este intento.
-      const ext = extendRoad(this.grid, center);
-      if (!ext) return;
-      this.events.push({ name: 'roadBuilt', data: { rx: ext.rx, rz: ext.rz, axis: ext.axis, dir: ext.dir, length: ext.length } });
-      p = findParcel(this.grid, id, center, this.rng);
-      if (!p) return;
+      // T4.4: hay demanda pero NO queda frente construible junto a una vía →
+      // la ciudad se traza una CALLE nueva hacia campo abierto. El siguiente
+      // intento de crecer ya encontrará parcela en ella.
+      this.maybeExtendRoad(center);
+      return;
     }
     this.applyGrowth(p);
+  }
+
+  private isRoad(cx: number, cz: number): boolean {
+    return this.grid.get(cx, cz)?.terrain === 'road';
+  }
+
+  /** Celdas de carretera consecutivas desde (cx,cz) en una dirección (hasta 10). */
+  private roadRun(cx: number, cz: number, dx: number, dz: number): number {
+    let n = 0;
+    for (let s = 1; s <= 10; s++) { if (this.isRoad(cx + dx * s, cz + dz * s)) n++; else break; }
+    return n;
+  }
+
+  /** ¿Hay hueco abierto para ramificar? La franja perpendicular (calzada ±2)
+   * debe estar libre de vías y edificios por `depth` celdas — así la calle nueva
+   * no se solapa con el pueblo ni nace pegada a otra calle paralela. */
+  private branchIsClear(rx: number, rz: number, dir: { dx: number; dz: number }, depth: number, halfWidth = 2): boolean {
+    const px = -dir.dz, pz = dir.dx;
+    for (let step = 1; step <= depth; step++) {
+      for (let w = -halfWidth; w <= halfWidth; w++) {
+        const c = this.grid.get(rx + dir.dx * step + px * w, rz + dir.dz * step + pz * w);
+        if (c?.building || c?.terrain === 'road' || c?.terrain === 'water') return false;
+      }
+    }
+    return true;
+  }
+
+  /** T4.4 — traza una calle nueva PERPENDICULAR a la vía existente hacia campo
+   * abierto, empezando por la celda de vía más cercana al centro que tenga hueco
+   * (el pueblo crece compacto). Emite `roadExtended` para replicar en el render. */
+  private maybeExtendRoad(center: [number, number]): boolean {
+    // Ritmo: una calle nueva abre frente para VARIOS edificios; extender en cada
+    // intento fallido sería un sprawl de asfalto vacío. Se deja que los
+    // edificios llenen lo trazado antes de abrir más (T4.4 estético).
+    if (this.clock.day - this.lastRoadDay < 2) return false;
+    const roads = [...this.index.roadCells].sort(
+      (a, b) => (Math.abs(a[0] - center[0]) + Math.abs(a[1] - center[1])) - (Math.abs(b[0] - center[0]) + Math.abs(b[1] - center[1])),
+    );
+    // Dos estrategias, en orden: (1) RAMIFICAR perpendicular desde una vía con
+    // hueco al lado (abre trama 2D — un pueblo, no una tira); (2) si no cabe,
+    // PROLONGAR un extremo recto hacia campo abierto. Las dos usan branchIsClear
+    // (delante debe haber campo libre), así el pueblo crece compacto y ortogonal.
+    for (const strategy of ['branch', 'extend'] as const) {
+      for (const [rx, rz] of roads) {
+        const runX = this.roadRun(rx, rz, 1, 0) + this.roadRun(rx, rz, -1, 0);
+        const runZ = this.roadRun(rx, rz, 0, 1) + this.roadRun(rx, rz, 0, -1);
+        if (Math.abs(runX - runZ) < 3) continue; // cruce/cabo ambiguo
+        const lengthIsX = runX > runZ;
+        const dirs = strategy === 'branch'
+          // Ramificar = perpendicular a la longitud.
+          ? (lengthIsX ? [{ dx: 0, dz: 1 }, { dx: 0, dz: -1 }] : [{ dx: 1, dz: 0 }, { dx: -1, dz: 0 }])
+          // Prolongar = seguir la longitud (solo desde un EXTREMO: sin vía delante).
+          : (lengthIsX ? [{ dx: 1, dz: 0 }, { dx: -1, dz: 0 }] : [{ dx: 0, dz: 1 }, { dx: 0, dz: -1 }]);
+        for (const dir of dirs) {
+          if (strategy === 'extend' && this.isRoad(rx + dir.dx, rz + dir.dz)) continue; // no es extremo
+          // Ramificar exige margen ancho (una calle nueva con sus frentes) pero
+          // menos LARGO (basta un corredor corto para arrancar una calle 2D);
+          // prolongar solo punza la calzada (±1) pero mira lejos (recto y libre).
+          const halfWidth = strategy === 'branch' ? 2 : 1;
+          const depth = strategy === 'branch' ? 6 : 10;
+          if (!this.branchIsClear(rx, rz, dir, depth, halfWidth)) continue;
+          const laid = extendRoad(this.grid, [rx, rz], dir, 12, this.rng);
+          if (laid.length < 8) continue;
+          this.index.rebuild();
+          this.roadsExtended++;
+          this.lastRoadDay = this.clock.day;
+          this.events.push({ name: 'roadExtended', data: { fromX: rx, fromZ: rz, dx: dir.dx, dz: dir.dz, length: 12 } });
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
   /** Coloca el edificio, reindexa y aloja/contrata. Emite `cityGrew` para que
@@ -661,13 +719,42 @@ export class Simulation {
     this.index.rebuild();
     this.economy.rebuild(this.index, this.citizens);
     if (it.role === 'residential') {
-      this.fillHome(p.cx, p.cz, p.id, it.capacity ?? 1); // inmigración
+      // Inmigración MODULADA por atractividad (ciclo 12): una ciudad próspera y
+      // con buena fama llena la vivienda; una que va mal la deja a medias. El
+      // efecto se nota sobre todo en los bloques (18-24 familias): un panelák
+      // en un pueblo con paro y hambre nace medio vacío, no lleno por decreto.
+      const s = this.economy.stats(this.citizens);
+      const attractiveness = townAttractiveness({
+        employment: s.adults > 0 ? s.employed / s.adults : 1,
+        avgHealth: this.avgHealth(),
+        avgFood: this.avgFood(),
+        avgPrestige: this.avgPrestige(),
+      });
+      const cap = it.capacity ?? 1;
+      const families = Math.max(1, Math.round(cap * attractiveness));
+      this.fillHome(p.cx, p.cz, p.id, families);
     }
     this.hireAndAcquaint();
     this.events.push({ name: 'cityGrew', data: { ...p } });
   }
 
   private stepCitizen(c: Citizen, ctx: SimContext): void {
+    // Emigración (ciclo 14): quien decidió marcharse ignora toda otra actividad
+    // y camina hacia la salida del pueblo. Al llegar (o si no hay ruta), se va.
+    if (this.leaving.has(c.id) && c.phase.kind === 'deciding') {
+      const center = townCenter(this.index.buildings.filter((b) => b.data.role !== 'nature').map((b) => [b.ax, b.az]));
+      const exit = this.index.townExit(center);
+      const from: CellXZ = [Math.round(c.x - 0.5), Math.round(c.z - 0.5)];
+      if (!exit || manhattan(from, exit) <= 1) {
+        this.departed.push(c);
+        return;
+      }
+      const ticket = this.paths.request(from, exit);
+      c.phase = { kind: 'waitingPath', ticket, next: { activity: 'none', target: null, cell: exit, duration: 0 } };
+      c.activity = 'none';
+      c.inside = false;
+      return;
+    }
     switch (c.phase.kind) {
       case 'deciding': {
         const next = chooseActivity(c, ctx);
@@ -686,6 +773,12 @@ export class Simulation {
         const res = this.paths.take(c.phase.ticket);
         if (!res) return; // aún calculando (presupuesto incremental)
         if (res.status === 'fail') {
+          // Si se marcha y no hay ruta a la salida, se va igualmente (no queda
+          // atrapado en un pueblo que ya no quiere): despawn digno, narrado.
+          if (this.leaving.has(c.id)) {
+            this.departed.push(c);
+            return;
+          }
           c.phase = { kind: 'deciding' };
           c.activity = 'none';
           return;
@@ -705,7 +798,7 @@ export class Simulation {
         return;
       }
       case 'moving': {
-        this.stepWalk(c, ctx.weather.outdoorFactor);
+        this.stepWalk(c);
         return;
       }
       case 'doing': {
@@ -716,14 +809,28 @@ export class Simulation {
             const r = def.restorePerHour[k];
             if (r) restore(c.needs, k, r * hours);
           }
+          // Consuelo (ciclo 17): las actividades de COMPAÑÍA de verdad (visita,
+          // club, fiesta — mucha restauración social) alivian el duelo.
+          if ((def.restorePerHour.social ?? 0) >= 0.5) consoleGrief(c, hours);
           if (c.activity === 'school') c.education = Math.min(1, c.education + EDU_PER_HOUR * hours);
-          if (c.activity === 'clinic') c.health = Math.min(1, c.health + CLINIC_RECOVERY_PER_HOUR * hours);
+          if (c.activity === 'clinic' && this.clinicHealing) {
+            c.health = Math.min(1, c.health + CLINIC_RECOVERY_PER_HOUR * hours);
+            treatSick(c, hours); // contagio (ciclo 25): la clínica también cura la enfermedad aguda
+          }
           if (c.activity === 'work' && c.work) {
             const employer = catalogData(c.work.buildingId);
             // Cadena de alimento: los granjeros en faena llenan el granero.
-            if (employer?.role === 'agriculture') this.economy.produceFood(`${c.home.ax},${c.home.az}`, hours);
-            // Dinero: cada hora trabajada es salario para el hogar.
-            this.economy.payWage(`${c.home.ax},${c.home.az}`, hours, employer?.tier ?? 0);
+            if (employer?.role === 'agriculture') {
+              // Cosecha estacional (ciclo 39): el campo rinde menos en invierno,
+              // más en verano → hay que acumular granero para pasar el frío.
+              const yieldFactor = 1 + SEASON_YIELD_SWING * seasonalWarmth(this.clock.day);
+              this.economy.produceFood(`${c.home.ax},${c.home.az}`, hours, yieldFactor);
+            }
+            // Dinero: cada hora trabajada es salario para el hogar. El sector
+            // público (civic) se paga del tesoro, no se acuña (ciclo 37bis).
+            this.economy.payWage(`${c.home.ax},${c.home.az}`, hours, employer?.tier ?? 0, c.education, employer?.role);
+            // Vocación (ciclo 36): trabajar en lo que uno ama COLMA el propósito.
+            if (jobFitsVocation(c.personality, employer?.role)) restore(c.needs, 'purpose', VOCATION_PURPOSE_BONUS * hours);
           }
         }
         if (this.clock.time >= c.phase.until) {
@@ -746,33 +853,9 @@ export class Simulation {
       c.activity = 'none';
       return;
     }
-    // Revalida la FECHA al llegar, no solo al decidir: decidir ir a la
-    // fiesta a última hora y tardar en llegar (camino largo, cola de paths)
-    // puede dejar a alguien "empezando" la fiesta ya en el día siguiente —
-    // mismo patrón que la revalidación de salud de arriba, esta vez para el
-    // caso límite que el recorte de duración de más abajo NO cubre (ese
-    // evita que se ALARGUE pasada medianoche; este evita que EMPIECE ya
-    // pasada medianoche).
-    if (planned.activity === 'festival' && !isFestivalDay(this.clock.day)) {
-      c.phase = { kind: 'deciding' };
-      c.activity = 'none';
-      return;
-    }
     const def = ACTIVITY_BY_KIND.get(planned.activity);
     c.activity = planned.activity;
-    let until = this.clock.time + planned.duration;
-    // La fiesta es una FECHA, no un turno: si se decide tarde y la duración
-    // sorteada la haría cruzar medianoche, se acorta para que NUNCA quede
-    // "asistiendo" en el día siguiente (invariante del ciclo 10 de
-    // RESEARCH.md — sin esto, empezar a las 23h con 3h de duración deja al
-    // ciudadano en la fiesta fuera de fecha, aunque decidiera ir dentro de
-    // ella). El resto de actividades SÍ cruzan medianoche a propósito
-    // (dormir, por ejemplo) — esto es exclusivo de eventos de calendario.
-    if (planned.activity === 'festival') {
-      const endOfDay = (this.clock.day + 1) * DAY_GAME_SECONDS;
-      until = Math.min(until, endOfDay);
-    }
-    c.phase = { kind: 'doing', until };
+    c.phase = { kind: 'doing', until: this.clock.time + planned.duration };
     c.inside = def?.indoors ?? false;
     if (planned.activity === 'shop' && planned.target) {
       this.economy.registerVisit(planned.target);
@@ -782,8 +865,10 @@ export class Simulation {
       // el importe entra en la caja de ESA tienda (economía circular).
       const got = this.economy.buyFood(shopKey, k, 3);
       this.pantry.set(k, (this.pantry.get(k) ?? 0) + got);
-      // Un capricho si el hogar va holgado (sumidero de dinero).
-      if (this.economy.walletOf(k) > 30) this.economy.spend(k, SHOP_TREAT_PRICE);
+      // Un capricho en BIENES si el hogar va holgado (ciclo 31): ya no se esfuma
+      // sin más — el IVA va al tesoro y el resto paga la importación; escala con
+      // lo que le sobra al hogar (el rico consume más).
+      this.economy.buyGoods(k);
     }
     if (planned.activity === 'clinic') {
       // Consultorio público: la consulta paga una tasa que va al tesoro
@@ -811,22 +896,15 @@ export class Simulation {
     c.z = planned.cell[1] + 0.5;
   }
 
-  /** Celdas/tick en (cx,cz): a pie depende del terreno Y del tiempo (la
-   * lluvia/el frío calan de verdad al ir andando); en coche depende del
-   * terreno (rápido en 'road', al ritmo de un peatón fuera de vía) y el
-   * tiempo apenas se nota — acoplamiento clima↔vehículos (ciclo 6/8 de
-   * RESEARCH.md): quien va protegido dentro de un coche no camina bajo la
-   * lluvia. `outdoor` viene YA calculado del contexto del tick (ctx.weather):
-   * calcularlo aquí otra vez recrearía weatherAt() por cada peatón cada
-   * tick, rompiendo el presupuesto de 50 ms a escala. */
-  private speedAt(cx: number, cz: number, mode: 'foot' | 'car', outdoor: number): number {
-    if (mode === 'foot') return WALK_CELLS_PER_TICK * weatherSpeedFactor('foot', outdoor);
+  /** Celdas/tick en (cx,cz): a pie siempre igual; en coche depende del
+   * terreno (rápido en 'road', al ritmo de un peatón fuera de vía). */
+  private speedAt(cx: number, cz: number, mode: 'foot' | 'car'): number {
+    if (mode === 'foot') return WALK_CELLS_PER_TICK;
     const onRoad = this.grid.get(Math.round(cx), Math.round(cz))?.terrain === 'road';
-    const base = onRoad ? CAR_CELLS_PER_TICK_ROAD : CAR_CELLS_PER_TICK_OFFROAD;
-    return base * weatherSpeedFactor('car', outdoor);
+    return onRoad ? CAR_CELLS_PER_TICK_ROAD : CAR_CELLS_PER_TICK_OFFROAD;
   }
 
-  private stepWalk(c: Citizen, outdoor: number): void {
+  private stepWalk(c: Citizen): void {
     if (c.phase.kind !== 'moving') return;
     const ph = c.phase;
     // Presupuesto en FRACCIONES DE TICK (no celdas): así, si el trayecto
@@ -837,10 +915,15 @@ export class Simulation {
       const a = ph.path[ph.segment];
       const b = ph.path[ph.segment + 1];
       if (!b) {
+        // Llegó a la salida del pueblo: se marcha (ciclo 14).
+        if (this.leaving.has(c.id)) {
+          this.departed.push(c);
+          return;
+        }
         this.beginDoing(c, ph.next);
         return;
       }
-      const speed = this.speedAt(a[0], a[1], ph.mode, outdoor);
+      const speed = this.speedAt(a[0], a[1], ph.mode);
       const segLen = manhattan(a, b);
       const cellsLeft = (1 - ph.t) * segLen;
       const ticksToFinish = speed > 0 ? cellsLeft / speed : Infinity;
@@ -881,28 +964,121 @@ export class Simulation {
       arr[i++] = state;
       arr[i++] = activityId(c.activity);
       arr[i++] = c.phase.kind === 'moving' && c.phase.mode === 'car' ? TravelModeCode.Car : TravelModeCode.Foot;
-      arr[i++] = c.grief;
+      arr[i++] = c.grief; // 8ª columna (AGENT_STRIDE=8): el render apaga la ropa del doliente
     }
     return arr;
   }
 
+  /** Estado agregado de la ciudad (surfacing en el HUD): datos que la sim ya
+   * lleva por dentro y que hasta ahora no salían a la superficie. Puro read. */
+  cityStats(): CityStats {
+    const s = this.economy.stats(this.citizens);
+    const unemployment = s.adults > 0 ? 1 - s.employed / s.adults : 0;
+    let totalWealth = 0;
+    for (const k of this.households.keys()) totalWealth += this.economy.walletOf(k);
+    const avgWealth = this.households.size > 0 ? totalWealth / this.households.size : 0;
+    let sick = 0;
+    let children = 0;
+    let elders = 0;
+    for (const c of this.citizens.values()) {
+      if (c.sick > 0.05) sick++;
+      if (c.age < ADULT_AGE) children++;
+      else if (c.age >= OLD_AGE) elders++;
+    }
+    return {
+      population: this.citizens.size,
+      treasury: this.economy.treasury,
+      unemployment,
+      season: this.weather.season,
+      granary: this.economy.granary,
+      avgWealth,
+      epidemic: this.inEpidemic,
+      sick,
+      tier: this.tier,
+      children,
+      adults: s.adults,
+      elders,
+      employed: s.employed,
+      jobs: s.jobs,
+      buildings: this.index.buildings.length,
+      roadsExtended: this.roadsExtended,
+      carTrips: this.carTrips,
+      vaccinationsGiven: this.vaccinationsGiven,
+      quarantine: this.quarantine,
+      vaccination: this.vaccination,
+      clinicHealing: this.clinicHealing,
+      rentEnabled: this.rentEnabled,
+      autonomousGrowth: this.autonomousGrowth,
+    };
+  }
+
+  // --- DEV (banco de pruebas ?scene=test-dev) ---------------------------------
+  // Utilidades SOLO para el modo dev: no cambian la lógica del juego, solo dejan
+  // forzar/acelerar mecánicas que la sim ya tiene para verlas de un vistazo.
+
+  /** Siembra varios casos índice para disparar una oleada a voluntad. Como es un
+   * disparador del banco de pruebas, GARANTIZA los casos: en un pueblo con
+   * inmunidad de rebaño (vacunación) apenas quedan susceptibles, así que a los
+   * elegidos se les levanta la inmunidad para que el brote arranque de verdad.
+   * Si el rebaño sigue inmune la oleada no cundirá (esa es justo la mecánica a
+   * observar: apagar la vacuna y ver la diferencia). Determinista (orden del Map). */
+  forceEpidemic(count = 4): void {
+    let seeded = 0;
+    for (const c of this.citizens.values()) {
+      if (seeded >= count) break;
+      if (c.sick > 0) continue; // ya enfermo, no cuenta como caso nuevo
+      c.immune = 0;
+      c.sick = SICK_ONSET;
+      seeded++;
+    }
+    this.inEpidemic = false; // que stepOutbreak la vuelva a declarar al cruzar el umbral
+  }
+
+  /** Avanza la sim N días de juego de golpe (saltar de estación, madurar). Usa
+   * el mismo `step()` que el bucle normal → estado idéntico, solo sin esperar. */
+  advanceDays(days: number): void {
+    const ticks = Math.round((days * DAY_GAME_SECONDS) / TICK_GAME_S);
+    for (let i = 0; i < ticks; i++) this.step();
+  }
+
   /** Estado legible de un ciudadano (inspector T3.10). */
-  describe(id: number): { name: string; activity: ActivityKind; activityLabel: string; needs: Record<string, number>; home: [number, number]; work?: [number, number]; health: number; wallet: number; pantry: number; prestige: number; grief: number } | null {
+  describe(id: number): Omit<CitizenInfoMsg, 'type' | 'id'> | null {
     const c = this.citizens.get(id);
     if (!c) return null;
     const homeKey = `${c.home.ax},${c.home.az}`;
+    // Quién es (ciclo 23): edad, etapa de vida y con quién comparte la vida —
+    // el inspector deja de ser una hoja de stats y pasa a mostrar una PERSONA.
+    const lifeStage = c.age < ADULT_AGE ? 'niño/a' : c.age >= OLD_AGE ? 'mayor' : 'adulto/a';
+    const partner = c.partnerId !== null ? this.citizens.get(c.partnerId) : undefined;
+    // Vocación (ciclo 36) y si el empleo actual la colma (ciclo 36).
+    const jobRole = c.work ? catalogData(c.work.buildingId)?.role : undefined;
+    // Alquiler diario del hogar (ciclo 29): mismo cálculo que chargeRent.
+    const homeTier = catalogData(c.home.buildingId)?.tier ?? 0;
+    const families = this.households.get(homeKey) ?? 0;
+    const rent = this.rentEnabled && families > 0
+      ? RENT_PER_DAY * families * (1 + RENT_TIER_FACTOR * homeTier)
+      : 0;
     return {
       name: c.name,
+      age: c.age,
+      lifeStage,
+      partnerName: partner?.name,
       activity: c.activity,
       activityLabel: activityLabel(c.activity, c.phase.kind === 'moving' || c.phase.kind === 'waitingPath'),
       needs: { ...c.needs },
       home: [c.home.ax, c.home.az],
       work: c.work ? [c.work.ax, c.work.az] : undefined,
       health: c.health,
+      grief: c.grief,
+      sick: c.sick,
       wallet: this.economy.walletOf(homeKey),
       pantry: this.pantry.get(homeKey) ?? 0,
       prestige: this.economy.prestigeOf(homeKey),
-      grief: c.grief,
+      vocation: vocationOf(c.personality),
+      vocationMet: jobFitsVocation(c.personality, jobRole),
+      jobRole,
+      childrenRaised: c.childrenRaised,
+      rent,
     };
   }
 

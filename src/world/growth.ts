@@ -10,9 +10,9 @@
  * El worker aplica la colocación a SU grid y emite `cityGrew`; el main
  * replica la colocación en el grid de render (misma llamada, mismo resultado).
  */
-import { Grid, Rot, Terrain } from './grid';
+import { Grid, Rot } from './grid';
 import { catalogData, CATALOG_DATA, Tier } from './catalogData';
-import { Rng, createRng } from '../rng';
+import { Rng } from '../rng';
 
 export interface GrowthPlacement {
   id: string;
@@ -39,6 +39,11 @@ export interface DemandInput {
   /** Salud media de la población y si ya existe consultorio (ciclo 5). */
   avgHealth: number;
   hasClinic: boolean;
+  /** Población TOTAL (no solo adultos) y su techo (ciclo 30): por encima del
+   * techo el pueblo ya no atrae forasteros (la inmigración se corta; el
+   * crecimiento vegetativo sigue hasta que la natalidad se satura). */
+  totalPopulation: number;
+  carryingCapacity: number;
 }
 
 export type DemandKind = 'residential' | 'commerce' | 'work' | 'school' | 'clinic' | null;
@@ -52,13 +57,17 @@ export function computeDemand(d: DemandInput): DemandKind {
   const unemployment = d.population > 0 ? (d.population - d.employed) / d.population : 0;
   // Niños sin plaza escolar → escuela (antes que nada: la escuela es sagrada).
   if (d.children > d.studentSlots && d.children >= 3) return 'school';
-  // Salud media baja y sin consultorio → clínica (una población enferma no
-  // rinde en el trabajo: atender esto es más urgente que más empleos).
-  if (!d.hasClinic && d.avgHealth < 0.88 && d.population >= 10) return 'clinic';
+  // Salud media baja → clínica reactiva; pero con la mortalidad (ciclo 11) los
+  // frágiles MUEREN y la media de los vivos ya no baja, así que un pueblo que
+  // crece también se dota de sanidad de forma PROACTIVA (infraestructura
+  // pública) — la clínica existe justamente para PREVENIR esas muertes.
+  if (!d.hasClinic && d.population >= 10 && (d.avgHealth < 0.88 || d.population >= 20)) return 'clinic';
   // Paro alto, o parados sin ninguna vacante → un lugar de trabajo.
   if (unemployment > 0.35 || (openJobs <= 0 && unemployment >= 0.15)) return 'work';
   // Gente queriendo venir (hay trabajo, o la ciudad va bien) y sin casas → vivienda.
-  if (d.freeHousing <= 0 && (openJobs >= 1 || unemployment < 0.1)) return 'residential';
+  // Freno denso-dependiente (ciclo 30): por encima del techo el pueblo ya no
+  // tira de forasteros — deja de construir vivienda de inmigración y se aplana.
+  if (d.freeHousing <= 0 && d.totalPopulation < d.carryingCapacity && (openJobs >= 1 || unemployment < 0.1)) return 'residential';
   // Tiendas saturadas (prosperidad alta sostenida) o pueblo sin tienda.
   if (d.shops === 0 && d.population >= 8) return 'commerce';
   if (d.shops > 0 && d.avgProsperity > 0.75 && d.population / d.shops > 14) return 'commerce';
@@ -82,6 +91,84 @@ export function itemForDemand(kind: Exclude<DemandKind, null>, tier: Tier): stri
     case 'clinic':
       return 'clinic';
   }
+}
+
+/**
+ * Ciclo 12 — ATRACTIVIDAD migratoria [0.5,1] (acoplamiento prestigio→inmigración,
+ * avanza T4.3). Cuánta gente ATRAE la ciudad cuando abre una vivienda nueva:
+ * una ciudad próspera, sana, con empleo y buena FAMA (prestigio de sus hogares,
+ * ciclo 9) llena las casas; una que se las arregla mal las deja a medias, y la
+ * población deja de ser un caudal fijo para volverse consecuencia de la calidad
+ * de vida. Base alta a propósito: el prestigio se GANA con el tiempo (empieza en
+ * 0), así que no debe asfixiar el arranque — solo lo empuja hacia arriba cuando
+ * el pueblo ya prospera, y lo frena cuando va mal (paro, hambre, enfermedad).
+ */
+export function townAttractiveness(a: {
+  employment: number;
+  avgHealth: number;
+  avgFood: number;
+  avgPrestige: number;
+}): number {
+  const raw = 0.45 + 0.2 * a.employment + 0.15 * a.avgHealth + 0.1 * a.avgFood + 0.35 * a.avgPrestige;
+  return Math.min(1, Math.max(0.5, raw));
+}
+
+// --- Capacidad de carga (ciclo 30 — crecimiento logístico, no exponencial) ----
+// Sin esto el pueblo crecía en RETROALIMENTACIÓN POSITIVA sin freno (casa nueva →
+// familia → empleo → prosperidad → más casas…): explotaba, y de forma CAÓTICA
+// (misma sim, día 40: de 22 a 353 hab. según la semilla — 16×). En la realidad
+// el crecimiento tiene freno DENSO-DEPENDIENTE: al llenarse el pueblo la
+// oportunidad por cabeza se satura, el suelo escasea y tanto la INMIGRACIÓN como
+// la NATALIDAD (coste de la vida, vivienda cara — transición demográfica) caen.
+// Modelado como negativa fuerte hacia una capacidad de carga K: el resultado es
+// una S logística estable y CONSISTENTE entre semillas, no una exponencial que
+// revienta. K es fijo de momento (un pueblo); un ciclo futuro lo atará a la BASE
+// ECONÓMICA (empleos/servicios) para que la ciudad pueda tender a §5 (10.000) a
+// medida que su infraestructura crece — no de golpe.
+/** Techo poblacional hacia el que se estabiliza el pueblo (media saturación de
+ * la natalidad e inmigración cortada por encima). */
+export const CARRYING_CAPACITY = 120;
+
+/** Factor de natalidad por saturación [0,1]: 1 con el pueblo vacío, baja lineal
+ * y llega a 0 en K (la vida se encarece, se tienen menos hijos). Pura. */
+export function fertilityFactor(population: number, capacity = CARRYING_CAPACITY): number {
+  return Math.max(0, Math.min(1, 1 - population / capacity));
+}
+
+// --- Emigración digna (ciclo 14 — cierra T4.3, honra RESEARCH.md §6.2) --------
+// La otra mitad de la migración: quien no encuentra sustento en el pueblo,
+// tras AGUANTAR unos años, se marcha andando por la carretera (no se despawnea
+// en silencio: se le ve salir y se narra en la Crónica). Con histéresis fuerte:
+// hace falta penuria SOSTENIDA, y el pueblo se recupera antes de que nadie huya
+// si las cosas mejoran. Un pueblo diminuto NO se disuelve (suelo de población).
+/** Por debajo de esta población nadie emigra (un caserío no se despuebla solo). */
+export const EMIGRATE_POP_FLOOR = 12;
+/** Años de penuria sostenida antes de hacer las maletas. Bajo a propósito: la
+ * gente se va ANTES de morir de hambre (el ciclo 11 mataría en ~5 años), no
+ * después — emigrar es huir de la miseria, no su desenlace. */
+export const EMIGRATE_PRESSURE_LIMIT = 3;
+/** Ahorro del hogar por debajo del cual no hay colchón (penuria económica). */
+export const EMIGRATE_SUBSISTENCE = 6;
+
+/** ¿Vive este hogar una penuria real ESTE año? Desesperanza ECONÓMICA: tiene
+ * adultos en edad de trabajar, NINGUNO tiene empleo y no hay colchón de ahorro
+ * — no pueden ganarse la vida aquí. Los jubilados NO cuentan (su hogar se
+ * sostiene con la pensión, ciclo 3, no emigra a buscar trabajo); la clave es la
+ * FALTA DE SUSTENTO, no el hambre ya consumada: se emigra para no llegar a ella.
+ * Pura y determinista. */
+export function householdHardship(a: {
+  workingAdults: number;
+  employed: number;
+  wallet: number;
+}): boolean {
+  return a.workingAdults > 0 && a.employed === 0 && a.wallet < EMIGRATE_SUBSISTENCE;
+}
+
+/** Actualiza la presión migratoria de un hogar: sube 1 por año de penuria, baja
+ * 2 por año bueno (la esperanza se recupera antes que se pierde). Acotada. */
+export function updateEmigrationPressure(prev: number, hardship: boolean): number {
+  const next = hardship ? prev + 1 : prev - 2;
+  return Math.max(0, Math.min(EMIGRATE_PRESSURE_LIMIT + 1, next));
 }
 
 /**
@@ -144,6 +231,65 @@ export function findParcel(
   return best;
 }
 
+// --- T4.4 (núcleo): extensión autónoma de vías --------------------------------
+// Geometría PURA y testeable de "la ciudad traza carretera nueva" (el test
+// estrella del ROADMAP §4.4). Todavía NO está enganchada al bucle de crecimiento
+// (esa integración — cuándo/dónde extender + replicar en render/pathfinding vía
+// evento worker→main — es el siguiente paso, deliberadamente aparte para no
+// desestabilizar el crecimiento, ya de por sí sensible). Aquí solo la geometría.
+
+/** Extiende una vía de 3 celdas de ancho desde `from` en la dirección ortogonal
+ * `dir` (unitaria: (±1,0) o (0,±1)), hasta `length` celdas, con márgenes de
+ * hierba a los lados y arbolado con huecos (el rasgo de identidad del juego).
+ * Solo pisa terreno SIN edificios; se detiene si choca con uno (no arrasa el
+ * pueblo). Devuelve las celdas de VÍA nuevas (para que el llamador refresque
+ * render y grafo de navegación). Determinista (RNG con semilla). */
+export function extendRoad(
+  grid: Grid,
+  from: [number, number],
+  dir: { dx: number; dz: number },
+  length: number,
+  rng: Rng,
+): Array<[number, number]> {
+  const laid: Array<[number, number]> = [];
+  const px = -dir.dz; // perpendicular (rotación 90°) para el ancho de la vía
+  const pz = dir.dx;
+  for (let step = 1; step <= length; step++) {
+    const bx = from[0] + dir.dx * step;
+    const bz = from[1] + dir.dz * step;
+    // ¿Hay edificio en la franja de la calzada? Si sí, cortar aquí.
+    let blocked = false;
+    for (let w = -1; w <= 1; w++) {
+      if (grid.get(bx + px * w, bz + pz * w)?.building) { blocked = true; break; }
+    }
+    if (blocked) break;
+    // Calzada de 3 celdas (limpia props que hubiera) + márgenes de hierba (±2).
+    for (let w = -1; w <= 1; w++) {
+      const cx = bx + px * w, cz = bz + pz * w;
+      grid.setProp(cx, cz, undefined);
+      grid.setTerrain(cx, cz, 'road');
+      laid.push([cx, cz]);
+    }
+    for (const m of [-2, 2]) {
+      const cx = bx + px * m, cz = bz + pz * m;
+      if (!grid.get(cx, cz)?.building) grid.setTerrain(cx, cz, 'grass');
+    }
+    // Arbolado con huecos en el margen exterior (±3), cada 2 celdas (identidad).
+    if (step % 2 === 0 && rng.next() > 0.35) {
+      for (const m of [-3, 3]) {
+        const cx = bx + px * m, cz = bz + pz * m;
+        const c = grid.get(cx, cz);
+        // Terreno abierto (campo, hierba o sin sembrar): planta. No sobre
+        // edificios, calzada ni agua.
+        if (!c?.building && !c?.prop && c?.terrain !== 'road' && c?.terrain !== 'water') {
+          grid.setProp(cx, cz, { id: rng.next() < 0.6 ? 'tree-cypress' : 'tree-blob', variant: Math.floor(rng.next() * 1e9) });
+        }
+      }
+    }
+  }
+  return laid;
+}
+
 /** canPlace + margen de respeto: 1 celda libre alrededor (retranqueo/paso). */
 function clearForGrowth(grid: Grid, w: number, d: number, ax: number, az: number, rot: Rot): boolean {
   if (!grid.canPlace(w, d, ax, az, rot)) return false;
@@ -169,160 +315,4 @@ export function townCenter(anchors: Array<[number, number]>): [number, number] {
     sz += z;
   }
   return [Math.round(sx / anchors.length), Math.round(sz / anchors.length)];
-}
-
-// ---------------------------------------------------------------------------
-// T4.4 — Modo autónomo: cuando ya no hay parcela servible junto a una vía
-// existente, la ciudad se abre un RAMAL nuevo (siempre ortogonal, con el
-// mismo margen verde arbolado que las vías sembradas — ver seed.ts) en vez
-// de quedarse parada. Es la pieza que falta para "un pueblo que se traza
-// sus propias calles".
-// ---------------------------------------------------------------------------
-
-/** ¿La vía que pasa por (cx,cz) corre en X (horizontal) o en Z (vertical)?
- * Cuenta vía en ambos ejes a corta distancia: el eje con más aciertos es
- * el de la calle (la franja solo mide 3 celdas de ancho en el eje corto). */
-function roadAxis(grid: Grid, cx: number, cz: number): 'x' | 'z' {
-  let xCount = 0;
-  let zCount = 0;
-  for (let d = 1; d <= 3; d++) {
-    if (grid.get(cx + d, cz)?.terrain === 'road' || grid.get(cx - d, cz)?.terrain === 'road') xCount++;
-    if (grid.get(cx, cz + d)?.terrain === 'road' || grid.get(cx, cz - d)?.terrain === 'road') zCount++;
-  }
-  return xCount >= zCount ? 'x' : 'z';
-}
-
-export interface RoadExtension {
-  cx0: number;
-  cz0: number;
-  cx1: number;
-  cz1: number;
-}
-
-/**
- * Pinta un ramal nuevo perpendicular a la vía encontrada en (rx,rz), hacia
- * el lado `dir` de su eje `axis`, con el mismo perfil que las vías
- * sembradas: 3 celdas de vía + 2 de margen verde a cada lado, arbolado con
- * huecos. PURA salvo por la mutación del grid — sin rng externo: el
- * arbolado sale de un rng propio sembrado por las coordenadas, así el hilo
- * principal puede repetir EXACTAMENTE la misma pintura en su grid espejo
- * (evento `roadBuilt`) con solo estos argumentos, sin recibir el estado del
- * rng compartido de la sim (la lección de esta sesión: no perturbar el rng
- * compartido con algo que no necesita estar sincronizado bit a bit).
- * Devuelve null si el hueco (vía+márgenes, `length` celdas) no está libre.
- * `dryRun`: solo comprueba el hueco, no pinta nada — lo usa `extendRoad`
- * para probar candidatos sin mutar el grid hasta encontrar uno que sirva.
- */
-export function paintRoadExtension(grid: Grid, rx: number, rz: number, axis: 'x' | 'z', dir: 1 | -1, length: number, dryRun = false): RoadExtension | null {
-  const alongIsZ = axis === 'x'; // vía horizontal → ramal vertical (a lo largo de Z)
-  const acrossCenter = alongIsZ ? rx : rz;
-  const alongStart0 = alongIsZ ? rz : rx;
-
-  const at = (along: number, across: number): [number, number] => (alongIsZ ? [across, along] : [along, across]);
-
-  // Borde exterior del margen YA existente en la dirección dir (hasta 10
-  // celdas: vía(3)+margen(2) más un margen de seguridad).
-  let alongEdge = alongStart0;
-  for (let steps = 0; steps < 10; steps++) {
-    const probe = alongEdge + dir;
-    const [x, z] = at(probe, acrossCenter);
-    const cell = grid.get(x, z);
-    if (!cell || (cell.terrain !== 'road' && cell.terrain !== 'grass')) break;
-    alongEdge = probe;
-  }
-  const roadStart = alongEdge + dir; // primera celda del ramal nuevo, tocando el margen viejo
-
-  // El hueco entero (vía + márgenes a ambos lados) debe estar libre.
-  for (let a = 0; a < length; a++) {
-    const along = roadStart + dir * a;
-    for (let c = -3; c <= 3; c++) {
-      const [x, z] = at(along, acrossCenter + c);
-      const cell = grid.get(x, z);
-      if (!cell || cell.building || cell.terrain === 'water') return null;
-    }
-  }
-
-  if (dryRun) {
-    const alongMin0 = Math.min(roadStart, roadStart + dir * (length - 1));
-    const alongMax0 = Math.max(roadStart, roadStart + dir * (length - 1));
-    const [dx0, dz0] = at(alongMin0, acrossCenter - 3);
-    const [dx1, dz1] = at(alongMax0, acrossCenter + 3);
-    return { cx0: Math.min(dx0, dx1), cz0: Math.min(dz0, dz1), cx1: Math.max(dx0, dx1), cz1: Math.max(dz0, dz1) };
-  }
-
-  const treeRng = createRng((roadStart * 92821 + acrossCenter * 68917 + dir * 7) | 0);
-  for (let a = 0; a < length; a++) {
-    const along = roadStart + dir * a;
-    for (let c = -3; c <= 3; c++) {
-      const terrain: Terrain = Math.abs(c) <= 1 ? 'road' : 'grass';
-      const [x, z] = at(along, acrossCenter + c);
-      grid.setTerrain(x, z, terrain);
-      if (terrain === 'road') grid.setProp(x, z, undefined); // nada de árboles en el asfalto
-    }
-    // Arbolado con huecos en los márgenes exteriores (mismo patrón que seed.ts).
-    if (treeRng.next() >= 0.35) {
-      for (const c of [-3, 3]) {
-        const [x, z] = at(along, acrossCenter + c);
-        const id = treeRng.next() < 0.6 ? 'tree-cypress' : 'tree-blob';
-        grid.setProp(x, z, { id, variant: Math.floor(treeRng.next() * 1e9) });
-      }
-    }
-  }
-
-  const alongMin = Math.min(roadStart, roadStart + dir * (length - 1));
-  const alongMax = Math.max(roadStart, roadStart + dir * (length - 1));
-  const [cx0, cz0] = at(alongMin, acrossCenter - 3);
-  const [cx1, cz1] = at(alongMax, acrossCenter + 3);
-  return { cx0: Math.min(cx0, cx1), cz0: Math.min(cz0, cz1), cx1: Math.max(cx0, cx1), cz1: Math.max(cz0, cz1) };
-}
-
-/**
- * Busca UN punto de vía con sitio de verdad para un ramal — T4.4, modo
- * autónomo. Barre en anillos desde el centro (como `findParcel`) y para
- * CADA celda de vía/camino que encuentra prueba (en seco, sin mutar) sus
- * dos lados perpendiculares; sigue mirando más lejos si ese punto concreto
- * está bloqueado, en vez de rendirse en el primer acierto.
- *
- * Corrige un fallo real descubierto verificando el escenario de granja
- * única (T4.4): la versión anterior solo miraba la celda de vía MÁS
- * CERCANA al centro y probaba solo sus dos lados — en cuanto la
- * densificación normal (casitas a ambos lados de toda vía servible, que es
- * justo lo que `findParcel` produce) flanquea esa celda concreta, la
- * función devolvía null para siempre, incluso con kilómetros de vía
- * servible más allá. Comprobado con una sim de 60 días sobre el mundo
- * sembrado por defecto: 0 ramales nunca, pese a sus vías casi infinitas.
- * El lado a probar primero en cada candidato sale de sus propias
- * coordenadas (determinista, no del rng compartido — no hace falta
- * sincronizar bit a bit una elección estructural sin consecuencia de
- * juego, misma lección que el arbolado de `paintRoadExtension`).
- * null si no hay ningún punto con sitio en todo el radio de búsqueda.
- */
-export function extendRoad(
-  grid: Grid,
-  center: [number, number],
-  length = 16,
-  searchRadius = 60,
-): (RoadExtension & { rx: number; rz: number; axis: 'x' | 'z'; dir: 1 | -1; length: number }) | null {
-  const [ccx, ccz] = center;
-  for (let r = 0; r <= searchRadius; r++) {
-    for (let i = -r; i <= r; i++) {
-      for (const [cx, cz] of [
-        [ccx + i, ccz - r],
-        [ccx + i, ccz + r],
-        [ccx - r, ccz + i],
-        [ccx + r, ccz + i],
-      ] as Array<[number, number]>) {
-        const cell = grid.get(cx, cz);
-        if (!cell || (cell.terrain !== 'road' && cell.terrain !== 'path')) continue;
-        const axis = roadAxis(grid, cx, cz);
-        const firstDir: 1 | -1 = ((cx * 92821 + cz * 68917) & 1) === 0 ? 1 : -1;
-        for (const dir of [firstDir, (firstDir * -1) as 1 | -1]) {
-          if (!paintRoadExtension(grid, cx, cz, axis, dir, length, true)) continue;
-          const box = paintRoadExtension(grid, cx, cz, axis, dir, length);
-          if (box) return { ...box, rx: cx, rz: cz, axis, dir, length };
-        }
-      }
-    }
-  }
-  return null;
 }

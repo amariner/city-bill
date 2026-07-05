@@ -24,6 +24,8 @@ export class WorldIndex {
   byRole = new Map<SimRole, SimBuilding[]>();
   /** Celdas junto a agua o arboledas: destinos de paseo. */
   strollSpots: CellXZ[] = [];
+  /** Celdas de carretera (ciclo 14 — para hallar la salida del pueblo). */
+  roadCells: CellXZ[] = [];
 
   constructor(readonly grid: Grid) {
     this.rebuild();
@@ -33,6 +35,7 @@ export class WorldIndex {
     this.buildings = [];
     this.byRole = new Map();
     this.strollSpots = [];
+    this.roadCells = [];
     const seen = new Set<string>();
     const waterCells: CellXZ[] = [];
     const treeCells: CellXZ[] = [];
@@ -42,6 +45,7 @@ export class WorldIndex {
         const cx = Math.floor(k / 65536) - 32768;
         const cz = (k % 65536) - 32768;
         if (cell.terrain === 'water') waterCells.push([cx, cz]);
+        if (cell.terrain === 'road') this.roadCells.push([cx, cz]);
         if (cell.prop) treeCells.push([cx, cz]);
         const b = cell.building;
         if (!b || b.anchorX !== cx || b.anchorZ !== cz) return;
@@ -81,6 +85,22 @@ export class WorldIndex {
     // pero tras deserializar puede variar el orden: fijamos por coordenada).
     this.buildings.sort((a, b) => a.ax - b.ax || a.az - b.az);
     this.strollSpots.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    this.roadCells.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  }
+
+  /** Salida del pueblo (ciclo 14): la celda de carretera más lejana del centro
+   * — el punto por donde la vía abandona lo construido. Determinista. */
+  townExit(center: [number, number]): CellXZ | null {
+    let best: CellXZ | null = null;
+    let bestD = -1;
+    for (const [rx, rz] of this.roadCells) {
+      const d = Math.abs(rx - center[0]) + Math.abs(rz - center[1]);
+      if (d > bestD) {
+        bestD = d;
+        best = [rx, rz];
+      }
+    }
+    return best;
   }
 
   ofRole(role: SimRole): SimBuilding[] {

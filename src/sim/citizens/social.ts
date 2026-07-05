@@ -7,7 +7,9 @@
 import { Citizen } from './citizen';
 import { restore } from './needs';
 import { TICK_GAME_S } from '../clock';
-import { Rng, createRng } from '../../rng';
+import { Rng } from '../../rng';
+import { consoleGriefBy } from '../grief';
+import { maybeInfect, SICK_ISOLATE } from '../contagion';
 
 /** Distancia máx. (celdas) para pararse a charlar. */
 const CHAT_RANGE = 3;
@@ -23,17 +25,21 @@ export const CHAT_RESTORE_PER_HOUR = 0.9;
 /** Afinidad inicial entre convecinos/compañeros; crece con encuentros. */
 export const AFFINITY_SEED = 0.15;
 export const AFFINITY_PER_CHAT = 0.08;
+/** Afinidad ganada en una charla cuando AMBOS penan (ciclo 20): el luto une —
+ * consolarse mutuamente estrecha lazos más rápido que una charla cualquiera. */
+export const GRIEF_BOND_AFFINITY = 0.16;
+
+/** Afinidad que deja una charla: la normal, o la reforzada si los dos están de
+ * duelo (duelo compartido → vínculo, ciclo 20). Pura y testeable. */
+export function chatBond(a: Citizen, b: Citizen): number {
+  return a.grief > 0 && b.grief > 0 ? GRIEF_BOND_AFFINITY : AFFINITY_PER_CHAT;
+}
 
 export interface ChatPair {
   a: number;
   b: number;
   /** Segundos de juego restantes. */
   remaining: number;
-}
-
-export interface SocialSaveState {
-  chats: ChatPair[];
-  rngState: number;
 }
 
 export class SocialSystem {
@@ -45,23 +51,6 @@ export class SocialSystem {
 
   isChatting(id: number): boolean {
     return this.chatting.has(id);
-  }
-
-  /** Guardado (T2.6): charlas en curso + estado del rng propio (independiente
-   * del rng general de `Simulation`). `chatting` no hace falta serializarlo:
-   * se reconstruye por completo a partir de `chats`. */
-  serialize(): SocialSaveState {
-    return { chats: this.chats.map((c) => ({ ...c })), rngState: this.rng.state };
-  }
-
-  restore(state: SocialSaveState): void {
-    this.chats = state.chats.map((c) => ({ ...c }));
-    this.chatting = new Set();
-    for (const c of this.chats) {
-      this.chatting.add(c.a);
-      this.chatting.add(c.b);
-    }
-    this.rng = createRng(state.rngState);
   }
 
   /** Se conocen (vecinos, compañeros) — siembra afinidad simétrica. */
@@ -76,7 +65,7 @@ export class SocialSystem {
    * Hash espacial por buckets de 4 celdas: solo se comparan vecinos de bucket
    * (O(n) amortizado; CHAT_RANGE=1.6 < 4 garantiza que no se escapa ninguno).
    */
-  detectEncounters(walkers: Citizen[], tick: number): ChatPair[] {
+  detectEncounters(walkers: Citizen[], tick: number, quarantine = true): ChatPair[] {
     const started: ChatPair[] = [];
     const BUCKET = 4;
     const buckets = new Map<number, Citizen[]>();
@@ -88,6 +77,7 @@ export class SocialSystem {
     for (const a of walkers) {
       if (this.chatting.has(a.id) || a.needs.social >= SOCIAL_THRESHOLD) continue;
       if (tick - a.lastChatTick < CHAT_COOLDOWN_TICKS) continue;
+      if (quarantine && a.sick > SICK_ISOLATE) continue; // cuarentena (ciclo 26): el que se siente mal no se para a charlar
       let paired = false;
       for (let dx = -1; dx <= 1 && !paired; dx++) {
         for (let dz = -1; dz <= 1 && !paired; dz++) {
@@ -97,6 +87,7 @@ export class SocialSystem {
             if (b.id <= a.id) continue; // cada par una sola vez, determinista
             if (this.chatting.has(b.id) || b.needs.social >= SOCIAL_THRESHOLD) continue;
             if (tick - b.lastChatTick < CHAT_COOLDOWN_TICKS) continue;
+            if (quarantine && b.sick > SICK_ISOLATE) continue; // cuarentena (ciclo 26): no te paras con quien está muy enfermo
             if (!a.friends.has(b.id)) continue; // solo conocidos se paran
             const ex = a.x - b.x;
             const ez = a.z - b.z;
@@ -129,10 +120,16 @@ export class SocialSystem {
       const b = citizens.get(chat.b);
       if (a) restore(a.needs, 'social', CHAT_RESTORE_PER_HOUR * hours);
       if (b) restore(b.needs, 'social', CHAT_RESTORE_PER_HOUR * hours);
+      // Consuelo cara a cara (ciclo 19): escala con la intimidad y el duelo
+      // compartido — quien charla contigo te alivia la pena según quién es.
+      if (a && b) {
+        consoleGriefBy(a, b, hours); consoleGriefBy(b, a, hours);
+        maybeInfect(a, b, this.rng); // contagio (ciclo 25): el trato cara a cara pega la enfermedad
+      }
       if (chat.remaining <= 0 || !a || !b) {
         ended.push(chat);
         if (a && b) {
-          SocialSystem.acquaint(a, b, AFFINITY_PER_CHAT);
+          SocialSystem.acquaint(a, b, chatBond(a, b)); // el luto une (ciclo 20)
           a.lastChatTick = tick;
           b.lastChatTick = tick;
         }

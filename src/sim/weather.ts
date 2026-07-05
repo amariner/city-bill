@@ -16,7 +16,7 @@ import { createRng } from '../rng';
 export type Season = 'primavera' | 'verano' | 'otoño' | 'invierno';
 const SEASONS: Season[] = ['invierno', 'primavera', 'verano', 'otoño'];
 /** Días de juego por estación (año de 4 estaciones iguales). */
-const DAYS_PER_SEASON = 20;
+export const DAYS_PER_SEASON = 20;
 
 export interface Weather {
   season: Season;
@@ -29,6 +29,33 @@ export interface Weather {
 
 function seasonAt(day: number): Season {
   return SEASONS[Math.floor(day / DAYS_PER_SEASON) % SEASONS.length];
+}
+
+/** Días de un año completo (4 estaciones). */
+export const DAYS_PER_YEAR = DAYS_PER_SEASON * SEASONS.length;
+
+/**
+ * Calidez estacional CONTINUA [-1,1] para el crossfade visual (T5.1): −1 en el
+ * corazón del invierno, +1 en el del verano, cruzando suave por primavera/otoño.
+ * Pura y determinista (solo el día); la usa el render para graduar luz y cielo.
+ * SEASONS = [invierno(0-20), primavera, verano(40-60), otoño] → el invierno cae
+ * en el centro del primer bloque (día≈10) y el verano en el tercero (día≈50).
+ */
+export function seasonalWarmth(day: number): number {
+  const p = ((day % DAYS_PER_YEAR) + DAYS_PER_YEAR) % DAYS_PER_YEAR / DAYS_PER_YEAR; // [0,1)
+  const winterCenter = (0.5 * DAYS_PER_SEASON) / DAYS_PER_YEAR; // centro del invierno
+  return -Math.cos(2 * Math.PI * (p - winterCenter));
+}
+
+/** Nombre de la fiesta según la ESTACIÓN en que cae (ciclo 22): una fiesta de
+ * verano no es la de la cosecha — le da identidad cultural al calendario. Pura. */
+export function seasonalFestivalName(day: number): string {
+  switch (seasonAt(day)) {
+    case 'invierno': return 'fiesta de invierno';
+    case 'primavera': return 'fiesta de primavera';
+    case 'verano': return 'verbena de verano';
+    case 'otoño': return 'fiesta de la cosecha';
+  }
 }
 
 /** Determinista por (seed, día): no consume el RNG general de la sim. */

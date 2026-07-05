@@ -113,7 +113,7 @@ repetido, arbolado automático en márgenes de carretera (rasgo de identidad).
 ### Fase 0 — Fundación visual ✅ COMPLETADA
 - [x] Stack Vite+TS+Three, paleta, props (árboles, casa, granero, cobertizo, casita, tienda, ciudadano), primer barrio con pueblo, luz firmada, RNG con semilla.
 
-### Fase 1 — Motor de mundo
+### Fase 1 — Motor de mundo ✅ COMPLETADA
 > Objetivo: del diorama estático a un mundo por rejilla, navegable y barato de renderizar.
 
 - [x] **T1.1 Extraer core.** `core/renderer.ts` (stage+luz), `core/camera.ts` (IsoCamera),
@@ -134,10 +134,13 @@ repetido, arbolado automático en márgenes de carretera (rasgo de identidad).
   boundingSphere) + `core/debugHud.ts` (F3): fps, draw calls, triángulos, chunks
   visibles, celda bajo cursor. Verificado: zoom-in baja chunks vis 10→7 y draw calls
   168→118 (culling activo), 60 fps.
-- [ ] **T1.8 Ciclo de luz.** Interpolación lenta del sol entre dos "horas doradas"
-  (mañana/tarde) ligada al reloj de juego. Las sombras siguen siendo largas SIEMPRE.
-  *Aceptación:* transición imperceptible frame a frame; screenshots en ambos extremos
-  pasan el checklist §4.
+- [x] **T1.8 Ciclo de luz.** `core/renderer.ts` `updateSun(sun, dayFraction)`:
+  el azimut del sol deriva lentamente (±24°) entre la hora dorada de la mañana y
+  la de la tarde, ligado al reloj de JUEGO (main.ts loop); se entibia en los
+  extremos (`palette.sunGolden`). Elevación FIJA → sombras largas SIEMPRE.
+  Verificado por screenshots mañana/tarde: dirección de sombra distinta, ambas
+  largas, calidez visible, una sola dirección de sol (checklist §4). **Con esto,
+  Fase 1 (T1.1–T1.8) queda COMPLETA.**
 
 ### Fase 2 — Construcción
 > Objetivo: el verbo del juego. Colocar cosas bonitas con validación del grid.
@@ -207,11 +210,11 @@ repetido, arbolado automático en márgenes de carretera (rasgo de identidad).
   requieren granjeros para pasar de barbecho a cultivo (feedback 100 % visual: el campo
   cambia de color por franjas). Dinero explícito añadido en RESEARCH.md
   ciclos 2/3/4 (salario, impuestos, economía circular) — ver `sim/economy.ts`.
-- [~] **T3.9 Vehículos** (lógica hecha en `sim/simulation.ts`, ciclo 8 de
-  RESEARCH.md; falta mesh de coche — TODO en `render/citizens.ts`). Coches
-  (T2+) para trayectos > 40 celdas: el ciudadano camina
-  a su coche, el coche recorre el grafo vial (velocidad por tipo de vía, pausa en
-  cruces ocupados), aparca cerca del destino. Tractores recorren campos en franjas.
+- [x] **T3.9 Vehículos** (lógica: ciclo 8 de RESEARCH.md; **mesh de coche hecho**
+  en `render/citizens.ts` — chasis + cabina instanciados, 2 draw calls, colores
+  de `palette.ts`; el peatón no se dibuja al ir en coche). Coches para trayectos
+  > 40 celdas: el coche recorre el grafo vial (velocidad por tipo de vía),
+  aparca cerca del destino. *Pendiente menor:* tractores en franjas de campo.
 - [x] **T3.10 Inspector de ciudadano.** Click en un ciudadano → tarjetita diegética:
   nombre, actividad actual ("Volviendo a casa"), necesidades como barritas mínimas.
   Cámara puede seguirle (tecla F). Es la ventana para VERIFICAR la autonomía.
@@ -226,40 +229,57 @@ repetido, arbolado automático en márgenes de carretera (rasgo de identidad).
   en modo autónomo total), la demanda materializa edificios por etapas con animación de
   construcción (andamio low-poly → pop). Parcela vacía → casita → casa con jardín →
   adosados → bloque, según densidad local. Cada edificio nuevo genera/atrae ciudadanos.
-- [~] **T4.3 Inmigración/emigración.** Familias llegan si hay vivienda+empleo+felicidad;
-  se van si no. La población es consecuencia, no un slider.
-- [x] **T4.4 Modo autónomo.** `world/growth.ts` traza ramales nuevos
-  (extensiones del grafo hacia demanda no servida, siempre ortogonales y
-  arboladas, mismo aspecto que las vías sembradas) cuando `findParcel` no
-  encuentra sitio junto a una vía existente. Activo por defecto (mismo flag
-  `autonomousGrowth` que el resto del crecimiento; sin toggle de UI todavía,
-  como el resto de T4.1-T4.3). **Escenario del test de aceptación estrella**:
-  `world/seedFarm.ts` (`?scenario=farm`) siembra SOLO una granja (farmhouse +
-  barn) junto a un tocón corto de vía, rodeada de campo abierto — el punto de
-  partida mínimo desde el que debe emerger un pueblo sin más input.
-  Verificado headless (`sim.test.ts`): población de la familia inicial a 37+
-  en 30 días de juego, 23 edificios, y **al menos un ramal de carretera
-  nuevo (`roadBuilt`) trazado por sí solo** (día 11 en la semilla de test).
-  Bug real encontrado y corregido durante esta misma verificación — ver
-  bitácora. **Verificado también EN VIVO** en el preview (`?scenario=farm`,
-  ×3, ~15 min reales observados): hacia el día 12 de juego ha emergido un
-  pueblo coherente y bonito — 9-10 edificios (cottages, tienda con toldo
-  rojo) alineados a ambos lados de la calle, orientados hacia ella,
-  espaciados con retranqueo, junto a la granja original — sin ningún input
-  del jugador. Draw calls dentro de presupuesto (64-79) durante todo el
-  crecimiento observado.
+- [x] **T4.3 Inmigración/emigración.** Familias llegan si hay vivienda+empleo+felicidad;
+  se van si no. La población es consecuencia, no un slider. (Inmigración modulada por
+  atractividad = ciclo 12; emigración digna por penuria sostenida = ciclo 14, RESEARCH.md.)
+- [x] **T4.4 Modo autónomo — FUNCIONA (end-to-end, verificado).** Desde una sola
+  granja (`seedFarm`, `?scene=farm`), la ciudad **traza sus propias calles**:
+  cuando hay demanda pero no queda frente construible junto a una vía,
+  `maybeExtendRoad` ramifica/prolonga una calzada de 3 celdas (con márgenes y
+  arbolado, ortogonal) hacia campo abierto, con ritmo (una calle cada ~2 días).
+  El evento `roadExtended` la replica en el render (worker→main) y el pathfinding
+  la usa al instante (lee el grid en vivo). **Test de aceptación estrella en
+  sim.test:** de 3 edificios a un pueblo con calles autotrazadas, población
+  creciente y vida en la calle. Verificado también por screenshot (`?scene=farm`).
+  *Pulido pendiente:* el crecimiento tiende a RIBBON (casas a lo largo de una
+  calle) más que a trama densa 2D — las ramificaciones perpendiculares se
+  acorralan con los frentes; afinar para un pueblo más tupido, y el playtest
+  largo de 30 min. Pero el criterio "de una granja emerge un pueblo sin input"
+  ya se cumple.
+  *NÚCLEO HECHO:* `extendRoad(grid, from, dir, length, rng)` en `growth.ts` (puro,
+  testeado en grid.test): traza calzada de 3 celdas + márgenes de hierba + arbolado
+  con huecos, ortogonal, sin arrasar edificios. *Pendiente (sesión enfocada):* el
+  ENGANCHE — cuándo/dónde extender (cuando `findParcel` falla con demanda viva),
+  replicar las celdas nuevas en render + grafo de pathfinding vía un evento
+  worker→main (como `cityGrew`), y verificar el pueblo emergente a 30 min. Se dejó
+  aparte a propósito: toca crecimiento (caóticamente sensible) + worker + render.
+  *Hallazgo que BAJA el riesgo del enganche:* el pathfinding lee el grid EN VIVO
+  (`walkCost(this.grid.get(nx,nz))`, sin grafo cacheado), así que una vía nueva en
+  el grid de la sim es navegable AL INSTANTE — no hace falta reconstruir grafo. Y
+  como en `extendRoad` la calzada+márgenes son deterministas (sin RNG; solo el
+  arbolado usa RNG), worker y main producen las MISMAS vías aunque el arbolado
+  difiera — la réplica en render puede ser `extendRoad(renderGrid, from,dir,len,rng)`
+  con solo emitir `{from,dir,length}`. Lo verdaderamente delicado que queda es la
+  ESTÉTICA: elegir desde dónde/hacia dónde extender para que el pueblo emergente
+  sea bonito (heurística de periferia + demanda), y el playtest de 30 min.
 - [~] **T4.5 Hitos y tiers.** Población desbloquea tiers del catálogo (T1→T4) con una
   tarjeta de celebración discreta. El tier T4 introduce la estética Zlín (bloques de
   ladrillo, fábrica, tren) — ver CATALOG.md.
 
 ### Fase 5 — Atmósfera y juice
-- [~] **T5.1 Estaciones.** Hechas las 4 variantes de paleta en `palette.ts`
-  (`SEASON_PALETTES`: terreno + vegetación; invierno = campos claros/pálidos,
-  ver bitácora). `sim/weather.ts` ya calculaba la estación desde el ciclo 6 —
-  esto le da su reflejo visual, carencia anotada varias veces. Falta el
-  CROSSFADE lento (hoy el cambio de estación es un corte discreto al
-  reconstruir los chunks, como `cultivation`/`festivalActive`) y las
-  cubiertas blancas de nieve en los edificios (no tocado: exigiría cambiar
+- [x] **T5.1 Estaciones.** Tras el merge, el juego combina DOS capas de estación:
+  (A) **crossfade lento continuo** por `seasonalWarmth(day)` (`weather.ts`) — la
+  LUZ y el cielo (invierno frío/apagado ↔ verano cálido/luminoso, `updateSeason` en
+  `renderer.ts`) y la NIEVE del terreno (el suelo se cubre de blanco en invierno vía
+  `emissive` del material único de terreno, `updateTerrainSeason` en `render/terrain.ts`,
+  aditivo y sin rebuild de malla; factor 0.85 calibrado para que lea sin borrar las
+  sombras). Colores en `palette.ts` (`skyWinter/Summer`, `ambientWinter/Summer`, `snow`).
+  (B) **paleta estacional del terreno y la vegetación** — las 4 variantes de
+  `SEASON_PALETTES` (`palette.ts`: campos/hierba/copas por estación), aplicadas vía
+  `worldView.setSeason(...)` desde el bucle de render. Esta segunda capa es un CORTE
+  discreto al reconstruir los chunks (como `cultivation`/`festivalActive`), no un
+  crossfade. *Pulido pendiente:* fundir la capa (B) con un crossfade como la (A), y
+  cubiertas de nieve en los TEJADOS (hoy la nieve solo cubre el suelo — exigiría tocar
   todos los builders de `props.ts`).
 - [ ] **T5.2 Tren.** Vía + estación + tren con 3-5 vagones en circuito, humo de la
   locomotora con sprites de esferas.
@@ -319,6 +339,53 @@ aprieta, T3.8-T3.10 y la Fase 4 valen más que cualquier cosa de la Fase 5.
 
 ## 6. Diario del agente (rellenar al trabajar)
 > Anota aquí: fecha, tarea, decisiones no obvias, deuda técnica, conflictos con §1.
+
+- 2026-07-05 (sesión merge) — **RECONCILIACIÓN de dos líneas divergentes de
+  `main`**. El `main` local (18 commits: duelo visual, jubilación, guardado
+  T2.6, perf T6.1 + render rico) y `origin/main` (49 commits: ciclos 11-40 de
+  RESEARCH.md — contagio/epidemias, vocación, legado, alquiler, capacidad de
+  carga, vacunación —, la veta INTERFAZ completa y el banco de pruebas
+  `?scene=test-dev`) habían divergido con 18 conflictos. Estrategia elegida
+  (consultada con el usuario): **`origin/main` como base** (es el superset de
+  simulación e interfaz) y se **injertan** las features únicas del local:
+  · **Jubilación (ciclo 12)**: `RETIREMENT_AGE` en `lifecycle.ts`, `retirements`
+    en `LifeEvents`, exclusión del pool laboral en `economy.ts` (el auto-merge ya
+    la traía), evento `citizenRetired` + restore de propósito proporcional al
+    déficit en `simulation.ts`, narración en `chronicle.ts`. Test estructural
+    nuevo en `sim.test.ts` (no una tirada larga con umbral, ver lección abajo).
+  · **Duelo visible en el snapshot**: `AGENT_STRIDE` 7→8 (grief como 8ª columna);
+    `simulation.snapshot()` la escribe, `client.view()` la lee a `AgentView.grief`
+    y `render/citizens.ts` apaga la ropa del doliente. La LÓGICA de duelo es la de
+    `origin` (`grief.ts`, ciclos 16-20, más desarrollada que la del local); solo se
+    injerta el REFLEJO visual. Test de snapshot nuevo.
+  · **Render rico**: el auto-merge ya fundió `worldView.ts` (jardines de prestigio,
+    decoración de fiesta, edificios fundidos por chunk) + `terrain.ts` (paleta
+    estacional + surcos de cultivo, sobre la nieve de `origin`) + `palette.ts`
+    (union). Aquí solo se CABLEA en `main.ts`: `setHomePrestige`/`setCultivation`
+    por eventos nuevos (`homePrestige`/`cultivationChanged`, emitidos en el cierre
+    del día) y `setSeason`/`setFestivalActive` desde el bucle.
+  · **DESCARTADO del local por estar SUPERSEDIDO por `origin`**: la inmigración por
+    `familySize(avgPrestige, avgGrief)` (→ `townAttractiveness` + capacidad de carga
+    de `origin`); el duelo inline (→ `grief.ts`); el trazado de vías `roadBuilt`/
+    `paintRoadExtension` (→ `roadExtended`/`extendRoad` de `origin`); `?scenario=farm`
+    (→ `?scene=farm`); el modo `?stress=N` de T6.1 (harness de perf de render — se
+    puede re-añadir, hoy `test-dev` cubre la observación a escala).
+  · **APLAZADO — deuda registrada: guardado/restauración (T2.6).** El `serialize`/
+    `restore` del local es incompatible con el estado AMPLIADO de `origin` (contagio
+    `sick`/`immune`, alquiler, vacunación, presión migratoria, granero, `childrenRaised`,
+    contadores…): injertarlo tal cual PERDERÍA ese estado en silencio al recargar.
+    Decisión (consultada): NO integrarlo ahora — la escena normal queda sin persistir
+    (como `origin` hoy). **Nota que abarata la tarea futura:** la capa de `economy.ts`
+    YA trae su `EconomySaveState`/`serialize`/`restore` cubriendo el estado nuevo (vino
+    en el auto-merge); falta reescribir `Simulation.serialize/restore` para sus campos
+    escalares nuevos (`rentEnabled`, `vaccination`, `emigrations`, `roadsExtended`,
+    `emigrationPressure`, `inEpidemic`…) + los campos nuevos del ciudadano, y readaptar
+    el test de regresión guardar→restaurar→avanzar. Ver tarea de seguimiento.
+  · **Lección heredada aplicada**: los tests de las features injertadas se escriben como
+    PROPIEDADES ESTRUCTURALES (jubilación libera el puesto; el duelo aparece en la 8ª
+    columna) y NO como umbrales cruzados en una simulación larga con semilla fija —
+    esos son bombas de relojería frente a cualquier cambio de trayectoria del RNG
+    compartido (lección de los ciclos 5/11/12/15 de RESEARCH.md).
 
 - 2026-07-04 (sesión Sonnet) — **T2.6 adelantada de orden, fuera de la
   secuencia estricta de §0.1**. Motivo: el usuario quiere publicar un
@@ -668,3 +735,85 @@ aprieta, T3.8-T3.10 y la Fase 4 valen más que cualquier cosa de la Fase 5.
   · Saltadas de momento en T3.5: 'mirar escaparate' y 'sentarse' (triviales de añadir
     como entradas de ACTIVITIES cuando haya bancos/escaparates renderizados).
   · Teclas 0-3 = velocidad de sim. HUD F3 muestra reloj de juego y agentes.
+- 2026-07-04 (sesión Opus, profundidad de sim + primer render) — Ver la bitácora
+  de RESEARCH.md §4 para los ciclos 11-18 de LÓGICA (salud→mortalidad,
+  prestigio→inmigración, clima→coche, emigración digna, clínica medida, duelo,
+  consuelo, memoria afectiva de la Crónica). Con inmigración+emigración, **T4.3
+  queda COMPLETA**. En render: **T3.9 mesh de coche HECHO** (chasis+cabina
+  instanciados, `render/citizens.ts`; colores nuevos `carBodies`/`carCabin` en
+  `palette.ts`; el peatón no se dibuja en coche). Decisión de proceso importante:
+  · **Verificación visual headless establecida**: Chromium preinstalado
+    (`/opt/pw-browsers`) + `playwright-core` (instalado en el scratchpad, NO en el
+    proyecto) permiten arrancar `npm run dev` y capturar la escena con
+    `--use-gl=swiftshader`. El mesh de coche se verificó en una escena de
+    aislamiento temporal (borrada tras la captura): lee como cochecito low-poly,
+    proporción correcta vs peatón, paleta coherente, sombra. Este es el camino
+    para saldar la deuda visual acumulada (nieve/estaciones T5.1, plaza, jardín
+    de prestigio, franjas de campo T3.8) con screenshot obligatorio del §4.
+  · Trampa aprendida cazando el coche en el mundo vivo: a zoom máximo la cámara
+    puede quedar sobre campo vacío sin agentes, y el wheel de Playwright satura
+    al límite de zoom — para verificar un mesh concreto, una escena de
+    aislamiento es MUCHO más fiable que perseguir agentes en la sim.
+  · **T5.1 completa** (tinte de luz/cielo + NIEVE del terreno por estación, via
+    emissive de un material de terreno único). **T1.8 completa** (ciclo de luz).
+  · **Semilla del mundo aleatoria y PERSISTIDA** (`pickWorldSeed` en main.ts,
+    `seedWorld(seed)` parametrizado): cada jugador tiene SU pueblo (antes era el
+    mismo hardcodeado para todos) y perdura al recargar; `?seed=N` lo fuerza.
+    Verificado: seeds distintas → pueblos distintos, misma seed → mismo pueblo.
+    Es un primer paso de T2.6 (persiste el MUNDO; falta persistir el TIEMPO/
+    estado de sim — el guardado completo §1.4 sigue pendiente).
+- 2026-07-05 (sesión Opus, veta INTERFAZ — surfacing) — La UI se había quedado muy
+  por detrás de la sim (40 ciclos de lógica, casi invisibles). Primer paso de la veta:
+  **HUD de ciudad** (`ui/cityHud.ts`) siempre visible (población/tesoro/paro/estación/
+  granero/salud/riqueza) + **inspector enriquecido** (vocación ✓, legado, alquiler).
+  Sin lógica nueva: sólo plumbing por la frontera única — `CityStats` en `protocol.ts`,
+  `Simulation.cityStats()` puro, en el `SnapshotMsg`, expuesto en `SimClient.city`.
+  Acentos de alerta con colores semánticos de la paleta. Verificado por screenshot
+  (§4). Detalle: `describe()` ahora devuelve `Omit<CitizenInfoMsg,'type'|'id'>` (el
+  contrato del mensaje es la única fuente de verdad). Ver RESEARCH.md §4 (2026-07-05).
+  NOTA: la nieve del TERRENO en invierno (T5.1 paso 2) YA estaba implementada
+  (`updateTerrainSeason`); lo pendiente ahí es sólo el pulido de cubiertas en tejados.
+- 2026-07-05 (sesión Opus — BANCO DE PRUEBAS `?scene=test-dev`) — Nueva escena de
+  desarrollo: abre directamente en una ciudad MADURA y VIVA (≈90-100 hab, ~30
+  edificios, tier 3, calles auto-trazadas, economía y estaciones corriendo) para
+  testear TODAS las mecánicas de un vistazo. Es el banco de pruebas visual del
+  proyecto: cada avance nuevo debe verse aquí. Decisiones y trampas:
+  · **Pre-crecido DENTRO del worker** (no reseed con pérdida). La idea inicial del
+    brief era pre-crecer headless y sembrar el worker con `grid.serialize()`; lo
+    PROBÉ y medí: reseed desde el grid pierde toda la vida acumulada (el
+    constructor de `Simulation` sólo repuebla viviendas a capacidad → ~33 hab, sin
+    niños ni mayores, ~2 personas en la calle → ciudad casi muerta). En su lugar,
+    el worker PRE-CRECE su propia `Simulation` N días (init con `preGrowDays`) y su
+    sim ES la ciudad madura (gente, edades, vínculos, obras intactas: ~90 hab, con
+    30 niños). Devuelve el grid resultante (`grownGrid`) para que el render dibuje
+    EXACTO lo que construyó (cero divergencia). Bloquea el worker ~10 s, no el main
+    (overlay animado + barra de progreso vía `growProgress`). Contratos nuevos en
+    `protocol.ts`: `InitMsg.preGrowDays`, `GrowProgressMsg`, `GrownGridMsg`.
+  · **Determinismo**: semilla FIJA por defecto (`0x7e57de5`, pueblo reproducible
+    para testear a ojo), forzable con `?seed=`; días de maduración con `?days=`
+    (def. 100), encuadre con `?zoom=`. Semilla mínima de granja (`seedFarm`): la
+    ciudad se traza sus propias calles → trama 2D tupida, lo más vistoso.
+  · **Abre al ATARDECER (~19:00), no a mediodía.** MEDIDO headless (contando
+    agentes fuera por hora): a las 13-14h casi todos trabajan/estudian DENTRO (~9
+    en la calle); el pico es tras la jornada, ~19h (~17 fuera, ×2). Un año son 80
+    días (4 estaciones de 20, `weather.ts`); el reloj arranca a medianoche tras el
+    pre-crecido → hay que adelantar a la hora viva. Aun en el pico, la mayoría está
+    dentro (modelo de actividades): la ciudad se ve viva pero NO abarrotada — es la
+    densidad real de la sim, se disfruta mejor observándola en el tiempo.
+  · **Panel dev** (`ui/devPanel.ts`, overlay DOM plegable, sólo test-dev): velocidad,
+    saltar tiempo (+1d/+estación/+año), disparar epidemia, toggles de mecánicas
+    (crecimiento/cuarentena/vacuna/sanidad/alquiler) y contadores en vivo (pob. por
+    edad, empleo/paro, obras, tier, economía, contagio). CERO lógica de sim ahí: sólo
+    LEE `simClient.city` y ENVÍA comandos (`DevMsg` en el contrato). Los toggles
+    reflejan el estado REAL que reporta la sim (fuente de verdad), no un espejo local.
+    `CityStats` ampliado con los agregados del panel; helpers dev en `Simulation`
+    (`forceEpidemic` garantiza casos índice levantando inmunidad; `advanceDays`).
+  · **Salto de tiempo NO congela**: `advanceDays` a 0.2 s/día-de-juego bloquearía
+    el worker ~16 s en un "+año". Se ENCOLA (`pendingSkip`) y el bucle lo consume por
+    lotes (`SKIP_TICKS_PER_FRAME`) → el salto se VE correr (reloj y estaciones
+    girando) en vez de congelar. Verificado: +estación pasa otoño→invierno en ~3 s.
+  · Todo verificado end-to-end en navegador con Playwright (disparar epidemia:
+    sana→enfermos; toggles; salto con cambio de estación; sin errores de página).
+    `tsc` limpio, `grid.test` 33/33. Refactor de `main.ts`: `buildRenderAndUi(grid)`
+    separado de la creación del `SimClient` (el render se monta al llegar el grid
+    maduro; el juego normal lo llama sincrónico como antes).

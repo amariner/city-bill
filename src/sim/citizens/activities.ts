@@ -32,10 +32,41 @@ export interface SimContext {
   wallets: Map<string, number>;
   /** Tiempo de hoy (ciclo 6) — modula idoneidad de actividades al aire libre. */
   weather: Weather;
+  /** Autoaislamiento activo (ciclo 26): los enfermos se quedan en casa. */
+  quarantine: boolean;
+  /** ¿La ciudad está en epidemia declarada? (ciclo 27) — el gobierno suspende
+   * las fiestas mientras dure (medida de salud pública). */
+  epidemic: boolean;
 }
 
 /** Coste de la consulta (lógica de salud, ciclo 5) — acopla con dinero. */
 export const CLINIC_FEE = 6;
+
+// --- Acoplamiento clima→coche (ciclo 13 de RESEARCH.md) ----------------------
+// Un hogar que puede permitirse ir en coche (combustible) viaja RESGUARDADO, así
+// que el mal tiempo le disuade MENOS en los trayectos UTILITARIOS (comprar,
+// visitar, salir al tercer lugar). NO toca el PASEO: su sentido es estar fuera,
+// y ahí la lluvia pega igual vayas como vayas. Recupera una fracción del castigo
+// del tiempo, no todo (aparcar y el último tramo siguen siendo a la intemperie).
+/** Ahorro del hogar a partir del cual puede motorizar sus recados (~2 trayectos). */
+const WEATHER_CAR_WALLET = 8;
+/** Fracción del castigo del tiempo que esquiva quien va en coche. */
+const CAR_WEATHER_SHELTER = 0.6;
+export function shelteredWeather(ctx: SimContext, c: Citizen): number {
+  const f = ctx.weather.outdoorFactor;
+  const wallet = ctx.wallets.get(`${c.home.ax},${c.home.az}`) ?? 0;
+  if (wallet < WEATHER_CAR_WALLET) return f;
+  return f + (1 - f) * CAR_WEATHER_SHELTER;
+}
+
+/** Cuarentena (ciclo 26 — acopla contagio→comportamiento): un enfermo se queda
+ * en casa. Cae la idoneidad de salir a socializar/pasear proporcional a la
+ * enfermedad — sin guion, la propia utility AI le hace recogerse. Aplana la
+ * curva epidémica (menos encuentros → R0 más bajo). Devuelve un factor [~0.15,1]. */
+export function sickStayIn(ctx: SimContext, c: Citizen): number {
+  if (!ctx.quarantine) return 1; // escenario "sin autoaislamiento" (para medir/estudiar)
+  return c.sick > 0.2 ? Math.max(0.15, 1 - c.sick) : 1;
+}
 
 export interface ActivityDef {
   kind: ActivityKind;
@@ -112,10 +143,8 @@ export const ACTIVITIES: ActivityDef[] = [
     need: 'purpose',
     restorePerHour: { purpose: 1 / 6 },
     durationH: [3.5, 5], // dos bloques con pausa a comer emergen solos
-    // Trabajar apetece con luz (los turnos nocturnos llegarán con la fábrica);
-    // el duelo lo apaga un poco más (cuesta concentrarse) sin bloquearlo del
-    // todo — no es una baja médica, solo pesa más levantarse a currar.
-    suitability: (ctx, c) => Math.max(0, 1 - ctx.darkness * 1.6) * (1 - 0.3 * c.grief),
+    // Trabajar apetece con luz (los turnos nocturnos llegarán con la fábrica).
+    suitability: (ctx) => Math.max(0, 1 - ctx.darkness * 1.6),
     findTarget: (ctx, c) => {
       if (!c.work) return null;
       const b = ctx.index.at(c.work.ax, c.work.az);
@@ -202,10 +231,11 @@ export const ACTIVITIES: ActivityDef[] = [
     durationH: [0.7, 1.4],
     // Comprar: con luz, mejor hacia la tarde, algo menos con mal tiempo
     // (trayecto corto: se nota menos que en un paseo — ciclo 6).
-    suitability: (ctx) =>
+    suitability: (ctx, c) =>
       Math.max(0, 1 - ctx.darkness * 1.8) *
       (0.7 + 0.3 * Math.sin(((ctx.hour - 10) / 24) * Math.PI * 2)) *
-      (0.6 + 0.4 * ctx.weather.outdoorFactor),
+      (0.6 + 0.4 * shelteredWeather(ctx, c)) *
+      sickStayIn(ctx, c),
     findTarget: (ctx, c) => {
       const b = nearestOfRole(ctx, c, 'commerce');
       return b ? entranceTarget(b) : null;
@@ -220,7 +250,7 @@ export const ACTIVITIES: ActivityDef[] = [
     durationH: [0.8, 1.6],
     // Pasear es la actividad MÁS expuesta: el tiempo pega de lleno (ciclo 6)
     // — con lluvia o crudeza, casi nadie sale a pasear, sin ningún guion.
-    suitability: (ctx) => Math.max(0, 1 - ctx.darkness * 1.4) * ctx.weather.outdoorFactor,
+    suitability: (ctx, c) => Math.max(0, 1 - ctx.darkness * 1.4) * ctx.weather.outdoorFactor * sickStayIn(ctx, c),
     findTarget: (ctx, c) => {
       if (ctx.index.strollSpots.length === 0) return null;
       // Punto de paseo aleatorio entre los 5 más cercanos: variedad sin absurdos.
@@ -238,10 +268,7 @@ export const ACTIVITIES: ActivityDef[] = [
     need: 'social',
     restorePerHour: { social: 0.7, fun: 0.2 },
     durationH: [1, 2],
-    // Duelo: buscar consuelo en un amigo pesa más que el resto de factores
-    // (hasta doblar la idoneidad a duelo pleno) — se nota MÁS que el frío o
-    // la noche, como debe ser cuando de verdad se necesita compañía.
-    suitability: (ctx, c) => Math.max(0.1, 1 - ctx.darkness * 1.2) * (0.65 + 0.35 * ctx.weather.outdoorFactor) * (1 + c.grief),
+    suitability: (ctx, c) => Math.max(0.1, 1 - ctx.darkness * 1.2) * (0.65 + 0.35 * shelteredWeather(ctx, c)) * sickStayIn(ctx, c),
     findTarget: (ctx, c) => {
       // Visitar al amigo con más afinidad que esté EN CASA (localizable).
       let best: Citizen | null = null;
@@ -270,7 +297,7 @@ export const ACTIVITIES: ActivityDef[] = [
     // ahí confluyen VARIOS del círculo cercano, no solo uno.
     restorePerHour: { social: 1.0, fun: 0.5 },
     durationH: [1, 2],
-    suitability: (ctx) => Math.max(0.1, 1 - ctx.darkness * 1.2) * (0.7 + 0.3 * ctx.weather.outdoorFactor),
+    suitability: (ctx, c) => Math.max(0.1, 1 - ctx.darkness * 1.2) * (0.7 + 0.3 * shelteredWeather(ctx, c)) * sickStayIn(ctx, c),
     findTarget: (ctx, c) => {
       // Un "club" no es una entidad que se guarda: emerge cada vez que 2+
       // amigos de CONFIANZA (afinidad alta, no cualquier conocido) están
@@ -301,11 +328,9 @@ export const ACTIVITIES: ActivityDef[] = [
     durationH: [1.5, 3],
     suitability: (ctx, c) => {
       if (!isFestivalDay(ctx.day)) return 0; // fuera de la fecha, no existe
+      if (ctx.epidemic) return 0; // el gobierno suspende la fiesta en plena epidemia (ciclo 27)
       if (ctx.weather.rain) return 0.15; // hasta las fiestas se deslucen con lluvia
-      // Duelo (ciclo 11): a quien está de luto la fiesta le apetece bastante
-      // menos — hasta la mitad de idoneidad a duelo pleno. No la anula del
-      // todo (la vida sigue, y personality/urgencia ya deciden el resto).
-      return Math.max(0.2, 1 - ctx.darkness * 0.9) * (1 - 0.5 * c.grief);
+      return Math.max(0.2, 1 - ctx.darkness * 0.9) * sickStayIn(ctx, c); // un enfermo no va de fiesta
     },
     findTarget: (ctx, c) => {
       const plaza = nearestOfRole(ctx, c, 'civic');

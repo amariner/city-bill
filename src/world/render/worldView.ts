@@ -11,7 +11,7 @@ import { buildTerrainMeshForChunk } from './terrain';
 import { buildVegetationForChunk } from './instances';
 import { mergeBuildingsForChunk } from './buildings';
 import { homeGarden, festivalDecor } from '../../props';
-import { Season } from '../../palette';
+import { Season } from '../../sim/weather';
 
 function cellFromKey(key: number): [number, number] {
   return [Math.floor(key / 65536) - 32768, (key % 65536) - 32768];

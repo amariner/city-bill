@@ -12,6 +12,8 @@ import {
   AGENT_STRIDE,
   AgentState,
   CitizenInfoMsg,
+  CityStats,
+  DevMsg,
 } from './protocol';
 import { TICK_REAL_S } from './clock';
 
@@ -26,8 +28,8 @@ export interface AgentView {
   /** Modo de trayecto (ciclo 8 — vehículos): 0 a pie, 1 en coche. Categórico:
    * NO se interpola, se toma el valor actual (un cambio de modo no "mezcla"). */
   mode: number;
-  /** Duelo [0,1] (ciclo 11). No se interpola (cambia despacio, en horas —
-   * no hace falta suavizarlo entre snapshots de 250 ms). */
+  /** Duelo [0,1] (ciclos 16-20): el render apaga la ropa del doliente. Categórico
+   * para el color, no se interpola (basta el valor actual del snapshot). */
   grief: number;
 }
 
@@ -43,22 +45,20 @@ export class SimClient {
   /** Población y edificios del último snapshot — para la Crónica. */
   population = 0;
   buildings = 0;
+  /** Estado agregado de la ciudad del último snapshot — para el HUD de ciudad. */
+  city: CityStats | null = null;
   onCitizenInfo: ((info: CitizenInfoMsg) => void) | null = null;
   /** Eventos de sim (cityGrew, citizenBorn…) para que el main reaccione. */
   onEvent: ((name: string, data?: Record<string, unknown>) => void) | null = null;
-  /** Guardado (T2.6): llega en respuesta a `save()`, con el blob listo para
-   * persistir (localStorage) tal cual — el main no lo interpreta. */
-  onSaveBlob: ((blob: string) => void) | null = null;
+  /** Banco de pruebas: progreso del pre-crecido (para el overlay de carga). */
+  onGrowProgress: ((day: number, total: number) => void) | null = null;
+  /** Banco de pruebas: grid ya maduro (para construir el render desde él). */
+  onGrownGrid: ((gridJson: string, center: [number, number]) => void) | null = null;
 
-  constructor(seed: number, gridJson: string, saveBlob?: string) {
+  constructor(seed: number, gridJson: string, preGrowDays = 0) {
     this.worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
     this.worker.onmessage = (ev: MessageEvent<WorkerToMain>) => this.onMessage(ev.data);
-    this.send({ type: 'init', seed, gridJson, saveBlob });
-  }
-
-  /** Pide al worker un guardado; llega asíncronamente por `onSaveBlob`. */
-  save(): void {
-    this.send({ type: 'save' });
+    this.send({ type: 'init', seed, gridJson, preGrowDays });
   }
 
   private send(msg: MainToWorker): void {
@@ -72,6 +72,12 @@ export class SimClient {
 
   queryCitizen(id: number): void {
     this.send({ type: 'queryCitizen', id });
+  }
+
+  /** Banco de pruebas (?scene=test-dev): manda un comando dev al worker
+   * (alternar bandera, disparar epidemia, saltar días). Sin lógica aquí. */
+  dev(cmd: DevMsg['cmd']): void {
+    this.send({ type: 'dev', cmd });
   }
 
   private onMessage(msg: WorkerToMain): void {
@@ -89,6 +95,7 @@ export class SimClient {
         this.gameTime = msg.time;
         this.population = msg.count;
         this.buildings = msg.buildings;
+        this.city = msg.city;
         break;
       }
       case 'citizenInfo':
@@ -97,8 +104,11 @@ export class SimClient {
       case 'event':
         this.onEvent?.(msg.name, msg.data);
         break;
-      case 'saveBlob':
-        this.onSaveBlob?.(msg.blob);
+      case 'growProgress':
+        this.onGrowProgress?.(msg.day, msg.total);
+        break;
+      case 'grownGrid':
+        this.onGrownGrid?.(msg.gridJson, msg.center);
         break;
     }
   }

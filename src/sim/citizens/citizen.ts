@@ -15,6 +15,37 @@ export interface Personality {
   hogareño: number;
 }
 
+// --- Vocación (ciclo 36, N5 autorrealización) ---------------------------------
+// A qué se siente LLAMADO alguien, según su carácter. Trabajar en la propia
+// vocación llena el PROPÓSITO mucho más (hacer lo que uno ama; la autorrealización
+// de Maslow). No hay campo nuevo: la vocación SALE del carácter (personalidad),
+// así que es pura y determinista y no toca el estado ni los tests de fábrica.
+export type Vocation = 'labrar' | 'tratar' | 'cuidar';
+
+/** La vocación de alguien, por su rasgo dominante: el trabajador se realiza con
+ * las MANOS (labrar), el sociable con el TRATO (tratar), el hogareño CUIDANDO. */
+export function vocationOf(p: Personality): Vocation {
+  if (p.trabajador >= p.sociable && p.trabajador >= p.hogareño) return 'labrar';
+  if (p.sociable >= p.hogareño) return 'tratar';
+  return 'cuidar';
+}
+
+/** Roles de empleo que COLMAN cada vocación. */
+export const VOCATION_ROLES: Record<Vocation, string[]> = {
+  labrar: ['agriculture', 'work'],
+  tratar: ['commerce'],
+  cuidar: ['civic'],
+};
+
+/** ¿El empleo (por su rol) es la vocación de quien lo ejerce? Pura. */
+export function jobFitsVocation(p: Personality, role: string | undefined): boolean {
+  return role !== undefined && VOCATION_ROLES[vocationOf(p)].includes(role);
+}
+
+/** Bonus de propósito por hora al trabajar EN la propia vocación (ciclo 36):
+ * se suma al propósito base del trabajo — hacer lo que amas realiza el doble. */
+export const VOCATION_PURPOSE_BONUS = 1 / 7;
+
 /** Referencia a un edificio por su celda ancla (estable ante cambios). */
 export interface PlaceRef {
   ax: number;
@@ -68,11 +99,20 @@ export interface Citizen {
   /** Salud [0,1] (lógica de salud, ciclo 5). Decae con hambre/sueño crónicos
    * y la edad; se recupera descansando o en la clínica. */
   health: number;
-  /** Duelo [0,1] (lógica de duelo): sube de golpe al morir la pareja o un
-   * amigo cercano, decae solo con el tiempo (nada lo restaura antes de
-   * hora). Mientras dura, cuesta más disfrutar y concentrarse en el
-   * trabajo, y apetece más buscar compañía — ver simulation.ts/activities.ts. */
+  /** Duelo [0,1] (lógica de duelo, ciclo 16). Salta al perder a la pareja o a
+   * un amigo íntimo (muerte/emigración); apaga la alegría y decae en ~días. */
   grief: number;
+  /** Enfermedad CONTAGIOSA [0,1] (contagio, ciclo 25). Se pega en los
+   * encuentros, mella la salud mientras dura y se pasa en unos días (antes en
+   * la clínica). Distinta de `health` (fondo crónico): esto es agudo y contagioso. */
+  sick: number;
+  /** Inmunidad [0,1] tras pasar la enfermedad (contagio, ciclo 25). Protege del
+   * recontagio y decae en ~una estación → de ahí las OLEADAS (modelo SIRS). */
+  immune: number;
+  /** Hijos criados a lo largo de la vida (ciclo 34, N5 legado): puro RECUERDO,
+   * no alimenta ninguna dinámica — da a cada vida un rastro que la Crónica honra
+   * al morir (una vida deja huella: la estima nace de lo vivido, no del dinero). */
+  childrenRaised: number;
   /** Afinidad por id de conocido [0,1]. Se refuerza con encuentros. */
   friends: Map<number, number>;
   /** Tick en que terminó su última charla (histéresis anti-bucle). */
