@@ -37,6 +37,9 @@ export class WorldView {
   private festivalActive = false;
   /** Estación actual (T5.1) — colorea terreno y vegetación. */
   private season: Season = 'verano';
+  /** Anclas de edificios EN OBRA (T4.2): el chunk las omite mientras un FX de
+   * construcción las anima aparte; al terminar, `endConstruction` las revela. */
+  private underConstruction = new Set<string>();
 
   constructor(private grid: Grid) {
     grid.forEachChunk((chunk) => {
@@ -70,6 +73,19 @@ export class WorldView {
     }
     const visual = this.buildChunk(this.grid, chunk);
     if (visual) this.addVisual(chunk, visual);
+  }
+
+  /** Marca un edificio como EN OBRA (T4.2): el chunk deja de dibujarlo (lo anima
+   * el FX de construcción) hasta `endConstruction`. */
+  beginConstruction(ax: number, az: number): void {
+    this.underConstruction.add(`${ax},${az}`);
+    this.refreshChunkAt(ax, az);
+  }
+
+  /** Termina la obra (T4.2): el chunk vuelve a dibujar el edificio ya acabado. */
+  endConstruction(ax: number, az: number): void {
+    this.underConstruction.delete(`${ax},${az}`);
+    this.refreshChunkAt(ax, az);
   }
 
   /** Registra el nuevo prestigio de una vivienda y redecora su chunk (ciclo 9). */
@@ -127,6 +143,9 @@ export class WorldView {
     chunk.cells.forEach((cell, key) => {
       const [cx, cz] = cellFromKey(key);
       if (cell.building && cell.building.anchorX === cx && cell.building.anchorZ === cz) {
+        // En obra (T4.2): un FX de construcción lo anima aparte; el chunk lo omite
+        // hasta que la obra termina (endConstruction) → aparición sin costura.
+        if (this.underConstruction.has(`${cx},${cz}`)) return;
         const it = catalogItem(cell.building.id);
         if (!it) return;
         const rot = cell.building.rot;

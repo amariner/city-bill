@@ -721,3 +721,34 @@ export function citizen(clothesColor: number, scale = 1): THREE.Group {
   g.add(body, head);
   return g;
 }
+
+/** Andamio de obra (T4.2): armazón de madera pálida alrededor de un edificio en
+ * construcción — cuatro postes de esquina, un marco superior y un travesaño
+ * intermedio. Low-poly y barato (~9 cajas). `w`/`d`/`h` en METROS (la huella y
+ * la altura del edificio). Se muestra mientras el edificio "crece" y luego se
+ * retira con el pop. Cosmético puro: no persiste, no toca la lógica. */
+export function scaffold(w: number, d: number, h: number): THREE.Group {
+  const g = new THREE.Group();
+  const post = 0.12;
+  const top = h + 0.4;
+  const hx = w / 2 + 0.18;
+  const hz = d / 2 + 0.18;
+  const corners: [number, number][] = [[-hx, -hz], [hx, -hz], [hx, hz], [-hx, hz]];
+  // Postes verticales en las cuatro esquinas.
+  for (const [x, z] of corners) {
+    const p = solid(new THREE.BoxGeometry(post, top, post), PALETTE.scaffold);
+    p.position.set(x, top / 2, z);
+    g.add(p);
+  }
+  // Travesaños horizontales (marco superior y uno intermedio) uniendo postes.
+  for (const ry of [top - 0.15, top * 0.5]) {
+    const railX = solid(new THREE.BoxGeometry(hx * 2 + post, post, post), PALETTE.scaffold);
+    railX.position.set(0, ry, -hz);
+    const railX2 = railX.clone(); railX2.position.z = hz;
+    const railZ = solid(new THREE.BoxGeometry(post, post, hz * 2 + post), PALETTE.scaffold);
+    railZ.position.set(-hx, ry, 0);
+    const railZ2 = railZ.clone(); railZ2.position.x = hx;
+    g.add(railX, railX2, railZ, railZ2);
+  }
+  return g;
+}

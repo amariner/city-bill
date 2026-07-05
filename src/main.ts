@@ -17,6 +17,7 @@ import { buildShowcase } from './showcase';
 import { SimClient, AgentView } from './sim/client';
 import { CitizenView } from './world/render/citizens';
 import { SelectionMarker } from './world/render/selectionMarker';
+import { ConstructionSites } from './world/render/construction';
 import { Atmosphere, lampFactor } from './world/render/atmosphere';
 import { DAY_GAME_SECONDS } from './sim/clock';
 import { seasonalWarmth, weatherAt } from './sim/weather';
@@ -55,6 +56,7 @@ let worldView: ReturnType<typeof createWorldView> | null = null;
 let simClient: SimClient | null = null;
 let citizenView: CitizenView | null = null;
 let selectionMarker: SelectionMarker | null = null;
+let construction: ConstructionSites | null = null;
 let atmosphere: Atmosphere | null = null;
 let chronicle: Chronicle | null = null;
 let toasts: Toasts | null = null;
@@ -83,6 +85,10 @@ function buildRenderAndUi(grid: Grid, worldSeed: number): void {
   stage.scene.add(citizenView.root);
   selectionMarker = new SelectionMarker();
   stage.scene.add(selectionMarker.root);
+  // FX de construcción (T4.2): anima cada obra nueva (andamio → pop) en vez de
+  // que el edificio aparezca de golpe.
+  construction = new ConstructionSites(worldView);
+  stage.scene.add(construction.root);
   chronicle = new Chronicle(worldSeed);
   toasts = new Toasts(); // avisos efímeros de los eventos memorables (surfacing)
   const roadRng = createRng(worldSeed ^ 0x1d872b41); // arbolado de las vías nuevas (solo visual)
@@ -97,8 +103,14 @@ function buildRenderAndUi(grid: Grid, worldSeed: number): void {
       const it = catalogItem(id);
       if (!it) return;
       grid.placeBuilding(id, it.w, it.d, cx, cz, rot);
-      worldView.refreshChunkAt(cx, cz);
-      atmosphere?.invalidate(); // ventanas/chimeneas nuevas → re-escanear
+      // Animación de construcción (T4.2): andamio → pop. Al terminar, el chunk
+      // revela el edificio y se re-escanea la atmósfera (ventanas/chimeneas).
+      const started = construction?.start(id, cx, cz, rot, () => atmosphere?.invalidate());
+      if (!started) {
+        // Sin FX disponible: aparición inmediata (comportamiento previo).
+        worldView.refreshChunkAt(cx, cz);
+        atmosphere?.invalidate();
+      }
     } else if (name === 'roadExtended') {
       // La calzada/márgenes son deterministas (sin RNG); el arbolado puede diferir.
       const { fromX, fromZ, dx, dz, length } = data as { fromX: number; fromZ: number; dx: number; dz: number; length: number };
@@ -234,6 +246,7 @@ const agentViews: AgentView[] = [];
 const loop = new GameLoop(() => stage.renderer.render(stage.scene, camera.cam));
 loop.onUpdate((dt) => {
   controller.update(dt);
+  construction?.update(dt); // FX de construcción en curso (T4.2)
   if (worldView) hud.setStats({ chunks: worldView.countVisibleChunks(camera.cam) });
   if (simClient && citizenView) {
     const n = simClient.view(agentViews);

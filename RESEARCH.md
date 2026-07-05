@@ -1640,3 +1640,28 @@ una simulación, y los tratamos como tales:
   `tsc` limpio. Sirve a la vez a la HISTORIA (la construcción autónoma se lee como una
   crónica de desarrollo) y a la UI (la Crónica no se atasca). Puente natural hacia la veta
   de construcción robusta/vistosa del prompt de la siguiente sesión.
+- 2026-07-05 · **Ciclo 51: ANIMACIÓN DE CONSTRUCCIÓN (T4.2) — el edificio se levanta, no
+  aparece** · La pieza VISTOSA de la construcción autónoma que pedía el usuario. Hasta
+  ahora cada `cityGrew` colocaba el edificio de GOLPE (`grid.placeBuilding` +
+  `refreshChunkAt`). Ahora se ANIMA: `world/render/construction.ts` (`ConstructionSites`)
+  monta una copia STANDALONE del edificio (mismo `build()`, misma pose) + un andamio de
+  madera (`props.scaffold`, color semántico nuevo `palette.scaffold`) y la anima en el
+  bucle: el edificio CRECE desde el suelo (scale.y 0→1 con easeOutBack → pop elástico que
+  sobrepasa y se asienta) mientras el andamio se RETIRA (se hunde y encoge) en el tramo
+  final. TRAMPA de arquitectura resuelta: los edificios se FUNDEN por chunk (buildings.ts),
+  no son objetos animables sueltos → el chunk OMITE el edificio en obra
+  (`worldView.beginConstruction`: `underConstruction` set) mientras el FX lo anima aparte,
+  y al terminar `endConstruction` lo revela ya fundido — a escala 1 la copia coincide con
+  el definitivo, así que el relevo es INVISIBLE. Soporta obras concurrentes (cada celda su
+  set). Cosmético puro (rAF/tiempo, §0.6): cero lógica de sim, cero RNG de mundo. Si no hay
+  FX disponible, cae al comportamiento previo (aparición inmediata). VERIFICAR: `tsc`
+  limpio, 330/330 tests intactos (render puro, `sim.test` no importa nada de esto), y
+  SCREENSHOT en escena de aislamiento (`?scene=fxtest`, temporal, añadida y RETIRADA tras
+  verificar — como endosa el diario del ciclo 8): el andamio de madera pálida rodea la
+  tienda/escuela que crecen dentro, lee como low-poly pastel coherente con §4. Método:
+  perseguir la obra EN VIVO fue inviable (los pueblos de prueba se estancan en ~32
+  edificios durante el pre-crecido invisible del banco, y la obra en vivo es rara y
+  transitoria) → la escena de aislamiento + ralentizar el FX (18s temporal) fue MUCHO más
+  fiable, justo la lección del ciclo 8 (cazar un mesh en la sim viva es peor que aislarlo).
+  Con esto T4.2 tiene su mitad VISUAL (la animación); pendientes las ETAPAS de densidad
+  (parcela→casita→…→bloque) y la trama más tupida (T4.4).

@@ -98,6 +98,10 @@ export const PALETTE = {
 
   // UI diegética
   selectRing: 0xd8b25a, // anillo bajo el ciudadano seleccionado en el inspector
+
+  // Construcción (T4.2): andamio de madera al levantar un edificio — postes y
+  // travesaños de timber pálido, luego se retira con un "pop" del edificio.
+  scaffold: 0xb59d78,
 } as const;
 
 /**
