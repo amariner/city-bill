@@ -923,3 +923,11 @@ aprieta, T3.8-T3.10 y la Fase 4 valen más que cualquier cosa de la Fase 5.
     instanciados + ~12 ventanas de casa); la base del banco ya son ~425 (edificios como
     grupos de meshes, NO instanciados — deuda pre-existente de T1.6/T6.1, no de T5.4).
     NOTA fps=10 del HUD headless es artefacto de swiftshader (SW render), no hardware real.
+- 2026-07-05 (sesión Opus, tras el merge — ciclo 48) — **La inmigración es LLEGADA, no
+  nacimiento**: corrección + beat. Los inmigrantes (T4.3) emitían `citizenBorn` → salían
+  como "nace X" y falseaban la natalidad (medido: 19 nacimientos reales vs 27 familias
+  coladas como nacidas en 20 días). Ahora `citizenBorn` solo se emite para nacimientos
+  reales (age 0); la inmigración emite `familyArrived`. **Interfaz a la par**: la Crónica
+  narra "la familia Novák se instala en el pueblo", con contador `llegadas` en la cabecera
+  y compactación por año ("N llegadas de fuera"). Invariante verificada: todo `citizenBorn`
+  lleva progenitor (linaje). 319/319 tests, `tsc` limpio. Ver RESEARCH.md §4 (ciclo 48).

@@ -93,7 +93,7 @@ const VOCATION_QUIT_CHANCE = 0.05;
 const DYNASTY_THRESHOLD = 8;
 
 export interface SimEvent {
-  name: 'citizenBorn' | 'citizenLeft' | 'jobTaken' | 'chatStarted' | 'cityGrew' | 'tierUnlocked' | 'coupleFormed' | 'festivalDay' | 'roadExtended' | 'epidemic' | 'citizenRetired' | 'homePrestige' | 'cultivationChanged' | 'vocationFound' | 'dynastyRose' | 'dynastyFell' | 'firstBuilding' | 'settlementRose';
+  name: 'citizenBorn' | 'citizenLeft' | 'jobTaken' | 'chatStarted' | 'cityGrew' | 'tierUnlocked' | 'coupleFormed' | 'festivalDay' | 'roadExtended' | 'epidemic' | 'citizenRetired' | 'homePrestige' | 'cultivationChanged' | 'vocationFound' | 'dynastyRose' | 'dynastyFell' | 'firstBuilding' | 'settlementRose' | 'familyArrived';
   data: Record<string, unknown>;
 }
 
@@ -195,19 +195,28 @@ export class Simulation {
     }
   }
 
-  /** Aloja `count` familias en una vivienda (inmigración T4.3 y arranque). */
-  private fillHome(ax: number, az: number, buildingId: string, count: number): void {
+  /** Aloja `count` familias en una vivienda (inmigración T4.3 y arranque).
+   * `arrival` (ciclo 48): true cuando son INMIGRANTES que llegan durante el juego
+   * (no los fundadores del arranque) → emite un beat `familyArrived` para la Crónica. */
+  private fillHome(ax: number, az: number, buildingId: string, count: number, arrival = false): void {
     const k = `${ax},${az}`;
     this.households.set(k, (this.households.get(k) ?? 0) + count);
     // Los recién llegados traen algo de comida y unos ahorros en la mudanza.
     this.pantry.set(k, (this.pantry.get(k) ?? 0) + 3 * count);
     this.economy.wallets.set(k, (this.economy.wallets.get(k) ?? 0) + STARTING_MONEY * count);
+    let firstName = '';
     for (let h = 0; h < count; h++) {
       const adults = 1 + Math.floor(this.rng.next() * 2.4); // 1-3
       const family: Citizen[] = [];
       for (let a = 0; a < adults; a++) family.push(this.spawnCitizen(ax, az, buildingId));
+      if (!firstName && family.length) firstName = family[0].name;
       for (let i = 0; i < family.length; i++)
         for (let j = i + 1; j < family.length; j++) SocialSystem.acquaint(family[i], family[j], 0.6);
+    }
+    // Historia de la llegada (ciclo 48): una ciudad atractiva RECIBE gente — el
+    // reverso de la emigración digna (ciclo 14). Un solo beat por vivienda poblada.
+    if (arrival && firstName) {
+      this.events.push({ name: 'familyArrived', data: { count, surname: surnameOf(firstName) } });
     }
   }
 
@@ -297,7 +306,11 @@ export class Simulation {
       inside: true, // empiezan en casa
     };
     this.citizens.set(c.id, c);
-    this.events.push({ name: 'citizenBorn', data: { id: c.id, name: c.name, parent: c.parent } });
+    // Solo un NACIMIENTO real (age 0) se narra como tal (ciclo 48): los fundadores
+    // y los inmigrantes (edad dada) NO "nacen" — llegan de fuera. Antes todos
+    // emitían citizenBorn, así que un inmigrante salía en la Crónica como "nace X"
+    // y falseaba el contador de nacimientos. La llegada la narra `familyArrived`.
+    if (age === 0) this.events.push({ name: 'citizenBorn', data: { id: c.id, name: c.name, parent: c.parent } });
     return c;
   }
 
@@ -886,7 +899,7 @@ export class Simulation {
       });
       const cap = it.capacity ?? 1;
       const families = Math.max(1, Math.round(cap * attractiveness));
-      this.fillHome(p.cx, p.cz, p.id, families);
+      this.fillHome(p.cx, p.cz, p.id, families, true); // ciclo 48: inmigración → beat de llegada
     }
     this.hireAndAcquaint();
     this.events.push({ name: 'cityGrew', data: { ...p } });

@@ -1581,3 +1581,25 @@ una simulación, y los tratamos como tales:
   necesidad tiene UNA sola fuente y ninguna actividad que la resuelva bajo
   demanda — el patrón plano de needs.ts asume que la urgencia alta siempre
   encuentra salida (actividad disponible), lo que no se cumple para un jubilado.
+- 2026-07-05 · **Ciclo 48: LA INMIGRACIÓN ES LLEGADA, NO NACIMIENTO** · Tras mergear la
+  rama de la historia a main, un ciclo de CORRECCIÓN + beat. OBSERVAR: la inmigración
+  (T4.3: al levantarse una vivienda llegan familias moduladas por atractividad) pasaba por
+  `spawnCitizen`, que emitía `citizenBorn` para TODOS los spawns → cada inmigrante salía en
+  la Crónica como "nace X" y FALSEABA el contador de nacimientos. Medido (seed 42, 20 días):
+  19 nacimientos reales frente a 27 familias INMIGRADAS que se colaban como "nacidas" — la
+  natalidad inflada >2×. MODELAR: `citizenBorn` solo se emite para un nacimiento REAL
+  (`age === 0`; fundadores/inmigrantes tienen edad dada). La inmigración emite su propio
+  beat `familyArrived` (uno por vivienda poblada, con nº de familias y apellido) — el
+  reverso de la emigración digna (ciclo 14): una ciudad atractiva RECIBE gente. Sin RNG
+  nuevo → determinismo intacto. INVARIANTE de correctness verificada por test: TODO
+  `citizenBorn` tiene ahora `parent` (los nacimientos siempre llevan linaje, ciclo 42), así
+  que ningún inmigrante se cuela como nacido. **INTERFAZ A LA PAR**: (1) la Crónica narra
+  "la familia Novák se instala en el pueblo" (o "N familias nuevas…"); (2) nuevo contador
+  `llegadas` en la cabecera (simetría con `emigrados`); (3) tipo `arrived` en la
+  compactación por años ("N llegadas de fuera"). Sin toast (la inmigración es frecuente en
+  el boom inicial → sería spam; vive en la Crónica, como la emigración). VERIFICAR: 319/319
+  tests (6 nuevos), `tsc` limpio.
+  Carencia observada: en el boom inicial la inmigración es MUY frecuente (~0.75/día, seed
+  42) → el feed reciente puede llenarse de llegadas; se compacta por año, pero un ciclo
+  futuro podría narrar solo las llegadas NOTABLES (familias grandes / a bloques) y contar
+  el resto. La demografía, eso sí, ya es HONESTA (nacer ≠ inmigrar).

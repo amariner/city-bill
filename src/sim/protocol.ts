@@ -224,7 +224,8 @@ export interface SimEventMsg {
     | 'dynastyRose'
     | 'dynastyFell'
     | 'firstBuilding'
-    | 'settlementRose';
+    | 'settlementRose'
+    | 'familyArrived';
   data?: Record<string, unknown>;
 }
 

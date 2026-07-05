@@ -1485,6 +1485,38 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
     rises.length > 0 && rises.every((r) => typeof r.class === 'string' && typeof r.population === 'number'));
 }
 
+// Ciclo 48 RESEARCH.md — LA INMIGRACIÓN ES LLEGADA, NO NACIMIENTO: los recién
+// llegados a una vivienda nueva (inmigración T4.3) emitían `citizenBorn` → salían
+// en la Crónica como "nace X" y falseaban el contador de nacimientos. Ahora solo un
+// NACIMIENTO real (age 0) narra citizenBorn; la inmigración emite `familyArrived`
+// ("la familia Novák se instala en el pueblo"). Correctness + un beat de la historia.
+{
+  // Narración pura (única fuente, ciclo 18).
+  check('crónica: la llegada de una familia se narra (no como nacimiento)',
+    chronicleText('familyArrived', { surname: 'Novák', count: 1 }) === 'la familia Novák se instala en el pueblo');
+  check('crónica: la llegada de varias familias se narra en plural',
+    chronicleText('familyArrived', { count: 4 }) === '4 familias nuevas se instalan en el pueblo');
+  check('crónica: una llegada sin apellido no lo inventa',
+    chronicleText('familyArrived', { count: 1 }) === 'una familia se instala en el pueblo');
+
+  // Emergente + INVARIANTE de correctness: en un pueblo que crece, llegan familias
+  // (familyArrived) y TODO citizenBorn es un nacimiento REAL (tiene progenitor) —
+  // ningún inmigrante se cuela ya como "nacido".
+  const sim = new Simulation(seedWorld(), 42);
+  let born = 0, bornNoParent = 0, arrived = 0;
+  for (let t = 0; t < TICKS_PER_DAY * 20; t++) {
+    sim.step();
+    for (const e of sim.takeEvents()) {
+      if (e.name === 'citizenBorn') { born++; if (typeof e.data.parent !== 'string') bornNoParent++; }
+      if (e.name === 'familyArrived') arrived++;
+    }
+  }
+  check('inmigración: llegan familias a la ciudad atractiva (beat de llegada)', arrived > 0, `→ ${arrived} llegadas`);
+  check('inmigración: hubo nacimientos reales (el pueblo también cría)', born > 0, `→ ${born} nacimientos`);
+  check('inmigración: TODO nacimiento tiene progenitor (ningún inmigrante se cuela como nacido)',
+    bornNoParent === 0, `→ ${bornNoParent} sin progenitor de ${born}`);
+}
+
 // Determinismo: mismo snapshot final con la misma semilla.
 const a = runDays(7, 1).sim.snapshot();
 const b = runDays(7, 1).sim.snapshot();

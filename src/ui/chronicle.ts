@@ -15,7 +15,7 @@ import { ILLNESS_HEALTH, OLD_AGE } from '../sim/lifecycle';
 const ACTIVE_LOGICS = activeLogicNames();
 
 /** Tipo de evento para la compactación por años (RESEARCH §5). */
-export type ChronKind = 'birth' | 'death' | 'emigrated' | 'couple' | 'milestone' | 'legacy' | 'summary';
+export type ChronKind = 'birth' | 'death' | 'emigrated' | 'arrived' | 'couple' | 'milestone' | 'legacy' | 'summary';
 
 /** Hijos criados a partir de los cuales una muerte es LEGADO permanente (ciclo 35). */
 export const LEGACY_KIDS = 4;
@@ -44,7 +44,7 @@ interface ChronicleData {
   /** [año, población, edificios] por año de la ciudad. */
   series: Array<[number, number, number]>;
   events: ChronEvent[];
-  counters: { births: number; deaths: number; couples: number; emigrated?: number; retirements?: number };
+  counters: { births: number; deaths: number; couples: number; emigrated?: number; retirements?: number; arrived?: number };
 }
 
 /** Cuántos años recientes se guardan en DETALLE antes de resumirse. */
@@ -59,17 +59,19 @@ const MAX_EVENTS = 120;
  * PRESERVA lo memorable (hitos: escuela, tier, fiesta). Pura y testeable.
  */
 export function summarizeYear(year: number, events: ChronEvent[]): ChronEvent {
-  let births = 0, deaths = 0, emigrated = 0, couples = 0;
+  let births = 0, deaths = 0, emigrated = 0, arrived = 0, couples = 0;
   const notes: string[] = [];
   for (const e of events) {
     if (e.kind === 'birth') births++;
     else if (e.kind === 'death') deaths++;
     else if (e.kind === 'emigrated') emigrated++;
+    else if (e.kind === 'arrived') arrived++;
     else if (e.kind === 'couple') couples++;
     else notes.push(e.text); // hitos y eventos sin tipo: se preservan verbatim
   }
   const parts: string[] = [];
   if (births) parts.push(`${births} ${births === 1 ? 'nacimiento' : 'nacimientos'}`);
+  if (arrived) parts.push(`${arrived} ${arrived === 1 ? 'llegada' : 'llegadas'} de fuera`);
   if (couples) parts.push(`${couples} ${couples === 1 ? 'pareja' : 'parejas'}`);
   if (deaths) parts.push(`${deaths} ${deaths === 1 ? 'muerte' : 'muertes'}`);
   if (emigrated) parts.push(`${emigrated} se ${emigrated === 1 ? 'marchó' : 'marcharon'}`);
@@ -150,6 +152,13 @@ export function chronicleText(name: string, data?: Record<string, unknown>): str
       return `una epidemia recorre la ciudad (${data?.sick ?? '?'} enfermos)`;
     case 'citizenRetired':
       return `${who} se jubila`;
+    case 'familyArrived': {
+      // Llegada (ciclo 48): una ciudad atractiva recibe gente — no es un nacimiento.
+      const fam = typeof data?.surname === 'string' && data.surname ? data.surname : '';
+      const count = typeof data?.count === 'number' ? data.count : 1;
+      if (count > 1) return `${count} familias nuevas se instalan en el pueblo`;
+      return fam ? `la familia ${fam} se instala en el pueblo` : `una familia se instala en el pueblo`;
+    }
     case 'dynastyRose': {
       // Dinastía (ciclo 43): una estirpe se afianza — descendencia REAL, no azar.
       const fam = typeof data?.surname === 'string' ? data.surname : (data?.founder ?? 'una familia');
@@ -277,12 +286,16 @@ export class Chronicle {
       case 'citizenRetired':
         this.data.counters.retirements = (this.data.counters.retirements ?? 0) + 1;
         break;
+      case 'familyArrived':
+        this.data.counters.arrived = (this.data.counters.arrived ?? 0) + 1;
+        break;
     }
     const text = chronicleText(name, data);
     if (!text) return;
     const kind: ChronKind =
       name === 'citizenBorn' ? 'birth'
       : name === 'coupleFormed' ? 'couple'
+      : name === 'familyArrived' ? 'arrived'
       : name === 'citizenLeft' ? (data?.reason === 'emigrated' ? 'emigrated' : isLegacyDeath(data) ? 'legacy' : 'death')
       : 'milestone';
     this.data.events.push({ year, text, kind });
@@ -324,6 +337,7 @@ export class Chronicle {
       `CRÓNICA DE LA CIUDAD — año ${last[0]}\n` +
       `población ${last[1]} · edificios ${last[2]}\n` +
       `nacimientos ${d.counters.births} · muertes ${d.counters.deaths} · parejas ${d.counters.couples}` +
+      (d.counters.arrived ? ` · llegadas ${d.counters.arrived}` : '') +
       (d.counters.emigrated ? ` · emigrados ${d.counters.emigrated}` : '') +
       (d.counters.retirements ? ` · jubilaciones ${d.counters.retirements}` : '');
 
