@@ -65,6 +65,13 @@ export interface InitMsg {
   seed: number;
   /** Grid serializado (grid.serialize()); el worker lo deserializa. */
   gridJson: string;
+  /** Banco de pruebas (?scene=test-dev): si >0, el worker PRE-CRECE su sim estos
+   * días de juego antes de ir en vivo → su `Simulation` ES la ciudad madura
+   * (población, edades, relaciones, obras intactas, sin reseed con pérdida) y
+   * arranca a mediodía (la hora con más gente en la calle). Emite `growProgress`
+   * mientras crece y `grownGrid` con el grid resultante para que el render
+   * dibuje EXACTAMENTE lo que la sim construyó. */
+  preGrowDays?: number;
 }
 
 export interface SetSpeedMsg {
@@ -87,7 +94,28 @@ export interface QueryCitizenMsg {
   id: number;
 }
 
-export type MainToWorker = InitMsg | SetSpeedMsg | ActionMsg | QueryCitizenMsg;
+/** Banderas de sim conmutables en caliente desde el banco de pruebas
+ * (?scene=test-dev). Ya son campos públicos de `Simulation`; el modo dev solo
+ * las alterna para OBSERVAR la mecánica (p.ej. epidemia con/sin cuarentena). */
+export type DevFlag =
+  | 'quarantine'
+  | 'vaccination'
+  | 'clinicHealing'
+  | 'rentEnabled'
+  | 'autonomousGrowth';
+
+/** Comando del panel dev (solo ?scene=test-dev): fuerza/observa mecánicas que
+ * la sim ya tiene. NO añade lógica nueva de mundo — alterna banderas, siembra
+ * un caso índice existente o avanza el reloj de golpe (saltar de estación). */
+export interface DevMsg {
+  type: 'dev';
+  cmd:
+    | { kind: 'setFlag'; flag: DevFlag; value: boolean }
+    | { kind: 'forceEpidemic' }
+    | { kind: 'advanceDays'; days: number };
+}
+
+export type MainToWorker = InitMsg | SetSpeedMsg | ActionMsg | QueryCitizenMsg | DevMsg;
 
 // --- worker → main -----------------------------------------------------------
 
@@ -125,6 +153,28 @@ export interface CityStats {
   epidemic: boolean;
   /** Nº de enfermos contagiosos ahora mismo. */
   sick: number;
+  /** Tier desbloqueado por población (T4.5). */
+  tier: number;
+  /** Reparto por edad (banco de pruebas): niños/adultos/mayores. */
+  children: number;
+  adults: number;
+  elders: number;
+  /** Mercado laboral: empleados y puestos totales (paro = 1 − empleados/adultos). */
+  employed: number;
+  jobs: number;
+  /** Nº de edificios del índice de sim. */
+  buildings: number;
+  /** Contadores acumulados que la sim ya lleva (banco de pruebas). */
+  roadsExtended: number;
+  carTrips: number;
+  vaccinationsGiven: number;
+  /** Estado ACTUAL de las banderas conmutables (para que el panel dev las
+   * refleje sin mantener estado propio — la sim es la fuente de verdad). */
+  quarantine: boolean;
+  vaccination: boolean;
+  clinicHealing: boolean;
+  rentEnabled: boolean;
+  autonomousGrowth: boolean;
 }
 
 export interface SimEventMsg {
@@ -179,4 +229,22 @@ export interface CitizenInfoMsg {
   rent: number;
 }
 
-export type WorkerToMain = SnapshotMsg | SimEventMsg | CitizenInfoMsg;
+/** Progreso del pre-crecido del banco de pruebas (worker → main): alimenta el
+ * overlay de carga sin bloquear el hilo principal (el worker computa, el main
+ * solo pinta la barra). */
+export interface GrowProgressMsg {
+  type: 'growProgress';
+  day: number;
+  total: number;
+}
+
+/** Grid ya maduro tras el pre-crecido (worker → main): el render se construye
+ * DESDE aquí, así dibuja exactamente lo que la sim del worker construyó (misma
+ * ciudad, cero divergencia). `center` es el centro urbano para encuadrar. */
+export interface GrownGridMsg {
+  type: 'grownGrid';
+  gridJson: string;
+  center: [number, number];
+}
+
+export type WorkerToMain = SnapshotMsg | SimEventMsg | CitizenInfoMsg | GrowProgressMsg | GrownGridMsg;

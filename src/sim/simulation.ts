@@ -11,7 +11,7 @@
  */
 import { Grid } from '../world/grid';
 import { createRng, Rng } from '../rng';
-import { GameClock, TICK_GAME_S } from './clock';
+import { GameClock, TICK_GAME_S, DAY_GAME_SECONDS } from './clock';
 import { PathQueue, pathLength } from './pathfinding';
 import { CellXZ, manhattan } from './geometry';
 import { WorldIndex } from './worldIndex';
@@ -980,7 +980,13 @@ export class Simulation {
     for (const k of this.households.keys()) totalWealth += this.economy.walletOf(k);
     const avgWealth = this.households.size > 0 ? totalWealth / this.households.size : 0;
     let sick = 0;
-    for (const c of this.citizens.values()) if (c.sick > 0.05) sick++;
+    let children = 0;
+    let elders = 0;
+    for (const c of this.citizens.values()) {
+      if (c.sick > 0.05) sick++;
+      if (c.age < ADULT_AGE) children++;
+      else if (c.age >= OLD_AGE) elders++;
+    }
     return {
       population: this.citizens.size,
       treasury: this.economy.treasury,
@@ -990,7 +996,51 @@ export class Simulation {
       avgWealth,
       epidemic: this.inEpidemic,
       sick,
+      tier: this.tier,
+      children,
+      adults: s.adults,
+      elders,
+      employed: s.employed,
+      jobs: s.jobs,
+      buildings: this.index.buildings.length,
+      roadsExtended: this.roadsExtended,
+      carTrips: this.carTrips,
+      vaccinationsGiven: this.vaccinationsGiven,
+      quarantine: this.quarantine,
+      vaccination: this.vaccination,
+      clinicHealing: this.clinicHealing,
+      rentEnabled: this.rentEnabled,
+      autonomousGrowth: this.autonomousGrowth,
     };
+  }
+
+  // --- DEV (banco de pruebas ?scene=test-dev) ---------------------------------
+  // Utilidades SOLO para el modo dev: no cambian la lógica del juego, solo dejan
+  // forzar/acelerar mecánicas que la sim ya tiene para verlas de un vistazo.
+
+  /** Siembra varios casos índice para disparar una oleada a voluntad. Como es un
+   * disparador del banco de pruebas, GARANTIZA los casos: en un pueblo con
+   * inmunidad de rebaño (vacunación) apenas quedan susceptibles, así que a los
+   * elegidos se les levanta la inmunidad para que el brote arranque de verdad.
+   * Si el rebaño sigue inmune la oleada no cundirá (esa es justo la mecánica a
+   * observar: apagar la vacuna y ver la diferencia). Determinista (orden del Map). */
+  forceEpidemic(count = 4): void {
+    let seeded = 0;
+    for (const c of this.citizens.values()) {
+      if (seeded >= count) break;
+      if (c.sick > 0) continue; // ya enfermo, no cuenta como caso nuevo
+      c.immune = 0;
+      c.sick = SICK_ONSET;
+      seeded++;
+    }
+    this.inEpidemic = false; // que stepOutbreak la vuelva a declarar al cruzar el umbral
+  }
+
+  /** Avanza la sim N días de juego de golpe (saltar de estación, madurar). Usa
+   * el mismo `step()` que el bucle normal → estado idéntico, solo sin esperar. */
+  advanceDays(days: number): void {
+    const ticks = Math.round((days * DAY_GAME_SECONDS) / TICK_GAME_S);
+    for (let i = 0; i < ticks; i++) this.step();
   }
 
   /** Estado legible de un ciudadano (inspector T3.10). */

@@ -13,6 +13,7 @@ import {
   AgentState,
   CitizenInfoMsg,
   CityStats,
+  DevMsg,
 } from './protocol';
 import { TICK_REAL_S } from './clock';
 
@@ -46,11 +47,15 @@ export class SimClient {
   onCitizenInfo: ((info: CitizenInfoMsg) => void) | null = null;
   /** Eventos de sim (cityGrew, citizenBorn…) para que el main reaccione. */
   onEvent: ((name: string, data?: Record<string, unknown>) => void) | null = null;
+  /** Banco de pruebas: progreso del pre-crecido (para el overlay de carga). */
+  onGrowProgress: ((day: number, total: number) => void) | null = null;
+  /** Banco de pruebas: grid ya maduro (para construir el render desde él). */
+  onGrownGrid: ((gridJson: string, center: [number, number]) => void) | null = null;
 
-  constructor(seed: number, gridJson: string) {
+  constructor(seed: number, gridJson: string, preGrowDays = 0) {
     this.worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
     this.worker.onmessage = (ev: MessageEvent<WorkerToMain>) => this.onMessage(ev.data);
-    this.send({ type: 'init', seed, gridJson });
+    this.send({ type: 'init', seed, gridJson, preGrowDays });
   }
 
   private send(msg: MainToWorker): void {
@@ -64,6 +69,12 @@ export class SimClient {
 
   queryCitizen(id: number): void {
     this.send({ type: 'queryCitizen', id });
+  }
+
+  /** Banco de pruebas (?scene=test-dev): manda un comando dev al worker
+   * (alternar bandera, disparar epidemia, saltar días). Sin lógica aquí. */
+  dev(cmd: DevMsg['cmd']): void {
+    this.send({ type: 'dev', cmd });
   }
 
   private onMessage(msg: WorkerToMain): void {
@@ -89,6 +100,12 @@ export class SimClient {
         break;
       case 'event':
         this.onEvent?.(msg.name, msg.data);
+        break;
+      case 'growProgress':
+        this.onGrowProgress?.(msg.day, msg.total);
+        break;
+      case 'grownGrid':
+        this.onGrownGrid?.(msg.gridJson, msg.center);
         break;
     }
   }
