@@ -2,7 +2,7 @@
  * Punto de entrada: ensambla stage (renderer + luz), cámara isométrica jugable,
  * mundo (por chunks) y bucle. La lógica vive en core/ y world/; aquí se conecta.
  */
-import { createStage, updateSun, updateSeason } from './core/renderer';
+import { createStage, updateSun, updateSeason, updateNight } from './core/renderer';
 import { IsoCamera } from './core/camera';
 import { Input } from './core/input';
 import { CameraController } from './core/cameraController';
@@ -17,6 +17,7 @@ import { buildShowcase } from './showcase';
 import { SimClient, AgentView } from './sim/client';
 import { CitizenView } from './world/render/citizens';
 import { SelectionMarker } from './world/render/selectionMarker';
+import { Atmosphere, lampFactor } from './world/render/atmosphere';
 import { DAY_GAME_SECONDS } from './sim/clock';
 import { seasonalWarmth, weatherAt } from './sim/weather';
 import { isFestivalDay } from './sim/citizens/activities';
@@ -54,6 +55,7 @@ let worldView: ReturnType<typeof createWorldView> | null = null;
 let simClient: SimClient | null = null;
 let citizenView: CitizenView | null = null;
 let selectionMarker: SelectionMarker | null = null;
+let atmosphere: Atmosphere | null = null;
 let chronicle: Chronicle | null = null;
 let toasts: Toasts | null = null;
 let inspector: CitizenInspector | null = null;
@@ -73,6 +75,10 @@ function buildRenderAndUi(grid: Grid, worldSeed: number): void {
   activeSeed = worldSeed;
   worldView = createWorldView(grid);
   stage.scene.add(worldView.root);
+  // Atmósfera del anochecer (T5.4): luces de ventana, humo y bandada. Escanea el
+  // árbol del mundo (ventanas/chimeneas marcadas) y añade su propio grupo de FX.
+  atmosphere = new Atmosphere(worldView.root);
+  stage.scene.add(atmosphere.root);
   citizenView = new CitizenView();
   stage.scene.add(citizenView.root);
   selectionMarker = new SelectionMarker();
@@ -92,6 +98,7 @@ function buildRenderAndUi(grid: Grid, worldSeed: number): void {
       if (!it) return;
       grid.placeBuilding(id, it.w, it.d, cx, cz, rot);
       worldView.refreshChunkAt(cx, cz);
+      atmosphere?.invalidate(); // ventanas/chimeneas nuevas → re-escanear
     } else if (name === 'roadExtended') {
       // La calzada/márgenes son deterministas (sin RNG); el arbolado puede diferir.
       const { fromX, fromZ, dx, dz, length } = data as { fromX: number; fromZ: number; dx: number; dz: number; length: number };
@@ -254,12 +261,14 @@ loop.onUpdate((dt) => {
     const day = Math.floor(t / DAY_GAME_SECONDS);
     const warmth = seasonalWarmth(day);
     updateSeason(stage, warmth); // tinte estacional de luz/cielo (T5.1 paso 1)
-    updateTerrainSeason(warmth); // nieve del terreno en invierno (T5.1 paso 2)
     // Render rico: paleta estacional del terreno/vegetación (T5.1) y decoración
     // de fiesta en los edificios cívicos (ciclo 10) — se recomponen los chunks.
     worldView?.setSeason(weatherAt(activeSeed, day).season);
     worldView?.setFestivalActive(isFestivalDay(day));
     const h = (t % DAY_GAME_SECONDS) / 3600;
+    updateNight(stage, lampFactor(h)); // hora azul: atenúa/enfría al anochecer (T5.4)
+    updateTerrainSeason(warmth); // nieve del terreno en invierno (T5.1 paso 2)
+    atmosphere?.update(h, dt); // juice del anochecer: luces de ventana, humo, bandada (T5.4)
     const hh = String(Math.floor(h)).padStart(2, '0');
     const mm = String(Math.floor((h % 1) * 60)).padStart(2, '0');
     hud.setStats({ agents: n, clock: `${hh}:${mm} día ${day} ×${simClient.speed}` });

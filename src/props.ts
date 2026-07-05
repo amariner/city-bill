@@ -101,9 +101,17 @@ export function farmhouse(): THREE.Group {
     g.add(col);
   }
 
+  // Ventanas encendibles del frente (a la izquierda del porche, sin taparse).
+  for (const x of [-2.7, -1.4]) {
+    const win = litWindow(0.9, 0.95);
+    win.position.set(x, 1.6, 2.61);
+    g.add(win);
+  }
+
   // Chimenea
   const chimney = solid(new THREE.BoxGeometry(0.55, 1.4, 0.55), PALETTE.houseWallShade);
   chimney.position.set(2.4, 5.2, -1.2);
+  tagChimney(chimney, 0.7);
   g.add(chimney);
 
   return g;
@@ -162,8 +170,13 @@ export function cottage(w = 5, d = 4.2, porchSide = true): THREE.Group {
     }
   }
 
+  const win = litWindow(1.0, 0.95);
+  win.position.set(-w * 0.2, 1.55, d / 2 + 0.06);
+  g.add(win);
+
   const chimney = solid(new THREE.BoxGeometry(0.45, 1.0, 0.45), PALETTE.houseWallShade);
   chimney.position.set(w * 0.25, 3.6, 0);
+  tagChimney(chimney, 0.5);
   g.add(chimney);
   return g;
 }
@@ -191,6 +204,31 @@ export function shop(): THREE.Group {
 // edificio: retícula sobre las fachadas con mezcla determinista de ventanas
 // "encendidas" (cálidas) y "apagadas" (frías).
 // ---------------------------------------------------------------------------
+
+// Material de ventana COMPARTIDO (una sola compilación de shader). El cristal
+// base es frío; el brillo cálido de "encendida" se suma como EMISSIVE por
+// instancia vía el atributo `aGlow` (vec3), que Atmosphere sube al anochecer.
+// Se añade a la emisión SIN tocar el difuso → las apagadas siguen leyéndose como
+// cristal normal a plena luz, y las encendidas brillan aunque el pueblo se atenúe.
+let _windowMat: THREE.MeshLambertMaterial | null = null;
+function windowMaterial(): THREE.MeshLambertMaterial {
+  if (_windowMat) return _windowMat;
+  const m = new THREE.MeshLambertMaterial({ color: PALETTE.windowCool });
+  m.onBeforeCompile = (shader) => {
+    shader.vertexShader = 'attribute vec3 aGlow;\nvarying vec3 vGlow;\n' +
+      shader.vertexShader.replace(
+        '#include <begin_vertex>',
+        '#include <begin_vertex>\n  vGlow = aGlow;',
+      );
+    shader.fragmentShader = 'varying vec3 vGlow;\n' +
+      shader.fragmentShader.replace(
+        '#include <emissivemap_fragment>',
+        '#include <emissivemap_fragment>\n  totalEmissiveRadiance += vGlow;',
+      );
+  };
+  _windowMat = m;
+  return m;
+}
 
 function windowGrid(
   g: THREE.Group,
@@ -223,23 +261,53 @@ function windowGrid(
     addFace(d, -w / 2 - 0.04, false);
   }
 
-  const inst = new THREE.InstancedMesh(
-    new THREE.BoxGeometry(0.85, floorH * 0.42, 0.12),
-    new THREE.MeshLambertMaterial({ color: 0xffffff }),
-    slots.length,
-  );
+  const geo = new THREE.BoxGeometry(0.85, floorH * 0.42, 0.12);
+  const inst = new THREE.InstancedMesh(geo, windowMaterial(), slots.length);
   const m = new THREE.Matrix4();
   const q = new THREE.Quaternion();
   const rot90 = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI / 2, 0));
   const one = new THREE.Vector3(1, 1, 1);
-  const lit = new THREE.Color(PALETTE.windowLit);
-  const cool = new THREE.Color(PALETTE.windowCool);
+  // T5.4: cada ventana lleva su ficha de encendido. `canLight` = fracción que
+  // puede iluminarse (el resto es cristal frío, nunca enciende); `threshold` = en
+  // qué punto del atardecer prende (efecto "una a una"). El brillo cálido vive en
+  // el atributo por instancia `aGlow` (arranca a 0 = apagado); Atmosphere lo sube.
+  const canLight = new Uint8Array(slots.length);
+  const threshold = new Float32Array(slots.length);
+  const glow = new THREE.InstancedBufferAttribute(new Float32Array(slots.length * 3), 3);
+  geo.setAttribute('aGlow', glow);
   slots.forEach(([x, y, z, turned], i) => {
     m.compose(new THREE.Vector3(x, y, z), turned ? rot90 : q, one);
     inst.setMatrixAt(i, m);
-    inst.setColorAt(i, ((i * 37 + 11) % 100) / 100 < litRatio ? lit : cool);
+    canLight[i] = ((i * 37 + 11) % 100) / 100 < litRatio ? 1 : 0;
+    threshold[i] = ((i * 97 + 43) % 100) / 100; // orden pseudo-aleatorio del anochecer
   });
+  inst.userData.kind = 'windows';
+  inst.userData.canLight = canLight;
+  inst.userData.threshold = threshold;
   g.add(inst);
+}
+
+/** Marca un mesh de chimenea para que Atmosphere emita humo desde su boca
+ * (`topOffset` = altura desde el centro del mesh hasta la boca, en unidades de
+ * mundo; invariante a la rotación del edificio porque el humo sube en +Y). */
+function tagChimney(mesh: THREE.Mesh, topOffset: number): void {
+  mesh.userData.kind = 'chimney';
+  mesh.userData.topOffset = topOffset;
+}
+
+/** Ventana "encendible" para casas pequeñas (mesh individual, no instanciado):
+ * cristal frío con MATERIAL PROPIO cuyo `emissiveIntensity` sube Atmosphere al
+ * anochecer (0 de día → cálido de noche). Así el pueblo entero —no sólo los
+ * bloques urbanos— se ilumina. El escalonado "una a una" lo fija Atmosphere por
+ * la posición de mundo de cada ventana. */
+export function litWindow(w: number, h: number): THREE.Mesh {
+  const m = new THREE.MeshLambertMaterial({ color: PALETTE.windowCool });
+  m.emissive = new THREE.Color(PALETTE.windowLit);
+  m.emissiveIntensity = 0; // apagada de día; Atmosphere la enciende
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.1), m);
+  mesh.castShadow = false;
+  mesh.userData.kind = 'litWindow';
+  return mesh;
 }
 
 /** Bloque de viviendas tipo "panelák": losa larga de hormigón claro. */
@@ -318,8 +386,7 @@ export function rowHouses(units = 4): THREE.Group {
     const door = solid(new THREE.BoxGeometry(0.9, 1.9, 0.1), PALETTE.houseWallShade);
     door.position.set(unit.position.x - uw * 0.18, 0.95, 3.06);
     g.add(door);
-    const win = solid(new THREE.BoxGeometry(1.1, 1.0, 0.1), PALETTE.windowCool);
-    win.castShadow = false;
+    const win = litWindow(1.1, 1.0);
     win.position.set(unit.position.x + uw * 0.2, 1.9, 3.06);
     g.add(win);
   }
@@ -541,6 +608,7 @@ export function factory(): THREE.Group {
 
   const chimney = solid(new THREE.CylinderGeometry(0.8, 1.1, 10, 10), PALETTE.brickShade);
   chimney.position.set(w / 2 - 1.6, 5, -d / 2 + 1.8);
+  tagChimney(chimney, 5); // la chimenea alta de la fábrica: humo desde su boca
   g.add(chimney);
   const band = solid(new THREE.CylinderGeometry(0.85, 0.9, 0.8, 10), PALETTE.houseTrim);
   band.position.set(w / 2 - 1.6, 9.2, -d / 2 + 1.8);

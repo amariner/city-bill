@@ -44,6 +44,22 @@ function styleFor(name: string, data?: Record<string, unknown>): Style | null {
       return { accent: ALERT, mark: '!' };
     case 'coupleFormed':
       return { accent: MILESTONE, mark: '♥' };
+    case 'vocationFound':
+      // Rotación vocacional (ciclo 41): alguien encontró su llamada — historia
+      // personal digna de un aviso (la sim la genera sin guion).
+      return { accent: MILESTONE, mark: '✦' };
+    case 'dynastyRose':
+      // Dinastía (ciclo 43): una estirpe se afianza — un hito del largo plazo.
+      return { accent: GOLDEN, mark: '❦' };
+    case 'dynastyFell':
+      // Extinción (ciclo 44): el arco de una familia se cierra — un beat sobrio.
+      return { accent: '', mark: '❧' };
+    case 'firstBuilding':
+      // Hito del pueblo (ciclo 45): estrena un tipo de edificio — desarrollo urbano.
+      return { accent: MILESTONE, mark: '⌂' };
+    case 'settlementRose':
+      // Mayoría de edad (ciclo 47): el lugar asciende de categoría — un gran hito.
+      return { accent: GOLDEN, mark: '✦' };
     case 'citizenLeft':
       // Solo los LEGADOS (matriarcas/patriarcas, ciclo 35) — no cada muerte.
       return isLegacyDeath(data) ? { accent: '', mark: '†' } : null;

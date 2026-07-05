@@ -285,8 +285,12 @@ repetido, arbolado automático en márgenes de carretera (rasgo de identidad).
   locomotora con sprites de esferas.
 - [ ] **T5.3 Sonido generativo.** Web Audio: viento, pájaros, campana lejana, murmullo
   al hacer zoom a ciudadanos charlando. Volumen ligado al zoom.
-- [ ] **T5.4 Juice.** Rebote elástico al colocar, humo en chimeneas al anochecer,
-  bandadas de pájaros, luces de ventanas encendiéndose una a una al caer la tarde.
+- [x] **T5.4 Juice atmosférico del anochecer.** Luces de ventana encendiéndose una a
+  una al caer la tarde (glow *emissive*, no difuso), humo de chimenea y bandada de
+  pájaros, todo sobre una "hora azul" que atenúa/enfría el pueblo para que el juice
+  cante. El *rebote elástico al colocar* queda para la Fase 2 (construcción manual, aún
+  no existe). Sistema único `render/atmosphere.ts` ligado al reloj de juego. Ver §6
+  (2026-07-05, sesión juice).
 - [ ] **T5.5 Modo foto.** Ocultar UI, encuadres presets, export PNG 4K.
 
 ### Fase 6 — Lanzamiento
@@ -817,3 +821,105 @@ aprieta, T3.8-T3.10 y la Fase 4 valen más que cualquier cosa de la Fase 5.
     `tsc` limpio, `grid.test` 33/33. Refactor de `main.ts`: `buildRenderAndUi(grid)`
     separado de la creación del `SimClient` (el render se monta al llegar el grid
     maduro; el juego normal lo llama sincrónico como antes).
+- 2026-07-05 (sesión Opus, LÓGICA+INTERFAZ a la par — ciclo 41) — **Rotación vocacional
+  (churn)**: la vocación (ciclo 36) ya no es solo un tinte de propósito, ahora MUEVE a la
+  gente. Un adulto infeliz en su oficio (trabaja lejos de su vocación) puede DEJARLO para
+  buscar el suyo, si hay vacante que lo colma a su alcance; al reasignar, gravita a su
+  llamada (descuento de distancia solo para el que busca). Salda la lección del ciclo 37
+  (preferir sin churn = no-op): medido A/B, el encaje sube (p.ej. seed 500 0.27→0.38) y
+  el suelo de comida es IDÉNTICO ON/OFF (benigno). RNG APARTE (`churnRng`) para no
+  perturbar el flujo general. **Interfaz a la par**: evento `vocationFound` → la Crónica
+  lo narra ("X encuentra su vocación: por fin labra la tierra"), un toast ✦ lo asoma, y
+  el inspector ya lo marca ✓ — se ve a alguien pasar a su vocación. 282/282 tests, `tsc`
+  limpio, screenshot de regresión limpio. Ver RESEARCH.md §4 (2026-07-05, ciclo 41).
+- 2026-07-05 (sesión Opus, LÓGICA+INTERFAZ a la par — ciclo 42) — **Linaje (apellidos
+  heredados)**: la historia autónoma (la Crónica) se vuelve SAGA generacional. Un hijo
+  hereda el apellido de un progenitor (mismo nº de tiradas de RNG → mundo byte-idéntico,
+  282 tests previos intactos); los apellidos se perpetúan y emergen dinastías. **Interfaz
+  a la par**: la Crónica narra "nace Ada, de Vera" y el inspector muestra "hijo/a de Vera
+  Novák". Descartado un hito de dinastía por apellido (ruidoso con solo 12 apellidos;
+  pediría un árbol genealógico real — ciclo futuro). 288/288 tests, `tsc` limpio.
+  Ver RESEARCH.md §4 (2026-07-05, ciclo 42).
+- 2026-07-05 (sesión Opus, LÓGICA+INTERFAZ a la par — ciclo 43) — **Dinastías
+  (descendencia real)**: el hito de dinastía legítimo que el ciclo 42 dejó pendiente. Cada
+  persona lleva un `lineId` (el tronco de su estirpe, propagado al nacer); cuando una línea
+  cruza 8 descendientes vivos, la Crónica la reconoce ("la familia Novák echa raíces: 9
+  descendientes vivos"), un toast ❦ lo asoma, y el inspector muestra la familia hacia abajo
+  ("familia: N hijos viven aquí"). Descendencia REAL (por lineId, no coincidencia de
+  apellido); sin RNG → mundo byte-idéntico (288 tests previos intactos). El linaje se lee
+  ya en tres direcciones: de quién vienes, quién sigue contigo, cuándo tu estirpe se vuelve
+  historia. 292/292 tests, `tsc` limpio. Ver RESEARCH.md §4 (2026-07-05, ciclo 43).
+- 2026-07-05 (sesión Opus, LÓGICA+INTERFAZ a la par — ciclo 44) — **Extinción de estirpe**:
+  cierra el arco familiar (rise & fall). Cuando una dinastía reconocida se apaga del todo
+  (ni un descendiente vivo ni el fundador), la Crónica cierra su historia ("se extingue la
+  familia Novák — no queda ninguno de su sangre") y un toast ❧ sobrio la asoma. Emergente
+  de largo plazo (medido offline: ~día 180 en seeds 7/999/12345); cubierto por test
+  unitario del predicado + narración (el run de 200 años disparaba la suite a >4 min).
+  Con esto el arco de una familia es COMPLETO: nace (42), crece y se reconoce (43), se
+  apaga (44). 297/297 tests, `tsc` limpio. Ver RESEARCH.md §4 (2026-07-05, ciclo 44).
+- 2026-07-05 (sesión Opus, LÓGICA+INTERFAZ a la par — ciclo 45) — **Hitos del pueblo
+  (primer edificio de cada tipo)**: abre la veta de la historia del LUGAR (tras el arco
+  familiar). Cuando la ciudad levanta sola un tipo de edificio que no había (escuela,
+  consultorio, adosados, fábrica…), la Crónica lo celebra ("el pueblo estrena un edificio
+  nuevo: Escuela") y un toast ⌂ lo asoma. Acoplado a los tiers (cada tier abre tipos);
+  emerge del crecimiento sin guion. 301/301 tests, `tsc` limpio, screenshot del pueblo en
+  desarrollo sin regresión. Ver RESEARCH.md §4 (2026-07-05, ciclo 45).
+- 2026-07-05 (sesión Opus, INTERFAZ alcanza a la lógica — ciclo 46) — **Las amistades,
+  visibles**: la afinidad social (charlas/vínculos/duelo, T3.7) se simulaba desde hace ~40
+  ciclos pero nunca se veía. El inspector muestra ahora el lazo más cercano vivo, marcándolo
+  "amistad íntima" si supera el umbral de duelo por amigo (0.55) o "conocido/a" si no. Cero
+  lógica nueva (`closestFriend` sobre `c.friends`, dos campos en el mensaje). Con esto el
+  inspector cuenta a una persona casi completa (quién es, con quién vive, de quién viene,
+  quién la acompaña, qué hace, qué ama, qué debe, qué deja). 305/305 tests, `tsc` limpio.
+  Ver RESEARCH.md §4 (2026-07-05, ciclo 46).
+- 2026-07-05 (sesión Opus, LÓGICA+INTERFAZ a la par — ciclo 47) — **Identidad del
+  asentamiento (aldea→pueblo→villa→ciudad)**: el lugar tiene ahora un nombre por su tamaño
+  (función pura `settlementClass`, umbrales 0/20/60/150, eje distinto de los tiers). El HUD
+  lo muestra SIEMPRE (la etiqueta del chip de población pasó a ALDEA/PUEBLO/VILLA/CIUDAD;
+  verificado por screenshot "ALDEA · 16") y la Crónica celebra cada ascenso ("la aldea se
+  hace pueblo (20 almas)") con toast ✦. Emerge pronto (seed 42: pueblo@d3) → test barato.
+  309/309 tests, `tsc` limpio. Ver RESEARCH.md §4 (2026-07-05, ciclo 47).
+- 2026-07-05 (sesión Opus — JUICE ATMOSFÉRICO T5.4) — El atardecer del banco de
+  pruebas (`?scene=test-dev` abre a ~19 h) ahora está VIVO. Un único sistema,
+  `world/render/atmosphere.ts` (clase `Atmosphere`), ligado al reloj de JUEGO:
+  · **Luces de ventana una a una** — la señal es `lampFactor(hora)` (0 de día, 1 de
+    noche, rampa suave al anochecer 17.5→20 h y al amanecer 5.5→7.5 h; nada de
+    `if hora==X`). Cada ventana tiene un `threshold` → prende cuando `lampFactor` lo
+    supera (efecto "una a una", escalonado). Dos mecanismos por rendimiento/estética:
+    (a) bloques urbanos (`windowGrid`): el brillo cálido va como EMISSIVE por
+    instancia vía un atributo `aGlow` (vec3) + parche mínimo de shader
+    (`onBeforeCompile`, se suma a `totalEmissiveRadiance`, SIN tocar el difuso →
+    apagadas = cristal frío normal, encendidas brillan aunque el pueblo se atenúe);
+    (b) casas pequeñas (`litWindow`, mesh suelto): material propio cuyo
+    `emissiveIntensity` sube Atmosphere (0 de día → cálido de noche). Añadidas
+    ventanas encendibles a `cottage`/`farmhouse`/`rowHouses` para que el PUEBLO
+    entero se ilumine, no sólo los bloques. Escalonado por posición de mundo
+    (determinista, sin RNG).
+  · **"Hora azul"** (`updateNight` en `renderer.ts`) — TRAMPA/decisión clave: el mundo
+    NO oscurecía nunca (la elevación del sol es fija por regla de arte §4, no hay
+    atenuación nocturna), así que un glow difuso cálido se PERDÍA contra las paredes
+    crema a plena luz. Sin un pueblo que se atenúe, "encender luces" no se lee. Añadida
+    una atenuación nocturna suave y fría (nunca a negro, §4: silueta legible) que modula
+    intensidad de sol/ambiente/hemi y tiñe cielo+ambiente hacia el crepúsculo. Es motivo
+    documentado para tocar la luz firmada (regla §0.3/§0.4). La ELEVACIÓN del sol NO se
+    toca: sólo intensidad/color/cielo → las sombras siguen largas. Colores nuevos en
+    `palette.ts`: `windowLit` (subido a ámbar), `skyNight`, `ambientNight`, `smoke`,
+    `bird` (+`windowDay` sin uso final).
+  · **Humo de chimenea** — bocanadas (InstancedMesh de esferas facetadas pálidas,
+    `depthWrite:false`) que suben, derivan y se deshacen encogiendo; sólo emiten al
+    anochecer/amanecer (`lampFactor>0.2`). Chimeneas marcadas con `userData.kind` +
+    `topOffset` en `farmhouse`/`cottage`/`factory`. Es FX cosmético efímero → usa
+    `Math.random` (permitido, §0.6). El resto (luces, bandada) es determinista.
+  · **Bandada** — una bandada (InstancedMesh de conos triangulares oscuros) que gira
+    sobre el centro de la ciudad al alba (~7 h) y al ocaso (~18.5 h), dormida el resto.
+  · **Escaneo del mundo**: Atmosphere recorre el árbol de render y cachea ventanas
+    (`kind:'windows'`/`'litWindow'`) y chimeneas; `invalidate()` en `cityGrew` re-escanea
+    tras crecer la ciudad (ventanas/chimeneas nuevas). Las ventanas sólo se repintan
+    cuando el crepúsculo se MUEVE (`lastLamp`); de día/noche pleno, gratis.
+  · Verificado con Playwright (headless swiftshader) en `?scene=test-dev` (dusk vivo:
+    ventanas cálidas por todo el pueblo, humo, bandada, hora azul) y en `?scene=buildings`
+    (de día: ventanas = cristal frío, cero glow, sin artefactos del shader). `tsc` limpio;
+    `npm test` 33/33 + 276/276 verde. Coste medido: +14 draw calls sobre la base (2 FX
+    instanciados + ~12 ventanas de casa); la base del banco ya son ~425 (edificios como
+    grupos de meshes, NO instanciados — deuda pre-existente de T1.6/T6.1, no de T5.4).
+    NOTA fps=10 del HUD headless es artefacto de swiftshader (SW render), no hardware real.

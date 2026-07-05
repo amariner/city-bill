@@ -7,7 +7,7 @@
  * - Las tiendas cuentan clientes por día: `prosperity` [0,1] alimentará el
  *   crecimiento (Fase 4) y el feedback visual (Sonnet: campos por franjas).
  */
-import { Citizen, PlaceRef } from './citizens/citizen';
+import { Citizen, PlaceRef, jobFitsVocation } from './citizens/citizen';
 import { WorldIndex, SimBuilding } from './worldIndex';
 import { manhattan } from './geometry';
 import { ADULT_AGE, RETIREMENT_AGE } from './lifecycle';
@@ -51,6 +51,14 @@ export const FOOD_PRICE = 2;
 export const SHOP_TREAT_PRICE = 5;
 /** Con qué llega una familia inmigrante. */
 export const STARTING_MONEY = 60;
+
+// --- Rotación vocacional (ciclo 41) -------------------------------------------
+/** Al buscar empleo, un puesto que COLMA la vocación "pesa" la mitad de distancia:
+ * la gente gravita a su llamada. El ciclo 37 probó este descuento SOLO y fue un
+ * no-op (en un mercado escaso, con una sola vacante viable, preferir no cambia la
+ * elección); la clave es aplicarlo a quien acaba de DEJAR su puesto para buscar el
+ * suyo (churn) — entonces sí mueve. Por eso solo se aplica a los `vocationSeekers`. */
+export const VOCATION_COMMUTE_DISCOUNT = 0.5;
 
 // --- Lógica de bienes (ciclo 31): consumo discrecional que CIRCULA -------------
 // El segundo bien tras el alimento. Antes el "capricho" gastaba 5 fijos que se
@@ -286,8 +294,14 @@ export class Economy {
     }
   }
 
-  /** Ofrece empleo a los parados. Determinista: orden por id. */
-  assignJobs(citizens: Map<number, Citizen>): Array<{ citizen: number; work: PlaceRef }> {
+  /** Ofrece empleo a los parados. Determinista: orden por id. Los
+   * `vocationSeekers` (quienes dejaron su puesto para buscar el suyo, ciclo 41)
+   * ven descontada la distancia a los empleos que colman su vocación → gravitan
+   * a su llamada; el resto se coloca como siempre (asignación intacta). */
+  assignJobs(
+    citizens: Map<number, Citizen>,
+    vocationSeekers?: ReadonlySet<number>,
+  ): Array<{ citizen: number; work: PlaceRef }> {
     const hires: Array<{ citizen: number; work: PlaceRef }> = [];
     // >= RETIREMENT_AGE nunca vuelve al mercado laboral (lógica de
     // jubilación): sin esto, un jubilado sin trabajo contaría como "parado"
@@ -296,15 +310,22 @@ export class Economy {
       .filter((c) => !c.work && c.age >= ADULT_AGE && c.age < RETIREMENT_AGE)
       .sort((a, b) => a.id - b.id);
     for (const c of unemployed) {
+      const prefersVocation = vocationSeekers?.has(c.id) ?? false;
       let best: Workplace | null = null;
-      let bestD = Infinity;
+      let bestEff = Infinity; // distancia EFECTIVA (con descuento vocacional)
+      let bestD = Infinity; // distancia REAL (para el umbral de desplazamiento)
       for (const w of this.workplaces) {
         const jobs = w.building.data.jobs ?? 0;
         if (w.workers.length >= jobs || !w.building.entrance) continue;
         // Empleos de tier alto piden estudios (lógica de educación).
         if (w.building.data.tier >= 3 && c.education < 0.5) continue;
         const d = manhattan([c.home.ax, c.home.az], w.building.entrance);
-        if (d < bestD) {
+        const eff =
+          prefersVocation && jobFitsVocation(c.personality, w.building.data.role)
+            ? d * VOCATION_COMMUTE_DISCOUNT
+            : d;
+        if (eff < bestEff) {
+          bestEff = eff;
           bestD = d;
           best = w;
         }
@@ -319,6 +340,37 @@ export class Economy {
       hires.push({ citizen: c.id, work });
     }
     return hires;
+  }
+
+  /** ¿Existe una vacante que COLMA la vocación de `c`, a su alcance y ESTRICTAMENTE
+   * mejor (con descuento) que su puesto actual? Solo entonces dejar el empleo es
+   * productivo (churn con destino, no paro). Puro; no muta nada. (Ciclo 41.) */
+  hasVocationVacancy(c: Citizen): boolean {
+    if (!c.work) return false;
+    const curD = manhattan([c.home.ax, c.home.az], [c.work.ax, c.work.az]);
+    const maxCommute = 40 + 120 * c.personality.trabajador;
+    for (const w of this.workplaces) {
+      const jobs = w.building.data.jobs ?? 0;
+      if (w.workers.length >= jobs || !w.building.entrance) continue;
+      if (w.building.data.tier >= 3 && c.education < 0.5) continue;
+      if (!jobFitsVocation(c.personality, w.building.data.role)) continue;
+      const d = manhattan([c.home.ax, c.home.az], w.building.entrance);
+      if (d > maxCommute) continue;
+      if (d * VOCATION_COMMUTE_DISCOUNT < curD) return true;
+    }
+    return false;
+  }
+
+  /** Un ciudadano DEJA su puesto: libera su silla y queda parado (ciclo 41). */
+  vacate(c: Citizen): void {
+    if (!c.work) return;
+    const k = `${c.work.ax},${c.work.az}`;
+    const w = this.workplaces.find((wp) => `${wp.building.ax},${wp.building.az}` === k);
+    if (w) {
+      const i = w.workers.indexOf(c.id);
+      if (i >= 0) w.workers.splice(i, 1);
+    }
+    c.work = null;
   }
 
   /** Un ciudadano entra a comprar: cuenta para la prosperidad de la tienda. */

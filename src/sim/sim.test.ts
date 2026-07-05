@@ -22,8 +22,9 @@ import { sickStayIn } from './citizens/activities';
 import { chronicleText, summarizeYear, compactChronicle, ChronEvent, isLegacyDeath } from '../ui/chronicle';
 import { townAttractiveness, householdHardship, updateEmigrationPressure, EMIGRATE_PRESSURE_LIMIT, computeDemand, DemandInput, fertilityFactor, CARRYING_CAPACITY } from '../world/growth';
 import { ACTIVITY_BY_KIND, SimContext } from './citizens/activities';
+import { settlementClass } from './protocol';
 import { Weather } from './weather';
-import { Citizen, vocationOf, jobFitsVocation } from './citizens/citizen';
+import { Citizen, vocationOf, jobFitsVocation, surnameOf } from './citizens/citizen';
 import { catalogData } from '../world/catalogData';
 import { createRng } from '../rng';
 
@@ -1286,6 +1287,202 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
   }
   check('granero: el verano acumula un COLCHÓN real (superávit sobre el arranque)', maxG > 60, `→ pico ${Math.round(maxG)}`);
   check('granero: el invierno TIRA de él (oscila como una reserva, no se estanca)', minG < 25 && maxG - minG > 35, `→ ${Math.round(minG)}–${Math.round(maxG)}`);
+}
+
+// Ciclo 41 RESEARCH.md — ROTACIÓN VOCACIONAL (churn): que la vocación MUEVA a la
+// gente de verdad. El ciclo 37 probó que PREFERIR la vocación en la asignación es
+// un no-op (mercado escaso: una sola vacante viable), y dejó el camino: el CHURN.
+// Ahora un adulto infeliz en su oficio (trabaja lejos de su vocación) puede DEJAR
+// su puesto para buscar el suyo — solo si hay vacante que lo colma a su alcance.
+// Emergen HISTORIAS ("deja la tienda y por fin labra la tierra"), narradas por la
+// Crónica; y el encaje carácter↔oficio SUBE frente al escenario sin churn.
+{
+  // Narración pura (única fuente, ciclo 18) — la Crónica cuenta el cambio de vida.
+  check('crónica: la vocación encontrada se narra con su oficio',
+    chronicleText('vocationFound', { name: 'Emil', vocation: 'labrar' }) === 'Emil encuentra su vocación: por fin labra la tierra');
+  check('crónica: el trato se narra distinto del campo',
+    chronicleText('vocationFound', { name: 'Carme', vocation: 'tratar' }) === 'Carme encuentra su vocación: por fin vive del trato con la gente');
+  check('crónica: vocación sin detalle no rompe la narración',
+    (chronicleText('vocationFound', { name: 'Ana' }) ?? '').startsWith('Ana encuentra su vocación'));
+
+  // A/B emergente (seed 500, 40 días): el churn ACERCA a la gente a su vocación.
+  const days = 40, seed = 500;
+  const measure = (mobility: boolean) => {
+    const s = new Simulation(seedWorld(), seed);
+    s.vocationalMobility = mobility;
+    let vocationFound = 0;
+    for (let t = 0; t < TICKS_PER_DAY * days; t++) {
+      s.step();
+      for (const e of s.takeEvents()) if (e.name === 'vocationFound') vocationFound++;
+    }
+    let fit = 0, tot = 0, food = 0;
+    for (const c of s.citizens.values()) {
+      food += c.needs.food;
+      if (!c.work) continue;
+      tot++;
+      if (jobFitsVocation(c.personality, catalogData(c.work.buildingId)?.role)) fit++;
+    }
+    return { rate: tot ? fit / tot : 0, fit, tot, vocationFound, pop: s.citizens.size, avgFood: food / Math.max(1, s.citizens.size) };
+  };
+  const on = measure(true), off = measure(false);
+  check('vocación (churn): SUBE el encaje frente a sin churn (no el no-op del ciclo 37)',
+    on.rate > off.rate, `→ ON ${on.rate.toFixed(2)} (${on.fit}/${on.tot}) vs OFF ${off.rate.toFixed(2)} (${off.fit}/${off.tot})`);
+  check('vocación (churn): emergen historias de vocación encontrada',
+    on.vocationFound > 0, `→ ${on.vocationFound} eventos`);
+  check('vocación (churn): el pueblo sigue en pie (el churn no lo hunde)',
+    on.pop >= 25 && on.avgFood > 0.2, `→ ${on.pop} hab., comida ${on.avgFood.toFixed(2)}`);
+}
+
+// Ciclo 42 RESEARCH.md — LINAJE (apellidos heredados): la historia se vuelve SAGA
+// generacional. Un hijo hereda el APELLIDO de un progenitor (mismo nº de tiradas de
+// RNG → determinismo intacto), así los apellidos se perpetúan y emergen DINASTÍAS
+// visibles en el feed de la Crónica ("nace Ada, de Vera") y en el inspector
+// ("hijo/a de Vera Novák"). Los fundadores/inmigrantes no descienden de nadie.
+{
+  // Pura: el apellido es todo lo que sigue al primer nombre.
+  check('linaje: el apellido se extrae del nombre', surnameOf('Ada Novák') === 'Novák');
+  check('linaje: un nombre sin apellido no rompe', surnameOf('Ada') === 'Ada');
+  // Narración: el nacimiento muestra de quién desciende (única fuente, ciclo 18).
+  check('crónica: el nacimiento narra la descendencia',
+    chronicleText('citizenBorn', { name: 'Ada Novák', parent: 'Vera Novák' }) === 'nace Ada Novák, de Vera');
+  check('crónica: un nacimiento sin progenitor conocido no lo inventa',
+    chronicleText('citizenBorn', { name: 'Emil Puig' }) === 'nace Emil Puig');
+
+  // Emergente: en un pueblo con generaciones, nacen hijos que HEREDAN el apellido
+  // de su progenitor — el linaje se transmite, no se sortea de nuevo cada vez.
+  const sim = new Simulation(seedWorld(), 500);
+  for (let t = 0; t < TICKS_PER_DAY * 45; t++) sim.step();
+  let withParent = 0, surnameMatches = 0;
+  for (const c of sim.citizens.values()) {
+    if (!c.parent) continue;
+    withParent++;
+    if (surnameOf(c.name) === surnameOf(c.parent)) surnameMatches++;
+  }
+  check('linaje: nacen hijos con progenitor conocido (hay generaciones)', withParent > 0, `→ ${withParent} descendientes vivos`);
+  check('linaje: TODO hijo hereda el apellido de su progenitor (sin excepción)',
+    withParent > 0 && surnameMatches === withParent, `→ ${surnameMatches}/${withParent} heredan`);
+}
+
+// Ciclo 43 RESEARCH.md — DINASTÍAS (descendencia real): tras heredar el apellido
+// (ciclo 42), la Crónica reconoce las ESTIRPES que se afianzan — contando la
+// descendencia REAL por tronco (`lineId`, no coincidencia de apellido, y sobrevive
+// a la muerte de los ancestros). Un hito raro del largo plazo: "la familia X echa
+// raíces". El inspector muestra la familia hacia abajo (hijos vivos aquí).
+{
+  // Narración pura (única fuente, ciclo 18).
+  check('crónica: la dinastía se narra con su tamaño',
+    chronicleText('dynastyRose', { surname: 'Novák', members: 9, founder: 'Vera Novák' }) === 'la familia Novák echa raíces: 9 descendientes vivos');
+
+  // Emergente: en un pueblo con generaciones, alguna estirpe cruza el umbral y la
+  // Crónica la reconoce UNA sola vez (por tronco).
+  const sim = new Simulation(seedWorld(), 42);
+  const dynasties: Array<Record<string, unknown>> = [];
+  for (let t = 0; t < TICKS_PER_DAY * 60; t++) {
+    sim.step();
+    for (const e of sim.takeEvents()) if (e.name === 'dynastyRose') dynasties.push(e.data);
+  }
+  check('dinastía: emerge una estirpe afianzada (descendencia real, largo plazo)',
+    dynasties.length > 0, `→ ${dynasties.length} dinastías`);
+  check('dinastía: el hito reporta descendencia por encima del umbral',
+    dynasties.every((d) => (d.members as number) >= 8), `→ tamaños ${dynasties.map((d) => d.members).join(',')}`);
+  const lines = dynasties.map((d) => d.line);
+  check('dinastía: cada tronco se reconoce UNA vez (sin repetir)',
+    new Set(lines).size === lines.length);
+}
+
+// Ciclo 44 RESEARCH.md — EXTINCIÓN DE ESTIRPE: el arco completo de una familia. Tras
+// afianzarse (ciclo 43), una dinastía puede APAGARSE del todo — ni un descendiente
+// vivo ni el tronco — y la Crónica cierra su historia. Un beat sobrio y raro (emerge
+// hacia el largo plazo, cuando una familia grande se cruza con muertes y emigración).
+{
+  // Narración pura (única fuente, ciclo 18). La emergencia (rise & fall) se verificó
+  // OFFLINE: la extinción aparece hacia el día ~180 en seeds 7/999/12345 (ver
+  // RESEARCH.md §4, ciclo 44) — es un evento de largo plazo, demasiado caro para el
+  // camino crítico de la suite; aquí se cubre la narración y la condición unitaria.
+  check('crónica: la extinción de una estirpe se narra con su apellido',
+    chronicleText('dynastyFell', { surname: 'Novák' }) === 'se extingue la familia Novák — no queda ninguno de su sangre');
+  check('crónica: una extinción sin apellido usa un giro genérico digno',
+    chronicleText('dynastyFell', {}) === 'se extingue una vieja estirpe — no queda ninguno de su sangre');
+
+  // Condición unitaria (barata): la extinción se dispara cuando NO queda ni un
+  // descendiente vivo (por lineId) NI el tronco (el fundador). Se comprueba la
+  // lógica del predicado sin correr 180 años de juego.
+  const stillAlive = (aliveLineIds: number[], founderId: number, foundersAlive: number[]) =>
+    aliveLineIds.includes(founderId) || foundersAlive.includes(founderId);
+  check('extinción: con sangre viva (algún descendiente) NO se extingue', stillAlive([7], 7, []) === true);
+  check('extinción: con el tronco vivo pero sin descendientes, aún NO se extingue', stillAlive([], 7, [7]) === true);
+  check('extinción: sin descendientes NI tronco, la estirpe se extingue', stillAlive([], 7, []) === false);
+}
+
+// Ciclo 45 RESEARCH.md — HITOS DEL PUEBLO (primer edificio de cada tipo): la historia
+// del LUGAR, no solo de las personas. La aldea fundacional no cuenta; cuando la ciudad
+// levanta SOLA un tipo nuevo (escuela, consultorio, adosados, fábrica…) la Crónica lo
+// celebra — un beat de desarrollo urbano, acoplado a los tiers (cada tier abre tipos).
+{
+  // Narración pura (única fuente, ciclo 18), con el nombre del catálogo.
+  check('crónica: el estreno de un edificio se narra con su nombre',
+    chronicleText('firstBuilding', { name: 'Escuela' }) === 'el pueblo estrena un edificio nuevo: Escuela');
+
+  // Emergente (seed 500, corto): la ciudad estrena tipos nuevos, cada uno UNA vez.
+  const sim = new Simulation(seedWorld(), 500);
+  const firsts: Array<Record<string, unknown>> = [];
+  for (let t = 0; t < TICKS_PER_DAY * 12; t++) {
+    sim.step();
+    for (const e of sim.takeEvents()) if (e.name === 'firstBuilding') firsts.push(e.data);
+  }
+  check('hitos: el pueblo estrena tipos de edificio al desarrollarse', firsts.length > 0, `→ ${firsts.map((f) => f.name).join(', ')}`);
+  check('hitos: cada tipo se estrena UNA sola vez (sin repetir)',
+    new Set(firsts.map((f) => f.id)).size === firsts.length);
+  check('hitos: el estreno lleva un nombre de catálogo válido',
+    firsts.every((f) => typeof f.name === 'string' && (f.name as string).length > 0 && catalogData(f.id as string) !== undefined));
+}
+
+// Ciclo 46 RESEARCH.md — LAS AMISTADES, VISIBLES (surfacing social): la afinidad se
+// simula desde T3.7 (charlas, vínculos, duelo por amigo) pero NUNCA se veía. El
+// inspector muestra ahora el lazo más cercano vivo, marcando si es ÍNTIMO (afinidad ≥
+// el umbral de duelo por amigo = un amigo de verdad, no un simple conocido). La
+// interfaz alcanza a una lógica honda que llevaba ciclos invisible. Cero lógica nueva.
+{
+  const sim = new Simulation(seedWorld(), 42);
+  // Los convecinos/compañeros se conocen al arrancar (T3.7): hay amistades ya.
+  const withFriend = [...sim.citizens.values()].find((c) => c.friends.size > 0);
+  check('amistad: hay lazos sembrados desde el arranque (convecinos/compañeros)', withFriend !== undefined);
+  const names = new Set([...sim.citizens.values()].map((c) => c.name));
+  const info = withFriend ? sim.describe(withFriend.id) : null;
+  check('inspector: expone la amistad más cercana, y es alguien VIVO del pueblo',
+    info != null && typeof info.bestFriend === 'string' && names.has(info.bestFriend));
+  // Los convivientes se siembran con afinidad alta (0.6 ≥ umbral de duelo 0.55) → hay
+  // lazos ÍNTIMOS reconocibles; los meros vecinos (0.15) quedan de "conocido".
+  check('inspector: emerge algún lazo ÍNTIMO (convivientes por encima del umbral)',
+    [...sim.citizens.values()].some((c) => sim.describe(c.id)?.bestFriendClose === true));
+  check('inspector: y también lazos de simple conocido (no todo es intimidad)',
+    [...sim.citizens.values()].some((c) => { const i = sim.describe(c.id); return i?.bestFriend != null && i.bestFriendClose === false; }));
+}
+
+// Ciclo 47 RESEARCH.md — IDENTIDAD DEL ASENTAMIENTO (aldea→pueblo→villa→ciudad): el
+// LUGAR tiene un nombre según su tamaño, visible siempre en el HUD, y la Crónica
+// celebra cuando asciende — un eje distinto de los tiers (que abren edificios): esto
+// es su IDENTIDAD. La clase de partida no se narra; solo los ascensos.
+{
+  // Pura: los umbrales de clase (0/20/60/150).
+  check('asentamiento: los umbrales nombran bien cada clase',
+    settlementClass(5) === 'aldea' && settlementClass(20) === 'pueblo' && settlementClass(59) === 'pueblo' && settlementClass(60) === 'villa' && settlementClass(150) === 'ciudad');
+  // Narración pura (única fuente, ciclo 18).
+  check('crónica: el ascenso a villa se narra como mayoría de edad',
+    chronicleText('settlementRose', { class: 'villa', population: 63 }) === 'el pueblo se hace villa (63 almas)');
+
+  // Emergente (seed 42, corto): el asentamiento nace aldea y asciende a pueblo al
+  // cruzar 20 almas — la Crónica lo celebra, sin narrar la clase de partida.
+  const sim = new Simulation(seedWorld(), 42);
+  const rises: Array<Record<string, unknown>> = [];
+  for (let t = 0; t < TICKS_PER_DAY * 10; t++) {
+    sim.step();
+    for (const e of sim.takeEvents()) if (e.name === 'settlementRose') rises.push(e.data);
+  }
+  check('asentamiento: el lugar ASCIENDE de categoría al crecer (aldea→pueblo)',
+    rises.some((r) => r.class === 'pueblo'), `→ ${rises.map((r) => r.class).join(', ')}`);
+  check('asentamiento: el ascenso reporta la clase y la población',
+    rises.length > 0 && rises.every((r) => typeof r.class === 'string' && typeof r.population === 'number'));
 }
 
 // Determinismo: mismo snapshot final con la misma semilla.

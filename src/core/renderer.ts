@@ -94,3 +94,20 @@ export function updateSeason(stage: Pick<Stage, 'scene' | 'ambient'>, warmth: nu
   stage.ambient.color.copy(_amb);
   stage.ambient.intensity = 1.15 + 0.4 * t; // invierno más recogido, verano luminoso
 }
+
+// --- Hora azul / noche (T5.4) -------------------------------------------------
+// Al caer la tarde el pueblo se ATENÚA y se ENFRÍA (nunca a negro: la silueta
+// sigue legible, §4) para que las luces cálidas de las ventanas, el humo y el
+// oro del ocaso canten. Se aplica DESPUÉS de `updateSun`/`updateSeason`: modula
+// el resultado del frame. La ELEVACIÓN del sol NO se toca (regla de arte §4):
+// sólo intensidad, color y cielo. `night` ∈ [0,1] = `lampFactor(hora)`.
+const _skyNight = new THREE.Color(PALETTE.skyNight);
+const _ambNight = new THREE.Color(PALETTE.ambientNight);
+
+export function updateNight(stage: Pick<Stage, 'scene' | 'sun' | 'ambient' | 'hemi'>, night: number): void {
+  stage.sun.intensity *= 1 - 0.5 * night; // el sol se recoge (aún proyecta sombra larga)
+  stage.ambient.intensity *= 1 - 0.3 * night;
+  stage.hemi.intensity = 0.5 * (1 - 0.4 * night);
+  stage.ambient.color.lerp(_ambNight, 0.55 * night); // relleno azul luna
+  (stage.scene.background as THREE.Color).lerp(_skyNight, 0.72 * night); // cielo del crepúsculo
+}

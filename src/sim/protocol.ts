@@ -60,6 +60,27 @@ export function activityId(kind: ActivityKind): number {
   return ACTIVITY_IDS.indexOf(kind);
 }
 
+// --- Clase de asentamiento (ciclo 47): la IDENTIDAD del lugar por su tamaño ----
+/** Cómo se llama al asentamiento según su población — un eje distinto de los
+ * tiers (que abren edificios): esto es su IDENTIDAD, la ve el HUD siempre y la
+ * Crónica celebra cuando asciende. Pura; la comparten HUD y sim. */
+export const SETTLEMENT_CLASSES = ['aldea', 'pueblo', 'villa', 'ciudad'] as const;
+export type SettlementClass = (typeof SETTLEMENT_CLASSES)[number];
+/** Población mínima de cada clase (mismo índice que SETTLEMENT_CLASSES). */
+export const SETTLEMENT_MIN = [0, 20, 60, 150];
+
+export function settlementLevel(population: number): number {
+  let lvl = 0;
+  for (let i = SETTLEMENT_MIN.length - 1; i >= 0; i--) {
+    if (population >= SETTLEMENT_MIN[i]) { lvl = i; break; }
+  }
+  return lvl;
+}
+
+export function settlementClass(population: number): SettlementClass {
+  return SETTLEMENT_CLASSES[settlementLevel(population)];
+}
+
 // --- main → worker -----------------------------------------------------------
 
 export interface InitMsg {
@@ -197,7 +218,13 @@ export interface SimEventMsg {
     // Reflejo visual de la economía en el mundo (render rico, local): el prestigio
     // de una vivienda (jardín, ciclo 9) y la faena agrícola agregada (surcos, T3.8).
     | 'homePrestige'
-    | 'cultivationChanged';
+    | 'cultivationChanged'
+    // Historia autónoma (ciclos 41-47, origin): vocación, dinastías, hitos, identidad.
+    | 'vocationFound'
+    | 'dynastyRose'
+    | 'dynastyFell'
+    | 'firstBuilding'
+    | 'settlementRose';
   data?: Record<string, unknown>;
 }
 
@@ -210,6 +237,14 @@ export interface CitizenInfoMsg {
   age: number;
   lifeStage: string;
   partnerName?: string;
+  /** Progenitor del que desciende — linaje, ciclo 42 (el inspector: "hijo/a de …"). */
+  parent?: string;
+  /** Hijos VIVOS ahora mismo — linaje, ciclo 43 (la familia vista hacia abajo). */
+  livingChildren: number;
+  /** Amistad más cercana viva — social, ciclo 46 (la afinidad, por fin visible). */
+  bestFriend?: string;
+  /** ¿Ese lazo es ÍNTIMO (afinidad ≥ umbral de duelo)? — un amigo de verdad. */
+  bestFriendClose: boolean;
   activity: ActivityKind;
   activityLabel: string;
   needs: Record<string, number>;

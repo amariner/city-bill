@@ -50,8 +50,9 @@ export const PALETTE = {
   brickShade: 0xb06f57,
   creamWall: 0xe9dcc0,
   glass: 0x9db2b6,
-  windowLit: 0xf3e2b3,
+  windowLit: 0xffe4a3, // ventana encendida: ámbar cálido y luminoso (glow del anochecer)
   windowCool: 0x8fa0a6,
+  windowDay: 0xaab4b8, // panel de día de una ventana que SÍ se enciende (frío, apagado)
   roofTerracotta: 0xc07a52,
   signYellow: 0xd4ae4b,
   signRed: 0xc25e54,
@@ -67,6 +68,10 @@ export const PALETTE = {
   // Jardines de estatus (ciclo 9): setos y flores discretas al invertir en casa
   gardenHedge: 0x7a9457,
   gardenFlowers: [0xc98fa0, 0xd6b869, 0xb9c98a] as const,
+
+  // Atmósfera / juice (T5.4 — FX cosméticos del anochecer)
+  smoke: 0xd7d0c4, // humo de chimenea al anochecer: gris cálido pálido
+  bird: 0x3b4136, // bandada: siluetas oscuras casi negras contra el cielo
 
   // Agua y cielo
   pond: 0x86b7cd,
@@ -84,6 +89,12 @@ export const PALETTE = {
   ambientWinter: 0xc4d2e6, // relleno frío azulado (nieve, sombra fría)
   ambientSummer: 0xdcd8c8, // relleno cálido de verano
   snow: 0xeef2f7, // manto de nieve del terreno en invierno (emissive, T5.1 paso 2)
+
+  // Hora azul / noche (T5.4): al caer la tarde el pueblo se atenúa y enfría
+  // (nunca a negro — la silueta sigue legible) para que las luces cálidas de las
+  // ventanas y el humo canten. La ELEVACIÓN del sol no cambia (regla de arte §4).
+  skyNight: 0x9aa0b8, // cielo del crepúsculo, malva-azulado apagado
+  ambientNight: 0x8e9ac2, // relleno frío nocturno (azul luna)
 
   // UI diegética
   selectRing: 0xd8b25a, // anillo bajo el ciudadano seleccionado en el inspector
