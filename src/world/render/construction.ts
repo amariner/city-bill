@@ -14,8 +14,9 @@
  */
 import * as THREE from 'three';
 import { PALETTE } from '../../palette';
-import { CELL_SIZE, rotatedFootprint, Rot } from '../grid';
+import { CELL_SIZE, CHUNK, rotatedFootprint, Rot, Grid } from '../grid';
 import { catalogItem } from '../catalog';
+import { paintYard } from '../growth';
 import type { WorldView } from './worldView';
 
 const RISE_DUR = 0.9; // s hasta que el edificio alcanza su altura
@@ -44,7 +45,7 @@ export class ConstructionView {
   readonly root = new THREE.Group();
   private sites: Site[] = [];
 
-  constructor(private grid: { placeBuilding: (id: string, w: number, d: number, cx: number, cz: number, rot: Rot) => boolean }, private world: WorldView) {}
+  constructor(private grid: Grid, private world: WorldView) {}
 
   /** Arranca la obra de un edificio recién demandado por la ciudad. */
   spawn(id: string, cx: number, cz: number, rot: Rot): void {
@@ -145,7 +146,17 @@ export class ConstructionView {
     if (it) {
       // Réplica en el grid de render → el chunk dibuja el edificio definitivo.
       this.grid.placeBuilding(s.id, it.w, it.d, s.cx, s.cz, s.rot);
-      this.world.refreshChunkAt(s.cx, s.cz);
+      // Jardín de hierba bajo/alrededor (mismo verde que en la sim): refresca
+      // los chunks tocados por el anillo (puede cruzar la frontera de chunk).
+      const [fw, fd] = rotatedFootprint(it.w, it.d, s.rot);
+      const painted = paintYard(this.grid, s.cx, s.cz, fw, fd);
+      const seen = new Set<string>();
+      for (const [cx, cz] of [...painted, [s.cx, s.cz] as [number, number]]) {
+        const k = `${Math.floor(cx / CHUNK)},${Math.floor(cz / CHUNK)}`;
+        if (seen.has(k)) continue;
+        seen.add(k);
+        this.world.refreshChunkAt(cx, cz);
+      }
     }
     this.root.remove(s.cont);
     s.cont.traverse((o) => {

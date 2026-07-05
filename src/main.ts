@@ -10,9 +10,9 @@ import { GameLoop } from './core/loop';
 import { DebugHud } from './core/debugHud';
 import { createWorldView } from './neighborhood';
 import { seedWorld, seedFarm } from './world/seed';
-import { extendRoad, townCenter } from './world/growth';
+import { extendRoad, townCenter, paintYard } from './world/growth';
 import { Simulation } from './sim/simulation';
-import { CELL_SIZE } from './world/grid';
+import { CELL_SIZE, rotatedFootprint } from './world/grid';
 import { createRng } from './rng';
 import { buildShowcase } from './showcase';
 import { SimClient, AgentView } from './sim/client';
@@ -104,6 +104,14 @@ if (sceneName === 'buildings') {
     const growDays = 90;
     const sim = new Simulation(seedFarm(worldSeed), worldSeed);
     for (let i = 0; i < growDays * Math.round(DAY_GAME_SECONDS / TICK_GAME_S); i++) sim.step();
+    // Jardín de hierba bajo cada edificio, SOLO para el render (post-sim: la
+    // simulación ya terminó, así que pintar hierba no altera nada — es cosmético).
+    for (const b of sim.index.buildings) {
+      if (b.data.role === 'nature') continue;
+      const rot = sim.grid.get(b.ax, b.az)?.building?.rot ?? 0;
+      const [fw, fd] = rotatedFootprint(b.data.w, b.data.d, rot);
+      paintYard(sim.grid, b.ax, b.az, fw, fd);
+    }
     worldView = createWorldView(sim.grid);
     stage.scene.add(worldView.root);
     const anchors = sim.index.buildings.filter((b) => b.data.role !== 'nature').map((b) => [b.ax, b.az] as [number, number]);

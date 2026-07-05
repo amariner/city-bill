@@ -327,6 +327,39 @@ export function extendRoad(
   return laid;
 }
 
+/**
+ * Pinta un JARDÍN de hierba bajo el edificio y en un anillo de 1 celda alrededor
+ * (el "retranqueo" habitado), para que el pueblo autónomo se asiente sobre verde
+ * como el pueblo sembrado a mano — frondoso y vivido, no plantado sobre tierra
+ * beige. Respeta vías, agua y edificios ajenos. Determinista (sin RNG): no altera
+ * la trayectoria del crecimiento. Devuelve las celdas pintadas (para refrescar el
+ * render). `fw`/`fd` = footprint YA rotado.
+ */
+export function paintYard(
+  grid: Grid,
+  anchorX: number,
+  anchorZ: number,
+  fw: number,
+  fd: number,
+): Array<[number, number]> {
+  const painted: Array<[number, number]> = [];
+  for (let x = anchorX - 1; x <= anchorX + fw; x++) {
+    for (let z = anchorZ - 1; z <= anchorZ + fd; z++) {
+      const c = grid.get(x, z);
+      if (!c) continue;
+      if (c.terrain === 'road' || c.terrain === 'path' || c.terrain === 'water') continue;
+      const inFootprint = x >= anchorX && x < anchorX + fw && z >= anchorZ && z < anchorZ + fd;
+      // En el anillo, no pisar el jardín de un edificio ajeno (deja su borde).
+      if (c.building && !inFootprint) continue;
+      if (c.terrain !== 'grass') {
+        grid.setTerrain(x, z, 'grass');
+        painted.push([x, z]);
+      }
+    }
+  }
+  return painted;
+}
+
 /** canPlace + margen de respeto: 1 celda libre alrededor (retranqueo/paso). */
 function clearForGrowth(grid: Grid, w: number, d: number, ax: number, az: number, rot: Rot): boolean {
   if (!grid.canPlace(w, d, ax, az, rot)) return false;

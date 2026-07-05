@@ -713,6 +713,11 @@ export class Simulation {
   private applyGrowth(p: GrowthPlacement): void {
     const it = catalogData(p.id);
     if (!it || !this.grid.placeBuilding(p.id, it.w, it.d, p.cx, p.cz, p.rot)) return;
+    // NOTA: el JARDÍN de hierda es puramente VISUAL y se pinta en el grid de
+    // RENDER (construction.ts) — NO aquí. Pintarlo en el grid de la sim bajaría
+    // el coste de paso del terreno (grass 1.6 vs field 2.4 en pathfinding) y
+    // desviaría las rutas → cambiaría TODA la trayectoria de la sim. El sim se
+    // queda sobre 'field'; el verde es cosa del render.
     this.index.rebuild();
     this.economy.rebuild(this.index, this.citizens);
     if (it.role === 'residential') {

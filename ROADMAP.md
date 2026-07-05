@@ -450,3 +450,13 @@ aprieta, T3.8-T3.10 y la Fase 4 valen más que cualquier cosa de la Fase 5.
   · **Robustez del sector VERIFICADA** (sonda headless, 8 combinaciones
     escena×semilla, 150 días): sin excepciones, población acotada (78-89, sin
     explosión ni colapso), vías extendidas 0-8 (sin runaway).
+  · **Anti-ribbon (compacidad 2D)** — `STREET_EVERY` calles transversales
+    proactivas (ver T4.4). Aspect del bounding box 3.2→1.1.
+  · **Jardín de hierba bajo cada edificio (frondosidad, §4)** — `paintYard` en
+    `growth.ts`. TRAMPA IMPORTANTE cazada: pintar hierba en el grid de la SIM
+    baja el `walkCost` del terreno (grass 1.6 vs field 2.4 en geometry.ts) →
+    desvía el pathfinding → cambia TODA la trayectoria (rompía 2 tests de
+    epidemia al filo de percolación). Solución: el jardín es SOLO visual — se
+    pinta en el grid de RENDER (`construction.finish`) y, en `?scene=grown`,
+    en `sim.grid` DESPUÉS de terminar la sim (post-hoc, cosmético). El grid de
+    la sim del worker se queda sobre 'field' → pathfinding y tests intactos.
