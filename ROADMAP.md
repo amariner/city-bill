@@ -373,3 +373,14 @@ aprieta, T3.8-T3.10 y la Fase 4 valen más que cualquier cosa de la Fase 5.
     Verificado: seeds distintas → pueblos distintos, misma seed → mismo pueblo.
     Es un primer paso de T2.6 (persiste el MUNDO; falta persistir el TIEMPO/
     estado de sim — el guardado completo §1.4 sigue pendiente).
+- 2026-07-05 (sesión Opus, veta INTERFAZ — surfacing) — La UI se había quedado muy
+  por detrás de la sim (40 ciclos de lógica, casi invisibles). Primer paso de la veta:
+  **HUD de ciudad** (`ui/cityHud.ts`) siempre visible (población/tesoro/paro/estación/
+  granero/salud/riqueza) + **inspector enriquecido** (vocación ✓, legado, alquiler).
+  Sin lógica nueva: sólo plumbing por la frontera única — `CityStats` en `protocol.ts`,
+  `Simulation.cityStats()` puro, en el `SnapshotMsg`, expuesto en `SimClient.city`.
+  Acentos de alerta con colores semánticos de la paleta. Verificado por screenshot
+  (§4). Detalle: `describe()` ahora devuelve `Omit<CitizenInfoMsg,'type'|'id'>` (el
+  contrato del mensaje es la única fuente de verdad). Ver RESEARCH.md §4 (2026-07-05).
+  NOTA: la nieve del TERRENO en invierno (T5.1 paso 2) YA estaba implementada
+  (`updateTerrainSeason`); lo pendiente ahí es sólo el pulido de cubiertas en tejados.

@@ -12,6 +12,7 @@ import {
   AGENT_STRIDE,
   AgentState,
   CitizenInfoMsg,
+  CityStats,
 } from './protocol';
 import { TICK_REAL_S } from './clock';
 
@@ -40,6 +41,8 @@ export class SimClient {
   /** Población y edificios del último snapshot — para la Crónica. */
   population = 0;
   buildings = 0;
+  /** Estado agregado de la ciudad del último snapshot — para el HUD de ciudad. */
+  city: CityStats | null = null;
   onCitizenInfo: ((info: CitizenInfoMsg) => void) | null = null;
   /** Eventos de sim (cityGrew, citizenBorn…) para que el main reaccione. */
   onEvent: ((name: string, data?: Record<string, unknown>) => void) | null = null;
@@ -78,6 +81,7 @@ export class SimClient {
         this.gameTime = msg.time;
         this.population = msg.count;
         this.buildings = msg.buildings;
+        this.city = msg.city;
         break;
       }
       case 'citizenInfo':

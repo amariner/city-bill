@@ -22,6 +22,7 @@ import { updateTerrainSeason } from './world/render/terrain';
 import { Speed } from './sim/protocol';
 import { CitizenInspector } from './ui/inspector';
 import { Chronicle } from './ui/chronicle';
+import { CityHud } from './ui/cityHud';
 
 const sceneName = new URLSearchParams(window.location.search).get('scene');
 
@@ -101,6 +102,8 @@ const input = new Input(stage.renderer.domElement);
 const controller = new CameraController(camera, input);
 const hud = new DebugHud(stage.renderer, camera);
 const inspector = simClient ? new CitizenInspector(stage.renderer, camera, simClient) : null;
+// HUD de ciudad (surfacing): siempre visible mientras haya simulación.
+const cityHud = simClient ? new CityHud() : null;
 
 window.addEventListener('resize', () => {
   stage.renderer.setSize(window.innerWidth, window.innerHeight);
@@ -130,6 +133,7 @@ loop.onUpdate((dt) => {
     const hh = String(Math.floor(h)).padStart(2, '0');
     const mm = String(Math.floor((h % 1) * 60)).padStart(2, '0');
     hud.setStats({ agents: n, clock: `${hh}:${mm} día ${day} ×${simClient.speed}` });
+    cityHud?.update(simClient.city);
     chronicle?.update(t, simClient.population, simClient.buildings);
   }
   hud.update(dt);

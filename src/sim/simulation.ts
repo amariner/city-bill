@@ -16,12 +16,12 @@ import { PathQueue, pathLength } from './pathfinding';
 import { CellXZ, manhattan } from './geometry';
 import { WorldIndex } from './worldIndex';
 import { Economy } from './economy';
-import { Citizen, citizenName, PlannedActivity, TravelMode, jobFitsVocation, VOCATION_PURPOSE_BONUS } from './citizens/citizen';
+import { Citizen, citizenName, PlannedActivity, TravelMode, jobFitsVocation, vocationOf, VOCATION_PURPOSE_BONUS } from './citizens/citizen';
 import { decayNeeds, restore, NEED_KEYS } from './citizens/needs';
 import { chooseActivity } from './citizens/brain';
 import { ACTIVITY_BY_KIND, SimContext, activityLabel, EDU_PER_HOUR, CLINIC_FEE, isFestivalDay } from './citizens/activities';
 import { SocialSystem } from './citizens/social';
-import { AgentState, ActivityKind, activityId, AGENT_STRIDE, TravelModeCode } from './protocol';
+import { AgentState, ActivityKind, activityId, AGENT_STRIDE, TravelModeCode, CityStats, CitizenInfoMsg } from './protocol';
 import {
   computeDemand, itemForDemand, findParcel, townCenter, townAttractiveness,
   householdHardship, updateEmigrationPressure, EMIGRATE_POP_FLOOR, EMIGRATE_PRESSURE_LIMIT,
@@ -939,8 +939,30 @@ export class Simulation {
     return arr;
   }
 
+  /** Estado agregado de la ciudad (surfacing en el HUD): datos que la sim ya
+   * lleva por dentro y que hasta ahora no salían a la superficie. Puro read. */
+  cityStats(): CityStats {
+    const s = this.economy.stats(this.citizens);
+    const unemployment = s.adults > 0 ? 1 - s.employed / s.adults : 0;
+    let totalWealth = 0;
+    for (const k of this.households.keys()) totalWealth += this.economy.walletOf(k);
+    const avgWealth = this.households.size > 0 ? totalWealth / this.households.size : 0;
+    let sick = 0;
+    for (const c of this.citizens.values()) if (c.sick > 0.05) sick++;
+    return {
+      population: this.citizens.size,
+      treasury: this.economy.treasury,
+      unemployment,
+      season: this.weather.season,
+      granary: this.economy.granary,
+      avgWealth,
+      epidemic: this.inEpidemic,
+      sick,
+    };
+  }
+
   /** Estado legible de un ciudadano (inspector T3.10). */
-  describe(id: number): { name: string; age: number; lifeStage: string; partnerName?: string; activity: ActivityKind; activityLabel: string; needs: Record<string, number>; home: [number, number]; work?: [number, number]; health: number; grief: number; sick: number; wallet: number; pantry: number; prestige: number } | null {
+  describe(id: number): Omit<CitizenInfoMsg, 'type' | 'id'> | null {
     const c = this.citizens.get(id);
     if (!c) return null;
     const homeKey = `${c.home.ax},${c.home.az}`;
@@ -948,6 +970,14 @@ export class Simulation {
     // el inspector deja de ser una hoja de stats y pasa a mostrar una PERSONA.
     const lifeStage = c.age < ADULT_AGE ? 'niño/a' : c.age >= OLD_AGE ? 'mayor' : 'adulto/a';
     const partner = c.partnerId !== null ? this.citizens.get(c.partnerId) : undefined;
+    // Vocación (ciclo 36) y si el empleo actual la colma (ciclo 36).
+    const jobRole = c.work ? catalogData(c.work.buildingId)?.role : undefined;
+    // Alquiler diario del hogar (ciclo 29): mismo cálculo que chargeRent.
+    const homeTier = catalogData(c.home.buildingId)?.tier ?? 0;
+    const families = this.households.get(homeKey) ?? 0;
+    const rent = this.rentEnabled && families > 0
+      ? RENT_PER_DAY * families * (1 + RENT_TIER_FACTOR * homeTier)
+      : 0;
     return {
       name: c.name,
       age: c.age,
@@ -964,6 +994,11 @@ export class Simulation {
       wallet: this.economy.walletOf(homeKey),
       pantry: this.pantry.get(homeKey) ?? 0,
       prestige: this.economy.prestigeOf(homeKey),
+      vocation: vocationOf(c.personality),
+      vocationMet: jobFitsVocation(c.personality, jobRole),
+      jobRole,
+      childrenRaised: c.childrenRaised,
+      rent,
     };
   }
 

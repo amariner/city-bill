@@ -11,6 +11,9 @@
  * frontera y las tres piezas deben coincidir en el layout.
  */
 
+import type { Season } from './weather';
+import type { Vocation } from './citizens/citizen';
+
 export type Speed = 0 | 1 | 2 | 3;
 
 /** Multiplicador de tiempo por nivel de velocidad. */
@@ -97,8 +100,31 @@ export interface SnapshotMsg {
   count: number;
   /** Nº de edificios del índice de sim (para la Crónica). */
   buildings: number;
+  /** Estado agregado de la ciudad — para el HUD de ciudad (surfacing). */
+  city: CityStats;
   /** count * AGENT_STRIDE floats. TRANSFERIDO (zero-copy). */
   agents: Float32Array;
+}
+
+/** Estado agregado de la ciudad que la sim ya conoce por dentro y el HUD saca
+ * a la superficie: tesoro, paro, estación/cosecha, epidemia, riqueza media.
+ * Puros números derivados del estado real de la sim (nada de THREE). */
+export interface CityStats {
+  population: number;
+  /** Caja pública (impuestos − gasto). */
+  treasury: number;
+  /** Fracción de adultos SIN empleo [0,1]. */
+  unemployment: number;
+  /** Estación en curso (calendario, weather.ts). */
+  season: Season;
+  /** Reserva del granero comunal (colchón estacional, ciclo 40). */
+  granary: number;
+  /** Ahorro medio por hogar. */
+  avgWealth: number;
+  /** ¿Hay oleada epidémica declarada? (ciclo 25). */
+  epidemic: boolean;
+  /** Nº de enfermos contagiosos ahora mismo. */
+  sick: number;
 }
 
 export interface SimEventMsg {
@@ -141,6 +167,16 @@ export interface CitizenInfoMsg {
   grief: number;
   /** Enfermedad contagiosa [0,1] — ciclo 25. El inspector la pinta si está enfermo. */
   sick: number;
+  /** Vocación por carácter — ciclo 36 (N5, autorrealización). */
+  vocation: Vocation;
+  /** ¿Su empleo actual COLMA su vocación? (rol del puesto ∈ vocación). */
+  vocationMet: boolean;
+  /** Rol del empleo actual, si trabaja (agriculture/commerce/civic/work…). */
+  jobRole?: string;
+  /** Hijos criados — legado, ciclo 34 (N5). Puro recuerdo, varía por vida vivida. */
+  childrenRaised: number;
+  /** Alquiler diario de la vivienda — ciclo 29 (situación económica). */
+  rent: number;
 }
 
 export type WorkerToMain = SnapshotMsg | SimEventMsg | CitizenInfoMsg;

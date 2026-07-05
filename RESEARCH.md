@@ -1079,3 +1079,27 @@ una simulación, y los tratamos como tales:
   sería stock POR tienda/hogar (despensa privada que se gestiona). (b) en un invierno
   MUY largo o con menos granjeros el colchón podría no bastar → precios de la comida
   que suben con la escasez (hoy FOOD_PRICE es fijo) cerraría el bucle oferta-demanda.
+- 2026-07-05 · **Veta INTERFAZ — SURFACING 1: HUD de ciudad + inspector enriquecido** ·
+  Pivote de esfera: tras 40 ciclos de LÓGICA, el motor era profundo pero casi INVISIBLE
+  (solo un debug HUD de reloj/agentes con F3). Esta veta no añade simulación: SACA A LA
+  SUPERFICIE lo que la sim ya produce por dentro. (1) **HUD de ciudad** (`ui/cityHud.ts`,
+  barra superior diegética siempre visible): población, tesoro, paro, estación, granero,
+  salud/epidemia y riqueza media. Todo son datos que la sim ya conocía; el trabajo fue
+  el PLUMBING por la frontera única (§1.3): nuevo `CityStats` en `protocol.ts`, método
+  puro `Simulation.cityStats()` (paro = 1−empleados/adultos; riqueza media = ahorro medio
+  por hogar; enfermos = sick>0.05), incluido en el `SnapshotMsg` del worker y expuesto
+  en `SimClient.city`. El HUD sólo reescribe el DOM cuando cambia la firma (la sim va a
+  4 Hz) → cero coste por frame. Acentos de alerta (paro >20% / epidemia) con colores
+  SEMÁNTICOS de la paleta (`signRed`/`signYellow`), no hex sueltos. (2) **Inspector
+  enriquecido** (`ui/inspector.ts`): añade lo más nuevo de la sim que no salía —
+  **vocación** (ciclo 36, con ✓ si el empleo la colma), **legado** (ciclo 34, "N hijos
+  criados", sólo si >0) y **situación económica** (alquiler diario, mismo cálculo que
+  `chargeRent`). `describe()` pasa a devolver `Omit<CitizenInfoMsg,'type'|'id'>` para que
+  el tipo del mensaje sea la única fuente de verdad del contrato. Verificado por
+  screenshot del preview (`?seed=42` y `?seed=7`, ×8 para crecer): el HUD de ciudad lee
+  limpio y pastel sin tapar la viñeta (PARO en ámbar cuando aprieta), y el inspector de
+  "Carme Novák, 27, tendera" muestra *vocación: el trato con la gente ✓* y *alquiler
+  53/día* — la vida interior por fin se ve. 276/276 tests verdes; `tsc` limpio.
+  Próximo en la veta: (a) enganchar eventos de sim (epidemia, tier, festival) a un
+  aviso visual efímero; (b) el legado en vida (matriarcas visibles); (c) cubiertas de
+  nieve en tejados (T5.1 pulido) — la nieve del terreno ya estaba hecha.
