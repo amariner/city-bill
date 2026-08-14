@@ -402,11 +402,13 @@ tractores (residuo T3.9), página itch.io.
   rama `rescate/construction-sector` (se borra al cerrar H1).
 - [x] ROADMAP reescrito: este §3, marcas POST-MVP en §2, protocolo §0 (reglas 1/8/10),
   §6 al día (entrada del ciclo 51 que faltaba + acta de la sesión 2026-08-14).
-- [ ] CATALOG.md actualizado: marcas de implementación reales (17 ítems en
+- [x] CATALOG.md actualizado: marcas de implementación reales (17 ítems en
   `catalogData.ts`) y footprints según el código.
-- [ ] Hallazgos menores saldados (done nº 8).
-- [ ] **Gate H0**: `tsc` + tests verdes, push, rama remota huérfana borrada, revisión
-  del usuario (este documento es el contrato de todo lo demás).
+- [x] Hallazgos menores saldados (done nº 8).
+- [~] **Gate H0**: `tsc` limpio ✓ · **330/330 tests** ✓ · preview verificado ✓ ·
+  push `70ef459` ✓ · rama remota huérfana borrada ✓ — pendiente solo la revisión
+  de este documento y el OK del usuario para abrir H1 (este §3 es el contrato de
+  todo lo demás).
 
 **H1 — El pueblo se ve pueblo**
 - [ ] Portar al main actual: trama 2D proactiva (`eeeaab4`: `STREET_EVERY`,
@@ -1089,3 +1091,6 @@ tractores (residuo T3.9), página itch.io.
   Respaldo local `rescate/construction-sector`; la rama remota se borra en el gate.
   CATALOG.md actualizado a marcas/footprints reales. Hallazgos menores saldados:
   duelo duplicado en inspector, grid fantasma de neighborhood.ts, comentario ?stress.
+  Verificación del gate: `tsc` limpio, **330/330 tests**, preview OK, push `70ef459`,
+  rama remota huérfana borrada (respaldo local `rescate/construction-sector` vivo
+  hasta cerrar H1).
