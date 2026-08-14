@@ -8,7 +8,7 @@ import { Input } from './core/input';
 import { CameraController } from './core/cameraController';
 import { GameLoop } from './core/loop';
 import { DebugHud } from './core/debugHud';
-import { createWorldView } from './neighborhood';
+import { WorldView } from './world/render/worldView';
 import { seedWorld, seedFarm } from './world/seed';
 import { extendRoad } from './world/growth';
 import { createRng } from './rng';
@@ -53,7 +53,7 @@ const stage = createStage();
 const camera = new IsoCamera();
 camera.setZoomIndex(1);
 
-let worldView: ReturnType<typeof createWorldView> | null = null;
+let worldView: WorldView | null = null;
 let simClient: SimClient | null = null;
 let citizenView: CitizenView | null = null;
 let selectionMarker: SelectionMarker | null = null;
@@ -77,7 +77,7 @@ let activeSeed = 0;
 function buildRenderAndUi(grid: Grid, worldSeed: number): void {
   const sim = simClient!;
   activeSeed = worldSeed;
-  worldView = createWorldView(grid);
+  worldView = new WorldView(grid);
   stage.scene.add(worldView.root);
   // Atmósfera del anochecer (T5.4): luces de ventana, humo y bandada. Escanea el
   // árbol del mundo (ventanas/chimeneas marcadas) y añade su propio grupo de FX.

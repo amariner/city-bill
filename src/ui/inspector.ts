@@ -188,9 +188,6 @@ export class CitizenInspector {
       ...(info.rent > 0 ? [`alquiler ${info.rent.toFixed(0)}/día`] : []),
       `despensa ${info.pantry.toFixed(0)} uds`,
       `hogar   ${bar(info.prestige)}`,
-      // Solo se muestra si hay duelo real: no es un fondo permanente como
-      // salud/prestigio, es un estado que casi siempre está en cero.
-      ...(info.grief > 0.01 ? [`duelo   ${bar(info.grief)}`] : []),
     ].join('\n');
     // Quién es (ciclo 23): edad, etapa y pareja bajo el nombre.
     const who = `${info.age} años · ${info.lifeStage}${info.partnerName ? ` · con ${info.partnerName}` : ''}`;

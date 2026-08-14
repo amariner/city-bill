@@ -16,9 +16,10 @@ import { AgentView } from '../../sim/client';
 import { AgentState, TravelModeCode } from '../../sim/protocol';
 
 // RESEARCH.md §5 fija 10.000 ciudadanos como objetivo de escala — el tope
-// tiene que cubrirlo con margen (T6.1: medido con ?stress=N en main.ts que
-// 2048 truncaba en silencio a partir de esa cifra, sin avisar ni degradar
-// visiblemente el recuento del HUD).
+// tiene que cubrirlo con margen (T6.1: el antiguo 2048 truncaba en silencio,
+// sin avisar ni degradar visiblemente el recuento del HUD). La herramienta
+// `?stress=N` con la que se midió se perdió en el 2º merge; se reintroduce en
+// el hito H2 (ROADMAP §3) para el estrés de 500+ y la verificación de §1.5.
 const MAX_AGENTS = 12000;
 
 /** Convierte una geometría de THREE en no-indexada, coloreada y transformada. */
