@@ -1,16 +1,23 @@
-# ROADMAP — Guía de ejecución para el agente (Claude Opus 4.8)
+# ROADMAP — Guía de ejecución para el agente
 
-Este documento es el **plan maestro** de city-bill: un city builder para navegador con
-estética low-poly isométrica pastel, ciudad que crece sola y **NPCs verdaderamente
-autónomos**. Está escrito para que un agente (Claude Opus 4.8 en Claude Code) lo ejecute
-tarea a tarea sin supervisión. Todo el desarrollo ocurre aquí, en Claude Code.
+Este documento es el **plan maestro** de city-bill: un **vivarium contemplativo** para
+navegador con estética low-poly isométrica pastel — un pueblo que se construye solo,
+con **NPCs verdaderamente autónomos**, y que narra su propia saga en la Crónica. Está
+escrito para que un agente (Claude en Claude Code) lo ejecute tarea a tarea sin
+supervisión. Todo el desarrollo ocurre aquí, en Claude Code.
+
+**El rumbo vigente es el MVP definido en §3** (fijado 2026-08-14 con el usuario):
+hitos H0-H4 con gate de revisión entre ellos. Las fases de §2 son el catálogo
+histórico de tareas; §3 dice cuáles tocan ahora y en qué orden.
 
 ---
 
 ## 0. Protocolo del agente — LEER ANTES DE TOCAR CÓDIGO
 
-1. **Orden estricto.** Ejecuta las tareas en orden (T1.1 → T1.2 → …). No empieces una
+1. **Orden estricto.** El orden de ejecución lo marca **§3 (hitos H0-H4)**: trabaja el
+   hito ABIERTO y nada más; dentro del hito, sus casillas en orden. No empieces una
    tarea si la anterior no cumple sus criterios de aceptación. No mezcles tareas.
+   (La numeración `T<fase>.<n>` de §2 sigue siendo el catálogo de referencia.)
 2. **Una tarea, un ciclo completo:** implementar → `npx tsc --noEmit` limpio →
    arrancar preview (`.claude/launch.json`, servidor `city-bill`) → screenshot →
    comparar con el checklist visual (§4) → marcar la casilla en este archivo.
@@ -26,10 +33,15 @@ tarea a tarea sin supervisión. Todo el desarrollo ocurre aquí, en Claude Code.
    puramente cosméticos que no persisten).
 7. **Presupuesto por frame:** tras cada tarea de las fases 1-3, comprueba en consola el
    contador de draw calls (`renderer.info.render.calls`, T1.7 lo expone). Límites: §1.5.
-8. **Commits:** al completar cada tarea, commit con mensaje `T<fase>.<n>: <resumen>`.
-   Si el repo no está inicializado, `git init` en la primera tarea.
+8. **Commits:** al completar cada tarea, commit con mensaje `T<fase>.<n>: <resumen>`
+   (tareas de fase) o `H<hito>: <resumen>` (trabajo de hito de §3).
 9. **Al terminar una sesión**, deja este archivo actualizado: casillas marcadas y, si
    quedó algo a medias, una nota en §6 con el estado exacto.
+10. **Escritor único y gates** (decisión 2026-08-14, §6): solo sesiones LOCALES sobre
+    `main`, push al cerrar cada sesión; nada de ramas de larga vida (la nube, solo como
+    excepción puntual fusionada el mismo día). Entre hitos de §3, GATE obligatorio:
+    informe corto (qué se hizo, capturas, números F3, tests) y OK explícito del usuario
+    antes de abrir el siguiente. El done de §3 solo puede encoger, nunca crecer.
 
 ---
 
@@ -110,6 +122,10 @@ repetido, arbolado automático en márgenes de carretera (rasgo de identidad).
 
 ## 2. Fases y tareas
 
+> **Nota (2026-08-14):** estas fases son el CATÁLOGO de tareas. El orden de ejecución
+> vigente y qué entra en el MVP lo dicta **§3**. Las fases/tareas marcadas
+> **[POST-MVP]** no se tocan hasta cerrar el done de §3.1.
+
 ### Fase 0 — Fundación visual ✅ COMPLETADA
 - [x] Stack Vite+TS+Three, paleta, props (árboles, casa, granero, cobertizo, casita, tienda, ciudadano), primer barrio con pueblo, luz firmada, RNG con semilla.
 
@@ -142,8 +158,11 @@ repetido, arbolado automático en márgenes de carretera (rasgo de identidad).
   largas, calidez visible, una sola dirección de sol (checklist §4). **Con esto,
   Fase 1 (T1.1–T1.8) queda COMPLETA.**
 
-### Fase 2 — Construcción
-> Objetivo: el verbo del juego. Colocar cosas bonitas con validación del grid.
+### Fase 2 — Construcción **[POST-MVP]**
+> Objetivo: el verbo del god-game. Colocar cosas bonitas con validación del grid.
+> **Fuera del MVP por decisión del usuario (2026-08-14, §6):** el MVP es el vivarium
+> contemplativo — el modo autónomo (T4.4) es el único modo. Esta fase entera queda
+> para el hito post-MVP "god-game". No tocar hasta entonces.
 
 - [ ] **T2.1 Raycast a celda + fantasma.** Hover muestra la huella del ítem
   seleccionado (verde translúcido válido / rojizo inválido) usando `canPlace`.
@@ -290,8 +309,9 @@ repetido, arbolado automático en márgenes de carretera (rasgo de identidad).
   crossfade. *Pulido pendiente:* fundir la capa (B) con un crossfade como la (A), y
   cubiertas de nieve en los TEJADOS (hoy la nieve solo cubre el suelo — exigiría tocar
   todos los builders de `props.ts`).
-- [ ] **T5.2 Tren.** Vía + estación + tren con 3-5 vagones en circuito, humo de la
-  locomotora con sprites de esferas.
+- [ ] **T5.2 Tren. [POST-MVP]** Vía + estación + tren con 3-5 vagones en circuito, humo
+  de la locomotora con sprites de esferas. *Fuera del done del MVP (2026-08-14, §6);
+  primer candidato del hito de continuación.*
 - [ ] **T5.3 Sonido generativo.** Web Audio: viento, pájaros, campana lejana, murmullo
   al hacer zoom a ciudadanos charlando. Volumen ligado al zoom.
 - [x] **T5.4 Juice atmosférico del anochecer.** Luces de ventana encendiéndose una a
@@ -300,7 +320,8 @@ repetido, arbolado automático en márgenes de carretera (rasgo de identidad).
   cante. El *rebote elástico al colocar* queda para la Fase 2 (construcción manual, aún
   no existe). Sistema único `render/atmosphere.ts` ligado al reloj de juego. Ver §6
   (2026-07-05, sesión juice).
-- [ ] **T5.5 Modo foto.** Ocultar UI, encuadres presets, export PNG 4K.
+- [ ] **T5.5 Modo foto. [POST-MVP]** Ocultar UI, encuadres presets, export PNG 4K.
+  *Fuera del done del MVP (2026-08-14, §6).*
 
 ### Fase 6 — Lanzamiento
 - [x] **T6.1 Rendimiento final.** Lado SIM: perfilado con hasta 10.000
@@ -321,16 +342,102 @@ repetido, arbolado automático en márgenes de carretera (rasgo de identidad).
   Con esto, T6.1 está completo por los dos lados (sim y render) al
   objetivo de 10.000 de RESEARCH.md §5. `?stress=N` se queda como
   herramienta permanente de QA (mismo espíritu que `?scene=buildings`).
-- [ ] **T6.2 PWA + táctil.** Instalable, gestos de pan/zoom en tablet.
+- [ ] **T6.2 PWA + táctil. [POST-MVP]** Instalable, gestos de pan/zoom en tablet.
+  *Fuera del done del MVP (2026-08-14, §6): desktop-first.*
 - [ ] **T6.3 Onboarding.** 5 tooltips contextuales máximo. Nada de tutorial modal.
-- [ ] **T6.4 Build + deploy.** `npm run build` limpio, deploy estático (Vercel/Netlify),
-  página itch.io.
+  *(En el MVP: hito H4, done nº 4 de §3.)*
+- [ ] **T6.4 Build + deploy.** `npm run build` limpio, deploy estático a **GitHub Pages**
+  (workflow de Actions, `base` de Vite configurada). *(En el MVP: hito H4, done nº 1 de
+  §3. La página itch.io pasa a POST-MVP.)*
 
 ---
 
-## 3. Orden de valor (si hay que priorizar)
-La demo mínima encantadora = Fase 1 completa + T2.1-T2.3 + T3.1-T3.7. Si el tiempo
-aprieta, T3.8-T3.10 y la Fase 4 valen más que cualquier cosa de la Fase 5.
+## 3. MVP y hitos — el rumbo vigente (fijado 2026-08-14)
+
+**El MVP es un vivarium contemplativo en una URL pública**: el pueblo nace, crece y
+narra su saga solo; el visitante observa (cámara, velocidades, inspector, Crónica).
+*Cada semilla, una saga.* Decidido con el usuario en sesión de grilling (12 decisiones,
+ver §6 2026-08-14). Sustituye a la antigua "demo mínima encantadora" (que exigía
+T2.1-T2.3): 51 ciclos esquivaron la construcción manual y construyeron esto — se
+reconoce el rumbo real.
+
+### 3.1 Definición de DONE (inamovible; solo puede ENCOGER, con decisión del usuario en un gate)
+
+1. [ ] **URL pública viva** (GitHub Pages, `base` de Vite configurada): `npm run build`
+   limpio, carga en frío y corre a 60 fps en un portátil medio.
+2. [ ] **Arranque en día 0** — la fundación (`townFounded`) es el primer beat de la
+   Crónica; `?seed=N` fuerza mundo; semilla visible/compartible y acción "nueva
+   semilla"; `?days=N` funciona en la escena normal como puerta trasera.
+3. [ ] **Sonido generativo (T5.3)**: viento, pájaros, campana lejana, murmullo al
+   acercarse a charlas; volumen ligado al zoom; mute (tecla M); arranca tras el primer
+   gesto del usuario (política de autoplay).
+4. [ ] **Onboarding mínimo (T6.3)**: 3-5 tooltips contextuales de una sola vez (qué es
+   esto, Crónica [C], click en un vecino, velocidades). Nada modal.
+5. [ ] **El pueblo se ve pueblo**: trama 2D de calles + mezcla/etapas de densidad
+   (T4.2/T4.4); el arco aldea→villa pasa el checklist §4.
+6. [ ] **Contrato §1.5 verificado en la escena real** (F3): ≤200 draw calls,
+   ≤16 ms/frame, tick ≤50 ms con 1000 ciudadanos; T3.6 saldado (LOD lejano + estrés
+   500 a 60 fps).
+7. [ ] **Invierno de apertura rematado (T5.1)**: crossfade de la capa estacional (B) +
+   nieve en los tejados (la primera impresión de cada visita es el invierno).
+8. [ ] **Higiene**: `tsc` limpio, suite completa verde, hallazgos menores saldados
+   (duelo duplicado en inspector, grid fantasma de `neighborhood.ts`, comentario
+   `?stress` obsoleto en `render/citizens.ts`).
+
+**Cortado del MVP** (post-MVP, por decisión del usuario, 2026-08-14): Fase 2 entera,
+T5.2 tren, T5.5 modo foto, T6.2 PWA/táctil, persistencia de partida (save/load),
+tractores (residuo T3.9), página itch.io.
+
+### 3.2 Hitos (entre hitos: gate — informe + capturas + OK explícito del usuario)
+
+**H0 — Poner la casa en orden** *(en curso, 2026-08-14)*
+- [x] Rescate de la rama huérfana `claude/city-bill-construction-sector-gmrajg`
+  (8 commits): **injertados** barra de control (`e3be240` → `ui/controlBar.ts`) y
+  README de venta + `docs/hero.png` (`af62abf`, adaptado); **aplazados a H1** los
+  portes de sim — trama 2D (`eeeaab4`), mezcla de densidades (`43f2719`), jardín de
+  hierba (`3f731a2`) — porque su base es un main pre-ciclos-41 y se portan a mano;
+  **descartados** el sector de construcción (`f5e476f`, supersedido por el ciclo 51)
+  y `?scene=grown` (`339ed1d`, redundante con `?scene=test-dev`). Respaldo local:
+  rama `rescate/construction-sector` (se borra al cerrar H1).
+- [x] ROADMAP reescrito: este §3, marcas POST-MVP en §2, protocolo §0 (reglas 1/8/10),
+  §6 al día (entrada del ciclo 51 que faltaba + acta de la sesión 2026-08-14).
+- [ ] CATALOG.md actualizado: marcas de implementación reales (17 ítems en
+  `catalogData.ts`) y footprints según el código.
+- [ ] Hallazgos menores saldados (done nº 8).
+- [ ] **Gate H0**: `tsc` + tests verdes, push, rama remota huérfana borrada, revisión
+  del usuario (este documento es el contrato de todo lo demás).
+
+**H1 — El pueblo se ve pueblo**
+- [ ] Portar al main actual: trama 2D proactiva (`eeeaab4`: `STREET_EVERY`,
+  `buildingsSinceRoad`), mezcla de densidades (`43f2719`: `residentialChoices` +
+  fallback por huella en `maybeGrow`) y jardín de hierba (`3f731a2`: `paintYard`
+  en el grid de RENDER, nunca en el de sim — cambiaría el pathfinding).
+- [ ] Rematar T4.2 (etapas de densidad) si la mezcla no basta para el done nº 5.
+- [ ] Playtest 30 min a ×8 (residuo T4.4): el arco aldea→pueblo→villa se sostiene.
+- [ ] **Gate H1**: screenshots del arco (d0 / ~d30 / ~d80) + checklist §4 + Crónica
+  coherente. Al cerrar: borrar `rescate/construction-sector`.
+
+**H2 — Aguanta máquinas ajenas**
+- [ ] Medir la escena REAL con F3 (resolver la contradicción 105 vs ~425 draw calls
+  del banco — deuda T1.6/T6.1 anotada en §6/T5.4).
+- [ ] T3.6 saldado: LOD a zoom lejano + estrés 500 ciudadanos a 60 fps; hornear/
+  instanciar lo que falte; cero allocaciones por frame en el bucle caliente.
+- [ ] **Gate H2**: números de F3 en captura, con el pueblo denso de H1.
+
+**H3 — El alma sonora**
+- [ ] T5.3 completo (`src/audio/` nuevo): viento + pájaros + campana + murmullo,
+  mezcla por zoom, mute (M), arranque tras primer gesto. Determinismo no aplica
+  (FX cosmético, §0.6), pero cero allocaciones por frame.
+- [ ] **Gate H3**: demo con sonido en preview + sin regresión de fps.
+
+**H4 — Puertas abiertas** *(gate = done final)*
+- [ ] T5.1 rematado (crossfade capa B + nieve en tejados).
+- [ ] Onboarding (3-5 tooltips) + línea de título; semilla visible + acción "nueva
+  semilla"; verificar `?days=N` en la escena normal.
+- [ ] `npm run build` limpio + deploy GitHub Pages (Actions, `base`) + README/hero
+  al día.
+- [ ] **Gate H4**: recorrer el DONE de §3.1 punto por punto **en la URL pública, en
+  frío** (otra máquina/navegador), con el usuario delante.
 
 ## 4. Checklist visual por screenshot (obligatorio en tareas visuales)
 - [ ] Solo colores de `palette.ts`; nada saturado ni brillante.
@@ -955,3 +1062,29 @@ aprieta, T3.8-T3.10 y la Fase 4 valen más que cualquier cosa de la Fase 5.
   45). Sirve a la historia (la construcción autónoma se lee como crónica de desarrollo) y a
   la UI. Antes: intentado y REVERTIDO el "invierno duro" (no emerge: el granero-colchón del
   ciclo 40 previene la hambruna por diseño). 330/330 tests, `tsc` limpio.
+- 2026-07-05 (sesión Opus — ciclo 51) — **[Entrada añadida a posteriori el 2026-08-14:
+  el ciclo se commiteó sin diario, deuda de §0.9.]** **Animación de construcción
+  (T4.2)**: cada `cityGrew` ya no aparece de golpe — `world/render/construction.ts`
+  monta copia standalone del edificio + andamio (`props.scaffold`, `palette.scaffold`)
+  y anima: el edificio CRECE desde el suelo con pop elástico (easeOutBack) mientras el
+  andamio se retira; al terminar, el chunk revela el edificio fundido (relevo invisible
+  vía `worldView.beginConstruction/endConstruction`). Verificado por screenshot en
+  escena de aislamiento temporal (`?scene=fxtest`, ya retirada). Detalle en T4.2 (§2).
+- 2026-08-14 (sesión Opus 5 — grilling + H0) — **EL RUMBO: MVP fijado con el usuario
+  y arranque de los hitos.** Tras 6 semanas de parón, sesión de interrogatorio con 12
+  decisiones cerradas (todas del usuario): el MVP es un **vivarium contemplativo en URL
+  pública** (GitHub Pages), sin construcción manual (Fase 2 entera POST-MVP), sin
+  guardado de partida (semilla en URL, "cada semilla una saga"), desktop-first, con
+  sonido generativo + onboarding mínimo dentro del done y tren/foto/PWA fuera; arranque
+  en día 0 (la fundación como beat inaugural); proceso híbrido = hitos H0-H4 con gate
+  del usuario + bucle fractal DENTRO del hito; escritor único (solo sesiones locales).
+  Todo en §3 (nuevo) y §0 reglas 1/8/10. **H0 ejecutado esta sesión:** auditoría de la
+  rama huérfana `claude/city-bill-construction-sector-gmrajg` — injertados
+  `ui/controlBar.ts` (e3be240, verificado en preview: click ×8 acelera, no tapa la
+  viñeta) y README+hero (af62abf, adaptado: sin vender trama/mezcla hasta portarlas);
+  aplazados a H1 los portes de sim (eeeaab4 trama 2D, 43f2719 mezcla de densidades,
+  3f731a2 jardín — base pre-ciclos-41, se portan a mano); descartados f5e476f
+  (supersedido por ciclo 51) y 339ed1d (?scene=grown, redundante con test-dev).
+  Respaldo local `rescate/construction-sector`; la rama remota se borra en el gate.
+  CATALOG.md actualizado a marcas/footprints reales. Hallazgos menores saldados:
+  duelo duplicado en inspector, grid fantasma de neighborhood.ts, comentario ?stress.
