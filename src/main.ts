@@ -29,6 +29,7 @@ import { Chronicle } from './ui/chronicle';
 import { CityHud } from './ui/cityHud';
 import { Toasts } from './ui/toasts';
 import { DevPanel } from './ui/devPanel';
+import { ControlBar } from './ui/controlBar';
 import { Grid, cellToWorld } from './world/grid';
 
 const sceneName = new URLSearchParams(window.location.search).get('scene');
@@ -63,6 +64,7 @@ let toasts: Toasts | null = null;
 let inspector: CitizenInspector | null = null;
 let cityHud: CityHud | null = null;
 let devPanel: DevPanel | null = null;
+let controlBar: ControlBar | null = null;
 /** Semilla realmente en juego: la del pueblo montado (fija la estación/fiestas
  * del bucle de render). La fija `buildRenderAndUi`. */
 let activeSeed = 0;
@@ -134,6 +136,9 @@ function buildRenderAndUi(grid: Grid, worldSeed: number): void {
 
   inspector = new CitizenInspector(stage.renderer, camera, sim);
   cityHud = new CityHud(); // surfacing: siempre visible mientras haya simulación
+  // Barra de control (rescate de la veta INTERFAZ): velocidad clicable + leyenda
+  // de controles para quien llega en frío. Solo DOM; la lógica sigue en la sim.
+  controlBar = new ControlBar((s) => sim.setSpeed(s));
   // Panel del banco de pruebas: solo en ?scene=test-dev (fuerza/observa mecánicas).
   if (sceneName === 'test-dev') devPanel = new DevPanel(sim);
 }
@@ -286,6 +291,7 @@ loop.onUpdate((dt) => {
     const mm = String(Math.floor((h % 1) * 60)).padStart(2, '0');
     hud.setStats({ agents: n, clock: `${hh}:${mm} día ${day} ×${simClient.speed}` });
     cityHud?.update(simClient.city, { day, hour: h, speed: simClient.speed });
+    controlBar?.update(simClient.speed); // resalta la pastilla de velocidad activa
     devPanel?.update();
     chronicle?.update(t, simClient.population, simClient.buildings);
   }
