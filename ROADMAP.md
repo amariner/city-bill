@@ -137,7 +137,8 @@ repetido, arbolado automático en márgenes de carretera (rasgo de identidad).
 - [x] **T1.2 Grid lógico.** `world/grid.ts` según §1.2: rejilla dispersa por chunks,
   canPlace/placeBuilding/removeBuilding con footprint rotado, serialize. 26 tests (npm test).
 - [x] **T1.3 Catálogo data-driven.** `world/catalog.ts`: 15 ítems `{id, w, d, tier, role,
-  capacity/jobs/happiness, build()}`. Expositor `?scene=buildings`.
+  capacity/jobs/happiness, build()}` (17 hoy — `school`/`clinic` se añadieron después;
+  la fuente de verdad es `catalogData.ts`, espejo en CATALOG.md). Expositor `?scene=buildings`.
 - [x] **T1.4 Escenario semilla sobre grid.** `world/seed.ts` puebla el grid;
   `world/render/terrain.ts` mergea el terreno con vertex-colors; `worldView` renderiza
   desde el grid. Carreteras y edificios son celdas consultables.
