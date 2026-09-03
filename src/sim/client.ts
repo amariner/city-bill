@@ -55,6 +55,8 @@ export class SimClient {
   buildings = 0;
   /** Estado agregado de la ciudad del último snapshot — para el HUD de ciudad. */
   city: CityStats | null = null;
+  /** Último buffer espacial recibido (~1 Hz); el render lo consume sin copiarlo. */
+  buildingStats: Float32Array | null = null;
   onCitizenInfo: ((info: CitizenInfoMsg) => void) | null = null;
   /** Eventos de sim (cityGrew, citizenBorn…) para que el main reaccione. */
   onEvent: ((name: string, data?: Record<string, unknown>) => void) | null = null;
@@ -122,6 +124,9 @@ export class SimClient {
         this.city = msg.city;
         break;
       }
+      case 'buildingStats':
+        this.buildingStats = msg.data;
+        break;
       case 'citizenInfo':
         this.onCitizenInfo?.(msg);
         break;

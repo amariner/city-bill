@@ -31,7 +31,7 @@ const CONTROLS: Array<[string, string]> = [
   ['C', 'abrir la crónica'],
   ['T', 'abrir el presupuesto'],
   ['B · R · Z · X', 'construir · vías · zonas · demoler'],
-  ['V', 'mostrar / ocultar zonas'],
+  ['V', 'ciclar overlays de edificios'],
   ['Tab · Esc', 'rotar · cancelar herramienta'],
   ['0 – 3', 'velocidad del tiempo'],
   ['F3', 'panel de rendimiento'],
@@ -51,6 +51,7 @@ export class ControlBar {
   private helpToggle: HTMLButtonElement;
   private helpOpen = false;
   private current: Speed | null = null;
+  private overlayLabel: HTMLDivElement;
 
   constructor(private setSpeed: (s: Speed) => void, options: ControlBarOptions = {}) {
     this.injectStyle();
@@ -64,6 +65,11 @@ export class ControlBar {
     brand.className = 'cb-brand';
     brand.innerHTML = '<span class="cb-brand-dot"></span>city<span class="cb-brand-sep">·</span>bill';
     this.root.appendChild(brand);
+
+    this.overlayLabel = document.createElement('div');
+    this.overlayLabel.className = 'cb-overlay-label';
+    this.overlayLabel.textContent = 'V · sin overlay';
+    this.root.appendChild(this.overlayLabel);
 
     // Control de velocidad: pastillas clicables.
     const speedRow = document.createElement('div');
@@ -134,6 +140,10 @@ export class ControlBar {
     }
   }
 
+  setOverlayLabel(label: string): void {
+    this.overlayLabel.textContent = `V · ${label}`;
+  }
+
   private toggleHelp(): void {
     this.helpOpen = !this.helpOpen;
     this.helpPanel.style.display = this.helpOpen ? 'grid' : 'none';
@@ -154,6 +164,7 @@ export class ControlBar {
 .cb-brand-dot{width:8px;height:8px;border-radius:50%;background:${ACCENT};
   box-shadow:0 0 0 3px ${rgba(PALETTE.selectRing, 0.22)}}
 .cb-brand-sep{opacity:0.4;margin:0 1px}
+.cb-overlay-label{padding:2px 8px;font-size:9px;opacity:.58;letter-spacing:.02em}
 .cb-speed{display:flex;gap:4px;padding:4px;border-radius:10px;
   background:${PANEL_BG};border:${PANEL_BORDER};box-shadow:${PANEL_SHADOW}}
 .cb-pill{--cb-accent:${ACCENT};cursor:pointer;min-width:30px;height:24px;

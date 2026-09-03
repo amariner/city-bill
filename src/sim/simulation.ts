@@ -25,7 +25,7 @@ import { decayNeeds, restore, NEED_KEYS } from './citizens/needs';
 import { chooseActivity } from './citizens/brain';
 import { ACTIVITY_BY_KIND, SimContext, activityLabel, EDU_PER_HOUR, CLINIC_FEE, isFestivalDay } from './citizens/activities';
 import { SocialSystem, SocialSaveState } from './citizens/social';
-import { AgentState, ActivityKind, activityId, AGENT_STRIDE, TravelModeCode, CityStats, CitizenInfoMsg, settlementLevel, SETTLEMENT_CLASSES, PlayerAction, RecordedAction, GrowthPolicy, BudgetHistoryPoint } from './protocol';
+import { AgentState, ActivityKind, activityId, AGENT_STRIDE, BUILDING_STRIDE, TravelModeCode, CityStats, CitizenInfoMsg, settlementLevel, SETTLEMENT_CLASSES, PlayerAction, RecordedAction, GrowthPolicy, BudgetHistoryPoint } from './protocol';
 import {
   computeDemand, demandLevels, itemForDemand, findParcel, townCenter, townAttractiveness,
   householdHardship, updateEmigrationPressure, EMIGRATE_POP_FLOOR, EMIGRATE_PRESSURE_LIMIT,
@@ -56,6 +56,10 @@ const CAR_CELLS_PER_TICK_ROAD = 3.6;
 /** Fuera de vía (aparcando, accediendo a la puerta) el coche va despacio —
  * similar al peatón, no vuela por el campo. */
 const CAR_CELLS_PER_TICK_OFFROAD = WALK_CELLS_PER_TICK;
+
+function clamp01(value: number): number {
+  return Math.max(0, Math.min(1, value));
+}
 
 // --- Lógica de estatus y propiedad (ciclo 9) ----------------------------------
 /** Bonus de 'fun' por hora en casa, a prestigio máximo (se escala por él). */
@@ -1804,6 +1808,51 @@ export class Simulation {
       arr[i++] = activityId(c.activity);
       arr[i++] = c.phase.kind === 'moving' && c.phase.mode === 'car' ? TravelModeCode.Car : TravelModeCode.Foot;
       arr[i++] = c.grief; // 8ª columna (AGENT_STRIDE=8): el render apaga la ropa del doliente
+    }
+    return arr;
+  }
+
+  /**
+   * Estadísticas espaciales compactas para overlays. El orden es exactamente
+   * el del índice estable (ax, az, felicidad, suelo, máscara de cobertura,
+   * alertas, ocupación, carga); no contiene referencias ni depende de THREE.
+   * Se calcula solo cuando el worker decide emitir el canal lento (~1 Hz).
+   */
+  buildingStats(): Float32Array {
+    const arr = new Float32Array(this.index.buildings.length * BUILDING_STRIDE);
+    const workersByBuilding = new Map<SimBuilding, number>();
+    for (const workplace of this.economy.workplaces) {
+      workersByBuilding.set(workplace.building, workplace.workers.length);
+    }
+
+    let offset = 0;
+    for (const building of this.index.buildings) {
+      const key = `${building.ax},${building.az}`;
+      const jobs = building.data.jobs ?? 0;
+      const workers = workersByBuilding.get(building) ?? 0;
+      const capacity = building.data.capacity ?? 0;
+      const households = this.households.get(key) ?? 0;
+      const residential = building.data.role === 'residential';
+      const occupancy = residential
+        ? capacity > 0 ? households / capacity : 0
+        : jobs > 0 ? workers / jobs : 0;
+      // bit 0: edificio aislado o abandonado; bit 1: comercio sin personal.
+      const alertMask = (!building.roadAccess || building.abandoned ? 1 : 0)
+        | (building.data.role === 'commerce' && workers === 0 ? 2 : 0);
+      const visits = this.economy.visitsToday.get(key) ?? 0;
+
+      arr[offset++] = building.ax;
+      arr[offset++] = building.az;
+      // Los edificios no residenciales usan -1 para que el overlay de ánimo
+      // pueda pintar un neutro, no confundir "sin hogar" con felicidad cero.
+      arr[offset++] = residential ? this.happiness.get(key) ?? 0 : -1;
+      arr[offset++] = this.landValue.get(key) ?? 0;
+      arr[offset++] = building.coverage;
+      arr[offset++] = alertMask;
+      arr[offset++] = clamp01(occupancy);
+      // Visitas del período actual: señal ligera, suficiente para leer comercio
+      // y carga sin hacer crecer el buffer ni transportar rutas completas.
+      arr[offset++] = Math.min(1, visits / 8);
     }
     return arr;
   }

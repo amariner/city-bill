@@ -40,14 +40,6 @@ export class ZonesLayer {
     this.root.name = 'zones';
     this.root.visible = false;
     grid.forEachChunk((chunk) => this.refreshChunk(chunk));
-    if (typeof window !== 'undefined') {
-      window.addEventListener('keydown', (event) => {
-        if (event.key.toLowerCase() !== 'v') return;
-        event.preventDefault();
-        this.overlayEnabled = !this.overlayEnabled;
-        this.updateVisibility();
-      });
-    }
   }
 
   setToolActive(active: boolean): void {

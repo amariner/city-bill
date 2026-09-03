@@ -24,6 +24,8 @@ let ready = false;
  * el worker de golpe — se consume a trozos por frame, así el salto se VE (reloj
  * y estaciones corriendo) en vez de bloquear con la pantalla quieta. */
 let pendingSkip = 0;
+/** Serial de snapshots: las estadísticas espaciales son un canal lento (~1 Hz). */
+let snapshotSerial = 0;
 /** Ticks de salto por frame: ~1.7 días de juego → un año salta en ~3-4 s visibles. */
 const SKIP_TICKS_PER_FRAME = 4000;
 
@@ -63,6 +65,7 @@ function sendSnapshot(): void {
     });
   }
   const agents = sim.snapshot();
+  const includeBuildingStats = snapshotSerial++ % 4 === 0;
   const msg: SnapshotMsg = {
     type: 'snapshot',
     time: sim.clock.time,
@@ -74,6 +77,10 @@ function sendSnapshot(): void {
     agents,
   };
   post(msg, [agents.buffer]);
+  if (includeBuildingStats) {
+    const data = sim.buildingStats();
+    post({ type: 'buildingStats', count: sim.index.buildings.length, data }, [data.buffer]);
+  }
   for (const e of sim.takeEvents()) post({ type: 'event', name: e.name, data: e.data });
 }
 
@@ -133,6 +140,7 @@ self.onmessage = (ev: MessageEvent<MainToWorker>) => {
         post({ type: 'worldReady', gridJson: sim.grid.serialize(), center: townCenterFor(sim), restored: true });
       }
       ready = true;
+      snapshotSerial = 0;
       sendSnapshot();
       break;
     }

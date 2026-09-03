@@ -377,7 +377,7 @@ trampas**. Los tests nuevos se añaden al script `"test"` de `package.json`.
 - Tests: residentes conservan `home` válido y `households ≤ capacity`; el previo no existe en el índice; con valor bajo nunca; el ladder nunca baja ni supera `sim.tier`.
 - Trampas: claves `'ax,az'` (`households/wallets/pantry/prestige`) → `moveHomeKey` obligatorio.
 
-**H4.6 `BuildingStatsMsg` y heatmaps**
+**H4.6 `BuildingStatsMsg` y heatmaps** — ✅ implementado
 - Archivos: M `simulation.ts` (`buildingStats(): Float32Array` stride 8), M `worker.ts` (cada 4º snapshot), M `client.ts`, C `src/world/render/overlay.ts` (`OverlayLayer` por chunk; modos `none|happiness|landValue|coverage|zones|traffic`; V cicla; `refreshFromStats` solo reescribe el atributo `color`), M `palette.ts` (`heatLow/Mid/High`).
 - Visual: cada heatmap sobre `?scene=test-dev`; F3 +1 draw call por chunk visible.
 - Trampas: buffer transferido; `Map` `[ax,az]`→índice de quad por chunk.

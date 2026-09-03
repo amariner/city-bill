@@ -19,6 +19,7 @@ import { SelectionMarker } from './world/render/selectionMarker';
 import { ConstructionSites } from './world/render/construction';
 import { Ghost } from './world/render/ghost';
 import { ZonesLayer } from './world/render/zones';
+import { OVERLAY_LABELS, OVERLAY_MODES, OverlayLayer } from './world/render/overlay';
 import { Atmosphere, lampFactor } from './world/render/atmosphere';
 import { DAY_GAME_SECONDS } from './sim/clock';
 import { seasonalWarmth, weatherAt } from './sim/weather';
@@ -92,6 +93,8 @@ let toolbar: Toolbar | null = null;
 let toolState: ToolState | null = null;
 let ghost: Ghost | null = null;
 let zonesLayer: ZonesLayer | null = null;
+let overlayLayer: OverlayLayer | null = null;
+let overlayIndex = 0;
 let hoverCell: [number, number] = [0, 0];
 /** Semilla realmente en juego: la del pueblo montado (fija la estación/fiestas
  * del bucle de render). La fija `buildRenderAndUi`. */
@@ -157,6 +160,8 @@ function buildRenderAndUi(grid: Grid, worldSeed: number): void {
   stage.scene.add(ghost.root);
   zonesLayer = new ZonesLayer(grid);
   stage.scene.add(zonesLayer.root);
+  overlayLayer = new OverlayLayer(grid);
+  stage.scene.add(overlayLayer.root);
   // La máquina de herramientas se registra antes que el inspector para que Esc
   // cancele primero la herramienta activa y solo después pueda cerrar la ficha.
   toolState = new ToolState(sim);
@@ -182,6 +187,7 @@ function buildRenderAndUi(grid: Grid, worldSeed: number): void {
     ];
     worldView?.refreshCells(refreshed);
     zonesLayer?.refreshCells(patch.cells);
+    overlayLayer?.refreshCells(patch.cells);
     for (const built of patch.built) {
       const started = construction?.start(built.id, built.cx, built.cz, built.rot, () => atmosphere?.invalidate());
       if (!started) {
@@ -211,6 +217,14 @@ function buildRenderAndUi(grid: Grid, worldSeed: number): void {
     }
   };
   window.addEventListener('keydown', (e) => {
+    if (e.key.toLowerCase() === 'v' && !e.repeat && overlayLayer) {
+      e.preventDefault();
+      overlayIndex = (overlayIndex + 1) % OVERLAY_MODES.length;
+      const mode = OVERLAY_MODES[overlayIndex];
+      overlayLayer.setMode(mode);
+      controlBar?.setOverlayLabel(OVERLAY_LABELS[mode]);
+      return;
+    }
     if (e.key >= '0' && e.key <= '3') sim.setSpeed(Number(e.key) as Speed);
   });
 
@@ -417,6 +431,7 @@ loop.onUpdate((dt) => {
   if (simClient && citizenView) {
     const n = simClient.view(agentViews);
     citizenView.update(agentViews, n, dt);
+    overlayLayer?.refreshFromStats(simClient.buildingStats);
     if (inspector) {
       inspector.setAgents(agentViews, n);
       inspector.update(agentViews, n);

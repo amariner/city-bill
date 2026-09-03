@@ -26,6 +26,12 @@ export const PALETTE = {
   zoneA: 0x9fb9cb,
   zoneP: 0xa9c286,
 
+  // Heatmaps de edificios (H4.6): azul frío → amarillo de lectura → rojo de
+  // alerta. Desaturados para convivir con el terreno y la arquitectura.
+  heatLow: 0x9fb9cb,
+  heatMid: 0xe0c58e,
+  heatHigh: 0xc25e54,
+
   // Hierba de las parcelas habitadas
   grass: 0xa9c286,
   grassPatches: [0x9fb97c, 0xb1c88e, 0x97b174, 0xa4bd80] as const,

@@ -25,6 +25,11 @@ export const SPEED_MULT: Record<Speed, number> = { 0: 0, 1: 1, 2: 3, 3: 8 };
 
 export const AGENT_STRIDE = 8;
 
+/** Estadística espacial por edificio, separada del snapshot de agentes y
+ * transferida a baja frecuencia: [ax, az, happiness, landValue, coverageMask,
+ * alertMask, occupancy, load]. */
+export const BUILDING_STRIDE = 8;
+
 /** Modo de trayecto (columna `mode` del snapshot) — ciclo 8, vehículos. */
 export const enum TravelModeCode {
   Foot = 0,
@@ -279,6 +284,14 @@ export interface SnapshotMsg {
   agents: Float32Array;
 }
 
+/** Canal lento de overlays (~1 Hz), independiente del buffer de agentes. */
+export interface BuildingStatsMsg {
+  type: 'buildingStats';
+  count: number;
+  /** count * BUILDING_STRIDE floats. TRANSFERIDO (zero-copy). */
+  data: Float32Array;
+}
+
 /** Estado agregado de la ciudad que la sim ya conoce por dentro y el HUD saca
  * a la superficie: tesoro, paro, estación/cosecha, epidemia, riqueza media.
  * Puros números derivados del estado real de la sim (nada de THREE). */
@@ -430,4 +443,4 @@ export interface GrowProgressMsg {
   total: number;
 }
 
-export type WorkerToMain = SnapshotMsg | SimEventMsg | CitizenInfoMsg | GrowProgressMsg | GridPatchMsg | WorldReadyMsg | ActionAppliedMsg | ActionRejectedMsg | SaveReadyMsg;
+export type WorkerToMain = SnapshotMsg | BuildingStatsMsg | SimEventMsg | CitizenInfoMsg | GrowProgressMsg | GridPatchMsg | WorldReadyMsg | ActionAppliedMsg | ActionRejectedMsg | SaveReadyMsg;
