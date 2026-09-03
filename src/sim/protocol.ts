@@ -272,6 +272,7 @@ export interface SimEventMsg {
     | 'jobTaken'
     | 'chatStarted'
     | 'cityGrew'
+    | 'buildingRazed'
     | 'tierUnlocked'
     | 'coupleFormed'
     | 'festivalDay'

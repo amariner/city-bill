@@ -153,6 +153,10 @@ export function chronicleText(name: string, data?: Record<string, unknown>): str
       const label = typeof data?.label === 'string' ? data.label : (data?.id ?? 'un edificio');
       return `se levanta: ${label}`;
     }
+    case 'buildingRazed': {
+      const label = typeof data?.label === 'string' ? data.label : (data?.id ?? 'un edificio');
+      return `se demuele: ${label}`;
+    }
     case 'tierUnlocked':
       return `¡hito! tier ${data?.tier} desbloqueado (${data?.population} hab.)`;
     case 'festivalDay':

@@ -94,7 +94,7 @@ const VOCATION_QUIT_CHANCE = 0.05;
 const DYNASTY_THRESHOLD = 8;
 
 export interface SimEvent {
-  name: 'citizenBorn' | 'citizenLeft' | 'jobTaken' | 'chatStarted' | 'cityGrew' | 'tierUnlocked' | 'coupleFormed' | 'festivalDay' | 'roadExtended' | 'epidemic' | 'citizenRetired' | 'homePrestige' | 'cultivationChanged' | 'vocationFound' | 'dynastyRose' | 'dynastyFell' | 'firstBuilding' | 'settlementRose' | 'familyArrived' | 'townFounded';
+  name: 'citizenBorn' | 'citizenLeft' | 'jobTaken' | 'chatStarted' | 'cityGrew' | 'buildingRazed' | 'tierUnlocked' | 'coupleFormed' | 'festivalDay' | 'roadExtended' | 'epidemic' | 'citizenRetired' | 'homePrestige' | 'cultivationChanged' | 'vocationFound' | 'dynastyRose' | 'dynastyFell' | 'firstBuilding' | 'settlementRose' | 'familyArrived' | 'townFounded';
   data: Record<string, unknown>;
 }
 
@@ -968,16 +968,102 @@ export class Simulation {
     return result;
   }
 
+  /**
+   * Realoja una familia completa si encuentra capacidad suficiente en una
+   * vivienda vecina. Las cuatro bolsas por hogar se fusionan, nunca se borran.
+   * Si no hay una vivienda que pueda recibirla, sus miembros salen caminando:
+   * la demolición no convierte a ciudadanos en un despawn silencioso.
+   */
+  private rehouseOrEmigrate(ids: number[], oldKey: string, oldEntrance: CellXZ): void {
+    const recordedFamilies = this.households.get(oldKey) ?? 0;
+    const displacedFamilies = recordedFamilies > 0 ? recordedFamilies : ids.length > 0 ? 1 : 0;
+    if (displacedFamilies === 0) {
+      this.households.delete(oldKey);
+      this.pantry.delete(oldKey);
+      this.economy.wallets.delete(oldKey);
+      this.emigrationPressure.delete(oldKey);
+      this.economy.prestige.delete(oldKey);
+      return;
+    }
+    const [oldAx, oldAz] = oldKey.split(',').map(Number);
+    const homes = this.index.ofRole('residential')
+      .filter((b) => b.ax !== oldAx || b.az !== oldAz)
+      .sort((a, b) => manhattan([oldAx, oldAz], [a.ax, a.az]) - manhattan([oldAx, oldAz], [b.ax, b.az]) || a.ax - b.ax || a.az - b.az);
+    const target = homes.find((b) => {
+      const key = `${b.ax},${b.az}`;
+      return (b.data.capacity ?? 1) - (this.households.get(key) ?? 0) >= displacedFamilies;
+    });
+
+    for (const id of ids) {
+      const c = this.citizens.get(id);
+      if (!c) continue;
+      // Quien estaba dentro del edificio demolido sale a su puerta antes de
+      // que el autómata vuelva a decidir. Los que ya estaban fuera conservan
+      // su trayectoria actual si no dependía de estar bajo techo.
+      if (c.inside) {
+        c.inside = false;
+        c.phase = { kind: 'deciding' };
+        c.activity = 'none';
+        c.x = oldEntrance[0] + 0.5;
+        c.z = oldEntrance[1] + 0.5;
+      }
+      if (target) {
+        c.home = { ax: target.ax, az: target.az, buildingId: target.id };
+        this.leaving.delete(id);
+      } else {
+        this.leaving.add(id);
+        c.phase = { kind: 'deciding' };
+      }
+    }
+
+    if (!target) return;
+    const targetKey = `${target.ax},${target.az}`;
+    this.households.set(targetKey, (this.households.get(targetKey) ?? 0) + displacedFamilies);
+    this.pantry.set(targetKey, (this.pantry.get(targetKey) ?? 0) + (this.pantry.get(oldKey) ?? 0));
+    this.economy.wallets.set(targetKey, (this.economy.walletOf(targetKey) + this.economy.walletOf(oldKey)));
+    this.emigrationPressure.set(targetKey, (this.emigrationPressure.get(targetKey) ?? 0) + (this.emigrationPressure.get(oldKey) ?? 0));
+    this.households.delete(oldKey);
+    this.pantry.delete(oldKey);
+    this.economy.wallets.delete(oldKey);
+    this.emigrationPressure.delete(oldKey);
+    // El prestigio no es una bolsa fungible: conserva la mejor inversión del
+    // hogar al mudarse, para que demoler no castigue dos veces a la familia.
+    const oldPrestige = this.economy.prestigeOf(oldKey);
+    if (oldPrestige > this.economy.prestigeOf(targetKey)) this.economy.prestige.set(targetKey, oldPrestige);
+    this.economy.prestige.delete(oldKey);
+  }
+
+  /** Demolición digna desde cualquier celda de la huella. */
+  private razeBuilding(ax: number, az: number, byPlayer: boolean): boolean {
+    const ref = this.grid.get(ax, az)?.building;
+    if (!ref) return false;
+    const building = this.index.at(ref.anchorX, ref.anchorZ);
+    if (!building) return false;
+    const oldKey = `${building.ax},${building.az}`;
+    const oldEntrance = building.entrance ?? [building.ax, building.az] as CellXZ;
+    const residents = [...this.citizens.values()]
+      .filter((c) => c.home.ax === building.ax && c.home.az === building.az)
+      .sort((a, b) => a.id - b.id)
+      .map((c) => c.id);
+    this.rehouseOrEmigrate(residents, oldKey, oldEntrance);
+    for (const c of this.citizens.values()) {
+      if (c.work?.ax === building.ax && c.work.az === building.az) c.work = null;
+    }
+    if (!this.grid.removeBuilding(building.ax, building.az)) return false;
+    this.pendingRazed.push({ cx: building.ax, cz: building.az });
+    this.index.rebuild();
+    this.economy.rebuild(this.index, this.citizens);
+    this.events.push({ name: 'buildingRazed', data: { id: building.id, label: building.data.name, ax: building.ax, az: building.az, byPlayer } });
+    return true;
+  }
+
   /** Demuele desde cualquier celda de la huella y deja un diff para el render.
    * La lógica de acciones del jugador lo reutiliza; mantener esta costura aquí
    * evita que el worker tenga que interpretar edificios por su cuenta. */
   removeBuildingAt(cx: number, cz: number): boolean {
     const building = this.grid.get(cx, cz)?.building;
-    if (!building || !this.grid.removeBuilding(cx, cz)) return false;
-    this.pendingRazed.push({ cx: building.anchorX, cz: building.anchorZ });
-    this.index.rebuild();
-    this.economy.rebuild(this.index, this.citizens);
-    return true;
+    if (!building) return false;
+    return this.razeBuilding(building.anchorX, building.anchorZ, true);
   }
 
   /** Toma los cambios espaciales desde el último envío al hilo principal. */
