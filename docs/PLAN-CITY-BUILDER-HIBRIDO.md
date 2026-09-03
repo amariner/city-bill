@@ -320,7 +320,7 @@ trampas**. Los tests nuevos se añaden al script `"test"` de `package.json`.
 
 #### H3 — Dinero de alcalde
 
-**H3.1 Costes, mantenimiento, ledger y débito al construir**
+**H3.1 Costes, mantenimiento, ledger y débito al construir** — ✅ implementado
 - Archivos: M `catalogData.ts` (`cost?`, `upkeepPerDay?`, `playerPlaceable?`), M `roads.ts` (`costPerCell`, `upkeepPerCell`), M `economy.ts` (`ledger`, `spendPublic(amount, category)`, `chargeUpkeep(index, roadCells)`), M `actions.ts` (`noMoney`, débito), M `simulation.ts` (pipeline: `economy.endOfDay()` → **`chargeUpkeep`** → `chargeRent` …), M `sim.test.ts`, C `scripts/economyProbe.ts`.
 - Valores iniciales (calibrar con la sonda; a pop 100 el tesoro ingresa ~5 k/día): path 3/celda, rural 8, street 14, avenue 24; school 1500 (upkeep 60), clinic 800 (40), civic 3000 (80), police 1200 (50), fire 1200 (50), park 400 (8), plaza 600 (10). Privados `playerPlaceable:true` con `cost` = 3× cívico equivalente por celda; el crecimiento autónomo privado no cuesta.
 - Tests: tras `place(school)`, `treasury` baja exactamente `cost` y `ledger.build` sube igual; `treasury < cost` ⇒ `noMoney` sin cambios; `chargeUpkeep` cobra Σ una vez/día; save incluye ledger.

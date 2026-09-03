@@ -16,6 +16,7 @@ function check(name: string, condition: boolean, detail = ''): void {
 
 const seed = 42;
 const original = new Simulation(seedFarm(seed), seed);
+original.economy.treasury = 100_000;
 for (let i = 0; i < 700; i++) original.step();
 original.growthPolicy = 'preferZones';
 const blob = JSON.stringify(original.serialize());

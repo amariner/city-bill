@@ -11,6 +11,8 @@ import { Citizen, PlaceRef, jobFitsVocation } from './citizens/citizen';
 import { WorldIndex, SimBuilding } from './worldIndex';
 import { manhattan } from './geometry';
 import { ADULT_AGE, RETIREMENT_AGE } from './lifecycle';
+import { ROAD_SPECS } from '../world/roads';
+import type { RoadKind } from '../world/grid';
 
 export interface Workplace {
   building: SimBuilding;
@@ -97,6 +99,14 @@ export const TREASURY_RESERVE_PER_CAPITA = 300;
 /** Fracción del superávit del tesoro que se reparte cada día (flujo suave). */
 export const DIVIDEND_RATE = 0.25;
 
+export type PublicSpendCategory = 'build' | 'road' | 'upkeep';
+
+export interface EconomyLedger {
+  build: number;
+  road: number;
+  upkeep: number;
+}
+
 // --- Lógica de gobierno (ciclo 3): impuestos y pensiones ----------------------
 /** Parte del salario que va al tesoro municipal. */
 export const TAX_RATE = 0.2;
@@ -147,6 +157,7 @@ export interface EconomySaveState {
   visitsToday: [string, number][];
   prosperity: [string, number][];
   cultivation: number;
+  ledger?: EconomyLedger;
 }
 
 export class Economy {
@@ -191,6 +202,35 @@ export class Economy {
   dividendPaid = 0;
   /** Nómina pública pagada del tesoro, no acuñada (ciclo 37bis — cierre parcial). */
   wagesFromTreasury = 0;
+  /** Gasto público acumulado por categoría; sobrevive al guardado. */
+  ledger: EconomyLedger = { build: 0, road: 0, upkeep: 0 };
+
+  /** Comprueba y debita una partida pública completa. Nunca deja el tesoro en
+   * negativo: si no alcanza, no muta nada y el caller devuelve `noMoney`. */
+  spendPublic(amount: number, category: PublicSpendCategory): boolean {
+    if (!Number.isFinite(amount) || amount < 0 || amount > this.treasury) return false;
+    this.treasury -= amount;
+    this.ledger[category] += amount;
+    return true;
+  }
+
+  /** Cobra una vez por cierre la suma de mantenimiento de edificios activos y
+   * celdas de vía. Si el tesoro no llega, paga lo que hay y deja constancia del
+   * importe realmente cobrado; H3.3 convertirá el déficit en quiebra. */
+  chargeUpkeep(index: WorldIndex, roadCells: ReadonlyArray<RoadKind>): number {
+    let due = 0;
+    for (const building of index.buildings) {
+      if (building.abandoned) continue;
+      due += building.data.upkeepPerDay ?? 0;
+    }
+    for (const kind of roadCells) due += ROAD_SPECS[kind].upkeepPerCell;
+    const paid = Math.min(Math.max(0, this.treasury), due);
+    if (paid > 0) {
+      this.treasury -= paid;
+      this.ledger.upkeep += paid;
+    }
+    return paid;
+  }
 
   /** Nómina: el trabajo mete dinero en el hogar del trabajador, menos la
    * parte que va al tesoro municipal (impuesto sobre la renta, lógica de
@@ -554,6 +594,7 @@ export class Economy {
       visitsToday: [...this.visitsToday],
       prosperity: [...this.prosperity],
       cultivation: this.cultivation,
+      ledger: { ...this.ledger },
     };
   }
 
@@ -584,6 +625,7 @@ export class Economy {
     this.visitsToday = new Map(s.visitsToday);
     this.prosperity = new Map(s.prosperity);
     this.cultivation = s.cultivation;
+    this.ledger = { build: 0, road: 0, upkeep: 0, ...(s.ledger ?? {}) };
   }
 
   /** Datos agregados para growth (Fase 4) y HUD. */

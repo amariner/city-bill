@@ -13,6 +13,13 @@ y empleos de los ✅ son los del código.*
 Tiers: **T0** disponible desde el inicio · **T1** aldea (pop 20) · **T2** pueblo (pop 100)
 · **T3** villa (pop 400) · **T4** ciudad (pop 1500, estética Zlín).
 
+Economía H3.1: las obras que coloca el jugador tienen `cost` y `playerPlaceable` en
+`catalogData.ts`; el crecimiento autónomo no las carga. Los edificios públicos activos
+pueden tener `upkeepPerDay` (escuela 60, consultorio 40, ayuntamiento 80). Las vías
+se cobran por celda al construir y mantienen estos costes: camino 3, rural 8, calle 14,
+avenida 24; su mantenimiento diario es 0.5, 1, 2 y 3 respectivamente. Los importes
+son deliberadamente legibles y el ledger del tesoro se conserva en el guardado.
+
 ## Infraestructura
 
 > Hoy las vías existen como TERRENO (`road`/`path`, con márgenes y arbolado automáticos

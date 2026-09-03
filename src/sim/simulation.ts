@@ -709,6 +709,7 @@ export class Simulation {
       this.lastDay = this.clock.day;
       this.stepLife();
       this.economy.endOfDay();
+      this.chargeUpkeep(); // H3.1: mantenimiento antes de alquileres y pensiones
       this.chargeRent(); // ciclo 29: la vivienda cuesta (antes de pensiones: la red cubre a quien no llega)
       this.chargeLifestyle(); // ciclo 32: el coste de la vida escala con la riqueza (drena el ahorro excedente)
       this.payPensions();
@@ -959,6 +960,17 @@ export class Simulation {
       const rent = RENT_PER_DAY * families * (1 + RENT_TIER_FACTOR * (b.data.tier ?? 0));
       this.economy.treasury += this.economy.spend(k, rent);
     }
+  }
+
+  /** Mantenimiento diario del patrimonio público: una vía cuenta por celda y
+   * cada edificio activo por su ficha de catálogo. El índice ya contiene las
+   * celdas de carretera y sendero; aquí solo recuperamos su categoría. */
+  private chargeUpkeep(): void {
+    const roadKinds = this.index.roadCells.map(([cx, cz]) => {
+      const cell = this.grid.get(cx, cz);
+      return cell?.terrain === 'path' ? 'path' : cell?.roadKind ?? 'rural';
+    });
+    this.economy.chargeUpkeep(this.index, roadKinds);
   }
 
   /** Coste de la vida (ciclo 32): cada hogar gasta en vivir una fracción de su

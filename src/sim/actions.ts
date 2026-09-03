@@ -3,7 +3,7 @@ import type { Simulation } from './simulation';
 import type { PlayerAction, RejectReason, RecordedAction, RoadKind } from './protocol';
 import { catalogData } from '../world/catalogData';
 import { placementCheck } from '../world/placement';
-import { paintRoadPlan, planRoad, ROAD_SPECS } from '../world/roads';
+import { paintRoadPlan, planRoad, previewRoad, ROAD_SPECS } from '../world/roads';
 
 export type ActionResult =
   | { ok: true; cost: number }
@@ -19,8 +19,10 @@ export function applyPlayerAction(sim: Simulation, action: PlayerAction): Action
     case 'place': {
       const item = catalogData(action.id);
       if (!item) return { ok: false, reason: 'invalid', detail: `edificio desconocido: ${action.id}` };
-      if (item.role === 'nature' || item.role === 'infra') return { ok: false, reason: 'notPlayerPlaceable' };
+      if (item.playerPlaceable !== true) return { ok: false, reason: 'notPlayerPlaceable' };
       if (item.tier > sim.tier) return { ok: false, reason: 'tierLocked' };
+      const cost = item.cost ?? 0;
+      if (sim.economy.treasury < cost) return { ok: false, reason: 'noMoney', detail: `faltan fondos para ${item.name}` };
       const reason = placementCheck(sim.grid, item.w, item.d, action.cx, action.cz, action.rot, {
         margin: 0,
         allowPath: false,
@@ -29,7 +31,10 @@ export function applyPlayerAction(sim: Simulation, action: PlayerAction): Action
       if (!sim.placeBuildingForPlayer(action.id, action.cx, action.cz, action.rot)) {
         return { ok: false, reason: 'blocked' };
       }
-      return { ok: true, cost: 0 };
+      // La validación anterior y la colocación ocurren en el mismo hilo: el
+      // débito no puede fallar entre ambas operaciones.
+      if (!sim.economy.spendPublic(cost, 'build')) throw new Error('tesoro incoherente al cobrar una obra');
+      return { ok: true, cost };
     }
     case 'bulldoze':
       if (!sim.grid.buildingAt(action.cx, action.cz)) return { ok: false, reason: 'notFound' };
@@ -40,12 +45,22 @@ export function applyPlayerAction(sim: Simulation, action: PlayerAction): Action
       if (ROAD_TIERS[action.road] > sim.tier) return { ok: false, reason: 'tierLocked', detail: `vía aún no desbloqueada: ${action.road}` };
       const plan = planRoad(action.from, action.to);
       if (plan.length === 0) return { ok: false, reason: 'invalid', detail: 'la vía necesita origen y destino distintos' };
+      const preview = previewRoad(sim.grid, plan, action.road);
+      if (preview.laid.length === 0) {
+        return preview.blocked.length > 0
+          ? { ok: false, reason: 'blocked', detail: 'la calzada encuentra un obstáculo al salir' }
+          : { ok: false, reason: 'invalid', detail: 'no hay terreno conocido para trazar la vía' };
+      }
+      if (sim.economy.treasury < preview.cost) {
+        return { ok: false, reason: 'noMoney', detail: `faltan fondos para ${action.road}` };
+      }
       const painted = paintRoadPlan(sim.grid, plan, action.road, sim.seed);
       if (painted.laid.length === 0) {
         return painted.blocked.length > 0
           ? { ok: false, reason: 'blocked', detail: 'la calzada encuentra un obstáculo al salir' }
           : { ok: false, reason: 'invalid', detail: 'no hay terreno conocido para trazar la vía' };
       }
+      if (!sim.economy.spendPublic(painted.cost, 'road')) throw new Error('tesoro incoherente al cobrar una vía');
       sim.index.rebuild();
       sim.economy.rebuild(sim.index, sim.citizens);
       sim.roadsExtended++;

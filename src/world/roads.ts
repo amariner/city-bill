@@ -12,15 +12,16 @@ export interface RoadSpec {
   margin: number;
   trees: boolean;
   costPerCell: number;
+  upkeepPerCell: number;
   speed: number;
   capacity: number;
 }
 
 export const ROAD_SPECS: Record<RoadKind, RoadSpec> = {
-  path: { lanes: 1, sidewalk: 0, median: 0, margin: 0, trees: false, costPerCell: 1, speed: 1, capacity: 4 },
-  rural: { lanes: 3, sidewalk: 0, median: 0, margin: 2, trees: true, costPerCell: 2, speed: 2, capacity: 12 },
-  street: { lanes: 3, sidewalk: 1, median: 0, margin: 1, trees: true, costPerCell: 4, speed: 2.5, capacity: 24 },
-  avenue: { lanes: 2, sidewalk: 1, median: 1, margin: 2, trees: true, costPerCell: 7, speed: 3.5, capacity: 48 },
+  path: { lanes: 1, sidewalk: 0, median: 0, margin: 0, trees: false, costPerCell: 3, upkeepPerCell: 0.5, speed: 1, capacity: 4 },
+  rural: { lanes: 3, sidewalk: 0, median: 0, margin: 2, trees: true, costPerCell: 8, upkeepPerCell: 1, speed: 2, capacity: 12 },
+  street: { lanes: 3, sidewalk: 1, median: 0, margin: 1, trees: true, costPerCell: 14, upkeepPerCell: 2, speed: 2.5, capacity: 24 },
+  avenue: { lanes: 2, sidewalk: 1, median: 1, margin: 2, trees: true, costPerCell: 24, upkeepPerCell: 3, speed: 3.5, capacity: 48 },
 };
 
 export interface RoadAxis {

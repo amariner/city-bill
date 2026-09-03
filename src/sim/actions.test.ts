@@ -3,6 +3,7 @@ import { Grid } from '../world/grid';
 import { Simulation } from './simulation';
 import { replayActions } from './actions';
 import type { PlayerAction } from './protocol';
+import { ROAD_SPECS } from '../world/roads';
 
 let passed = 0;
 let failed = 0;
@@ -33,6 +34,7 @@ const actions: PlayerAction[] = [
 const ticks = [300, 900, 1500];
 
 const original = new Simulation(startingGrid(), 8080);
+original.economy.treasury = 100_000;
 for (let i = 0; i < actions.length; i++) {
   while (original.clock.tick < ticks[i]) original.step();
   const result = original.applyAction(actions[i], i + 1);
@@ -43,12 +45,14 @@ while (original.clock.tick < endTick) original.step();
 const recorded = [...original.actions];
 
 const replay = new Simulation(startingGrid(), 8080);
+replay.economy.treasury = 100_000;
 replayActions(replay, recorded, endTick);
 check('replay: snapshot final idéntico', replay.snapshot().join(',') === original.snapshot().join(','));
 check('replay: grid final idéntico', replay.grid.serialize() === original.grid.serialize());
 check('replay: conserva el registro de acciones', replay.actions.length === recorded.length);
 
 const rejected = new Simulation(startingGrid(), 9090);
+rejected.economy.treasury = 10_000;
 const blocked = rejected.applyAction({ kind: 'place', id: 'cottage', cx: -12, cz: 4, rot: 0 }, 1);
 check('acción bloqueada: devuelve blocked', !blocked.ok && blocked.reason === 'blocked');
 check('acción bloqueada: no entra en actions', rejected.actions.length === 0);
@@ -61,10 +65,11 @@ check('place residencial: llega al menos una persona', rejected.citizens.size >=
   const grid = new Grid();
   grid.fillTerrain(-15, -15, 15, 15, 'field');
   const sim = new Simulation(grid, 6060);
+  sim.economy.treasury = 10_000;
   const road: PlayerAction = { kind: 'road', road: 'rural', from: [-4, -2], to: [4, 3] };
   const result = sim.applyAction(road, 10);
   check('road: se acepta el trazado rural', result.ok);
-  check('road: el índice crece exactamente con la calzada', sim.index.roadCells.length === (result.ok ? result.cost / 2 : -1) * 1 /* coste rural = 2 */);
+  check('road: el índice crece exactamente con la calzada', sim.index.roadCells.length === (result.ok ? result.cost / ROAD_SPECS.rural.costPerCell : -1));
   check('road: conserva roadKind en el grid', sim.grid.get(0, -2)?.roadKind === 'rural');
   check('road: emite el evento del jugador', sim.events.some((e) => e.name === 'roadBuilt' && e.data.byPlayer === true));
   check('road: queda registrada para replay', sim.actions.length === 1 && sim.actions[0].action.kind === 'road');
@@ -72,6 +77,7 @@ check('place residencial: llega al menos una persona', rejected.citizens.size >=
   const replayGrid = new Grid();
   replayGrid.fillTerrain(-15, -15, 15, 15, 'field');
   const replay = new Simulation(replayGrid, 6060);
+  replay.economy.treasury = 10_000;
   replayActions(replay, sim.actions, sim.clock.tick);
   check('road: replay conserva la geometría', replay.grid.serialize() === sim.grid.serialize());
 
@@ -80,6 +86,37 @@ check('place residencial: llega al menos una persona', rejected.citizens.size >=
   const locked = new Simulation(lockedGrid, 7070);
   const street = locked.applyAction({ kind: 'road', road: 'street', from: [-2, 0], to: [2, 0] }, 1);
   check('road: la calle queda bloqueada hasta tier 2', !street.ok && street.reason === 'tierLocked');
+}
+
+// --- Presupuesto de obras y mantenimiento (H3.1) ----------------------------
+{
+  const grid = new Grid();
+  grid.fillTerrain(-20, -20, 20, 20, 'field');
+  const sim = new Simulation(grid, 5150);
+  sim.autonomousGrowth = false;
+  const schoolCost = 1500;
+  sim.economy.treasury = schoolCost + 500;
+  const placed = sim.applyAction({ kind: 'place', id: 'school', cx: 4, cz: 4, rot: 0 }, 1);
+  check('presupuesto: colocar escuela devuelve su coste', placed.ok && placed.cost === schoolCost);
+  check('presupuesto: el tesoro baja exactamente el coste', sim.economy.treasury === 500);
+  check('presupuesto: ledger.build registra el débito', sim.economy.ledger.build === schoolCost);
+
+  const poorGrid = new Grid();
+  poorGrid.fillTerrain(-20, -20, 20, 20, 'field');
+  const poor = new Simulation(poorGrid, 5151);
+  poor.autonomousGrowth = false;
+  poor.economy.treasury = schoolCost - 1;
+  const beforeGrid = poor.grid.serialize();
+  const denied = poor.applyAction({ kind: 'place', id: 'school', cx: 4, cz: 4, rot: 0 }, 1);
+  check('presupuesto: tesoro insuficiente devuelve noMoney', !denied.ok && denied.reason === 'noMoney');
+  check('presupuesto: noMoney no muta el grid', poor.grid.serialize() === beforeGrid && poor.economy.treasury === schoolCost - 1);
+
+  sim.economy.treasury = 10_000;
+  const upkeep = sim.economy.chargeUpkeep(sim.index, ['rural', 'path']);
+  check('mantenimiento: cobra edificios y vías una vez', upkeep === 61.5 && sim.economy.ledger.upkeep === 61.5);
+  const saved = JSON.parse(JSON.stringify(sim.serialize()));
+  const restored = new Simulation(Grid.deserialize(saved.gridJson), 5150, saved);
+  check('presupuesto: el guardado conserva el ledger', restored.economy.ledger.build === schoolCost && restored.economy.ledger.upkeep === 61.5);
 }
 
 // --- Zonas del jugador ------------------------------------------------------
