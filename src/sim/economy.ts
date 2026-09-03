@@ -291,7 +291,7 @@ export class Economy {
       (employed.get(k) ?? employed.set(k, []).get(k)!).push(c.id);
     }
     this.workplaces = index.buildings
-      .filter((b) => (b.data.jobs ?? 0) > 0)
+      .filter((b) => !b.abandoned && (b.data.jobs ?? 0) > 0)
       .map((b) => ({ building: b, workers: employed.get(`${b.ax},${b.az}`) ?? [] }));
     // Despide de edificios demolidos.
     const valid = new Set(this.workplaces.map((w) => `${w.building.ax},${w.building.az}`));

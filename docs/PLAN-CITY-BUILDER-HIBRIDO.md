@@ -306,7 +306,7 @@ trampas**. Los tests nuevos se añaden al script `"test"` de `package.json`.
 - Pasos: R = clamp(0.5·(1 − freeHousing/max(1, pop/4)) + 0.5·atractividad − penalización si pop ≥ K); C = clamp((pop/shops − 10)/10) con prosperidad; I = clamp(unemployment/0.35) + (openJobs ≤ 0 ? 0.3 : 0). `computeDemand` sigue decidiendo QUÉ; `demandLevels` informa.
 - Tests: monotonía (más `freeHousing` ⇒ R no sube; más paro ⇒ I sube; acotado).
 
-**H2.6 Acceso a vía, alertas y abandono**
+**H2.6 Acceso a vía, alertas y abandono** — ✅ implementado
 - Archivos: M `worldIndex.ts` (`SimBuilding.roadAccess` — anillo ±3 con `road/path`), M `simulation.ts` (`noAccessSince: Map<key, day>`; a `ABANDON_DAYS=10` → `abandonBuilding`: `rehouseOrEmigrate`, despido, `BuildingRef.abandoned = true`, evento `buildingAbandoned`), M `grid.ts`, M `worldView.ts` (tinte `PALETTE.abandoned` al hornear: ×0.75 y desaturar), M `cityHud.ts` (chip si > 0), M `chronicle.ts`/`toasts.ts`.
 - Tests: casa a 5 celdas de la vía ⇒ `roadAccess=false`; tras 10 días `abandoned` y pop conservada; re-trazar vía antes cancela.
 - Visual: casita gris tras demoler su calle.

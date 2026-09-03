@@ -17,6 +17,28 @@ export interface SimBuilding {
   /** Celda central (para distancias). */
   cx: number;
   cz: number;
+  /** Hay una carretera/sendero en el anillo exterior de tres celdas. */
+  roadAccess: boolean;
+  /** El edificio ocupa la huella, pero está fuera de servicio. */
+  abandoned: boolean;
+}
+
+/** Acceso peatonal mínimo a una vía: basta una carretera o sendero dentro del
+ * anillo exterior de `radius` celdas alrededor de toda la huella. La huella no
+ * se considera acceso por sí misma (y sigue bloqueada para caminos). */
+export function hasRoadAccess(grid: Grid, ax: number, az: number, fw: number, fd: number, radius = 3): boolean {
+  for (let x = ax - radius; x < ax + fw + radius; x++) {
+    for (let z = az - radius; z < az + fd + radius; z++) {
+      const inside = x >= ax && x < ax + fw && z >= az && z < az + fd;
+      if (inside) continue;
+      const dx = x < ax ? ax - x : x >= ax + fw ? x - (ax + fw - 1) : 0;
+      const dz = z < az ? az - z : z >= az + fd ? z - (az + fd - 1) : 0;
+      if (Math.max(dx, dz) > radius) continue;
+      const terrain = grid.get(x, z)?.terrain;
+      if (terrain === 'road' || terrain === 'path') return true;
+    }
+  }
+  return false;
 }
 
 export class WorldIndex {
@@ -45,7 +67,7 @@ export class WorldIndex {
         const cx = Math.floor(k / 65536) - 32768;
         const cz = (k % 65536) - 32768;
         if (cell.terrain === 'water') waterCells.push([cx, cz]);
-        if (cell.terrain === 'road') this.roadCells.push([cx, cz]);
+        if (cell.terrain === 'road' || cell.terrain === 'path') this.roadCells.push([cx, cz]);
         if (cell.prop) treeCells.push([cx, cz]);
         const b = cell.building;
         if (!b || b.anchorX !== cx || b.anchorZ !== cz) return;
@@ -63,11 +85,15 @@ export class WorldIndex {
           entrance: buildingEntrance(this.grid, cx, cz, fw, fd),
           cx: cx + fw / 2,
           cz: cz + fd / 2,
+          roadAccess: hasRoadAccess(this.grid, cx, cz, fw, fd),
+          abandoned: b.abandoned === true,
         };
         this.buildings.push(sb);
-        const list = this.byRole.get(data.role) ?? [];
-        list.push(sb);
-        this.byRole.set(data.role, list);
+        if (!sb.abandoned) {
+          const list = this.byRole.get(data.role) ?? [];
+          list.push(sb);
+          this.byRole.set(data.role, list);
+        }
       });
     });
 

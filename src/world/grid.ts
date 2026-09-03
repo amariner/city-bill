@@ -26,6 +26,9 @@ export interface BuildingRef {
   /** Huella rotada exacta; opcional para compatibilidad con grids antiguos. */
   fw?: number;
   fd?: number;
+  /** El edificio sigue ocupando su huella, pero no presta servicio ni aloja
+   * nuevas familias mientras no tenga acceso a una vía. */
+  abandoned?: boolean;
 }
 
 export interface PropRef {
@@ -211,6 +214,27 @@ export class Grid {
     return true;
   }
 
+  /** Cambia el estado de abandono y journaliza toda la huella para que el
+   * render pueda repintar el chunk sin reconstruir lógica en el main. */
+  setBuildingAbandoned(cx: number, cz: number, abandoned: boolean): boolean {
+    const cell = this.get(cx, cz);
+    const ref = cell?.building;
+    if (!ref || ref.abandoned === abandoned) return false;
+    ref.abandoned = abandoned;
+    const fw = ref.fw ?? 1;
+    const fd = ref.fd ?? 1;
+    for (let x = ref.anchorX; x < ref.anchorX + fw; x++) {
+      for (let z = ref.anchorZ; z < ref.anchorZ + fd; z++) {
+        const footprint = this.get(x, z);
+        if (footprint?.building?.anchorX === ref.anchorX && footprint.building.anchorZ === ref.anchorZ) {
+          footprint.building.abandoned = abandoned;
+          this.markChanged(x, z);
+        }
+      }
+    }
+    return true;
+  }
+
   /** Devuelve y vacía las celdas mutadas, en orden canónico. */
   takeJournal(): Array<[number, number, Cell]> {
     const keys = [...this.journal].sort((a, b) => a - b);
@@ -274,6 +298,7 @@ export class Grid {
             anchorZ: b.anchorZ,
             ...(b.fw === undefined ? {} : { fw: b.fw }),
             ...(b.fd === undefined ? {} : { fd: b.fd }),
+            ...(b.abandoned === undefined ? {} : { abandoned: b.abandoned }),
           };
         }
         if (cell.prop) normalized.prop = { id: cell.prop.id, variant: cell.prop.variant };

@@ -108,6 +108,7 @@ export const PALETTE = {
   ghostOk: 0x91b38d, // fantasma válido de construcción
   ghostBad: 0xb77d78, // fantasma inválido / rechazo
   ghostPending: 0x9b9d94, // acción enviada, esperando eco del worker
+  abandoned: 0x827d76, // edificio sin acceso: gris cálido desaturado
 
   // Construcción (T4.2): andamio de madera al levantar un edificio — postes y
   // travesaños de timber pálido, luego se retira con un "pop" del edificio.

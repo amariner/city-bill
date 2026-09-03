@@ -60,7 +60,7 @@ export class CityHud {
     ].join(';');
     document.body.appendChild(this.el);
 
-    for (const key of ['time', 'pop', 'treasury', 'jobless', 'season', 'granary', 'health', 'wealth']) {
+    for (const key of ['time', 'pop', 'treasury', 'jobless', 'season', 'granary', 'health', 'wealth', 'abandoned']) {
       const root = document.createElement('div');
       root.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:1px';
       const label = document.createElement('span');
@@ -71,6 +71,7 @@ export class CityHud {
       root.appendChild(value);
       this.el.appendChild(root);
       this.chips[key] = { label, value, root };
+      if (key === 'abandoned') root.style.display = 'none';
     }
     this.chips.time.label.textContent = 'tiempo';
     this.chips.pop.label.textContent = 'población';
@@ -80,6 +81,7 @@ export class CityHud {
     this.chips.granary.label.textContent = 'granero';
     this.chips.health.label.textContent = 'salud';
     this.chips.wealth.label.textContent = 'riqueza media';
+    this.chips.abandoned.label.textContent = 'cerrados';
   }
 
   /** Llamar cada frame; sólo reescribe el DOM cuando algo cambia. */
@@ -98,6 +100,7 @@ export class CityHud {
       city.epidemic ? 1 : 0,
       city.sick,
       city.avgWealth | 0,
+      city.abandoned,
     ].join('|');
     if (sig === this.last) return;
     this.last = sig;
@@ -138,6 +141,11 @@ export class CityHud {
     }
 
     this.chips.wealth.value.textContent = fmtMoney(city.avgWealth);
+
+    const abandoned = this.chips.abandoned;
+    abandoned.root.style.display = city.abandoned > 0 ? 'flex' : 'none';
+    abandoned.value.textContent = String(city.abandoned);
+    abandoned.value.style.color = city.abandoned > 0 ? ALERT : '';
   }
 }
 

@@ -259,6 +259,8 @@ export interface CityStats {
   growthPolicy: GrowthPolicy;
   /** Presión latente por sector, para las barras R/C/I de la toolbar. */
   demand: { R: number; C: number; I: number };
+  /** Edificios sin acceso a una vía y actualmente fuera de servicio. */
+  abandoned: number;
   /** Reparto por edad (banco de pruebas): niños/adultos/mayores. */
   children: number;
   adults: number;
@@ -295,6 +297,7 @@ export interface SimEventMsg {
     | 'festivalDay'
     | 'roadExtended'
     | 'roadBuilt'
+    | 'buildingAbandoned'
     | 'epidemic'
     // Jubilación (ciclo 12, local): un ciudadano deja el empleo al llegar a la edad.
     | 'citizenRetired'

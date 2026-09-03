@@ -13,6 +13,7 @@
  * importar cuántos edificios tenga ni cuántas piezas tenga cada uno.
  */
 import * as THREE from 'three';
+import { PALETTE } from '../../palette';
 
 interface QuadBuffers {
   positions: number[];
@@ -54,6 +55,14 @@ function finish(buf: QuadBuffers): THREE.Mesh | null {
 
 const tmpColor = new THREE.Color();
 const tmpMatrix = new THREE.Matrix4();
+const abandonedTint = new THREE.Color(PALETTE.abandoned);
+
+/** El abandono no borra ni sustituye la malla: baja el brillo y apaga la
+ * saturación para que la huella siga leyendo como edificio cerrado. */
+function tintAbandoned(color: THREE.Color): void {
+  const gray = color.r * 0.299 + color.g * 0.587 + color.b * 0.114;
+  color.setRGB(gray, gray, gray).lerp(abandonedTint, 0.25).multiplyScalar(0.75);
+}
 
 /** Recorre un edificio ya posicionado/rotado/decorado y hornea cada Mesh
  * sólido en el bucket de sombra que corresponda; cada InstancedMesh (las
@@ -62,6 +71,7 @@ const tmpMatrix = new THREE.Matrix4();
  * llamador antes de recorrer, una vez por chunk basta porque los edificios
  * cuelgan directamente del group del chunk). */
 function bakeBuilding(root: THREE.Object3D, shadowBuf: QuadBuffers, unshadowedBuf: QuadBuffers): void {
+  const abandoned = root.userData.abandoned === true;
   root.traverse((child) => {
     if (child instanceof THREE.InstancedMesh) {
       const buf = child.castShadow ? shadowBuf : unshadowedBuf;
@@ -73,6 +83,7 @@ function bakeBuilding(root: THREE.Object3D, shadowBuf: QuadBuffers, unshadowedBu
         } else {
           tmpColor.copy((child.material as THREE.MeshLambertMaterial).color);
         }
+        if (abandoned) tintAbandoned(tmpColor);
         bakeInto(buf, child.geometry, tmpMatrix, tmpColor);
       }
       return;
@@ -81,6 +92,7 @@ function bakeBuilding(root: THREE.Object3D, shadowBuf: QuadBuffers, unshadowedBu
       const buf = child.castShadow ? shadowBuf : unshadowedBuf;
       const material = child.material as THREE.MeshLambertMaterial;
       tmpColor.copy(material.color);
+      if (abandoned) tintAbandoned(tmpColor);
       bakeInto(buf, child.geometry, child.matrixWorld, tmpColor);
     }
   });

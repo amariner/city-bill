@@ -159,6 +159,7 @@ export class WorldView {
         const rot = cell.building.rot;
         const [fw, fd] = rotatedFootprint(it.w, it.d, rot);
         const mesh = it.build();
+        if (cell.building.abandoned) mesh.userData.abandoned = true;
         if (it.role === 'residential') {
           const prestige = this.homePrestige.get(`${cx},${cz}`) ?? 0;
           if (prestige > 0) {

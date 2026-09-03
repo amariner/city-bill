@@ -59,6 +59,9 @@ const COMFORT_FUN_PER_HOUR = 0.15;
 /** Granero por encima del cual la fiesta de la cosecha es "abundante" (ciclo 24). */
 const BOUNTIFUL_GRANARY = 40;
 
+/** Días de aislamiento vial antes de cerrar un edificio (H2.6). */
+export const ABANDON_DAYS = 10;
+
 // --- Lógica de jubilación (ciclo 12) ------------------------------------------
 /** Ritmo al que un jubilado reconstruye 'purpose' FUERA del trabajo, PROPORCIONAL
  * al déficit: `k·(1 - purpose)` por hora. La forma importa: un restore PLANO
@@ -94,7 +97,7 @@ const VOCATION_QUIT_CHANCE = 0.05;
 const DYNASTY_THRESHOLD = 8;
 
 export interface SimEvent {
-  name: 'citizenBorn' | 'citizenLeft' | 'jobTaken' | 'chatStarted' | 'cityGrew' | 'buildingRazed' | 'tierUnlocked' | 'coupleFormed' | 'festivalDay' | 'roadExtended' | 'roadBuilt' | 'epidemic' | 'citizenRetired' | 'homePrestige' | 'cultivationChanged' | 'vocationFound' | 'dynastyRose' | 'dynastyFell' | 'firstBuilding' | 'settlementRose' | 'familyArrived' | 'townFounded';
+  name: 'citizenBorn' | 'citizenLeft' | 'jobTaken' | 'chatStarted' | 'cityGrew' | 'buildingRazed' | 'buildingAbandoned' | 'tierUnlocked' | 'coupleFormed' | 'festivalDay' | 'roadExtended' | 'roadBuilt' | 'epidemic' | 'citizenRetired' | 'homePrestige' | 'cultivationChanged' | 'vocationFound' | 'dynastyRose' | 'dynastyFell' | 'firstBuilding' | 'settlementRose' | 'familyArrived' | 'townFounded';
   data: Record<string, unknown>;
 }
 
@@ -126,6 +129,10 @@ export interface SimSaveState {
   households: Array<[string, number]>;
   pantry: Array<[string, number]>;
   emigrationPressure: Array<[string, number]>;
+  noAccessSince: Array<[string, number]>;
+  /** Edificios que ya estuvieron conectados; evita castigar una semilla antigua
+   * hasta que realmente pierda su acceso. */
+  roadAccessSeen?: string[];
   leaving: number[];
   inEpidemic: boolean;
   tier: Tier;
@@ -241,6 +248,10 @@ export class Simulation {
   private lastRoadDay = -10;
   /** Presión migratoria por hogar ('ax,az') — penuria sostenida (ciclo 14). */
   private emigrationPressure = new Map<string, number>();
+  /** Día en que cada edificio activo perdió acceso a la red vial. */
+  private noAccessSince = new Map<string, number>();
+  /** Accesos conocidos para detectar cortes, no solo edificios nacidos lejos. */
+  private roadAccessSeen = new Set<string>();
   /** Ciudadanos decididos a marcharse: caminan a la salida y despawnean allí. */
   private leaving = new Set<number>();
   /** Recogidos al LLEGAR a la salida este tick; se despawnean tras el bucle. */
@@ -252,6 +263,7 @@ export class Simulation {
     this.index = new WorldIndex(grid);
     this.social = new SocialSystem(createRng(seed ^ 0x9e3779b9));
     this.paths = new PathQueue(grid);
+    for (const b of this.index.buildings) if (b.roadAccess) this.roadAccessSeen.add(`${b.ax},${b.az}`);
     if (restoreState) {
       this.restore(restoreState);
       return;
@@ -287,6 +299,8 @@ export class Simulation {
     this.pantry.clear();
     for (const [key, value] of state.pantry) this.pantry.set(key, value);
     this.emigrationPressure = new Map(state.emigrationPressure);
+    this.noAccessSince = new Map(state.noAccessSince ?? []);
+    this.roadAccessSeen = new Set(state.roadAccessSeen ?? []);
     this.leaving.clear();
     for (const id of state.leaving) this.leaving.add(id);
     this.inEpidemic = state.inEpidemic;
@@ -343,6 +357,8 @@ export class Simulation {
       households: [...this.households].sort(([a], [b]) => a.localeCompare(b)),
       pantry: [...this.pantry].sort(([a], [b]) => a.localeCompare(b)),
       emigrationPressure: [...this.emigrationPressure].sort(([a], [b]) => a.localeCompare(b)),
+      noAccessSince: [...this.noAccessSince].sort(([a], [b]) => a.localeCompare(b)),
+      roadAccessSeen: [...this.roadAccessSeen].sort(),
       leaving: [...this.leaving].sort((a, b) => a - b),
       inEpidemic: this.inEpidemic,
       tier: this.tier,
@@ -436,6 +452,7 @@ export class Simulation {
   private freeHousing(): number {
     let free = 0;
     for (const b of this.index.ofRole('residential')) {
+      if (b.abandoned) continue;
       free += (b.data.capacity ?? 1) - (this.households.get(`${b.ax},${b.az}`) ?? 0);
     }
     return free;
@@ -699,6 +716,7 @@ export class Simulation {
       this.economy.payPublicDividend([...this.households.keys()], this.citizens.size); // ciclo 32: el tesoro no atesora sin fin — reparte su superávit
       this.stepOutbreak(); // ciclo 25: en invierno, algún resfriado prende y se propaga
       this.stepEmigration(); // ciclo 14: tras la red de pensiones (última bala)
+      this.stepAbandonment(); // H2.6: una vía cortada cierra tras diez días, no de golpe
       // Estatus (ciclo 9): cada hogar que mejora emite su evento para que el
       // render decore ESA vivienda (jardín) sin re-sincronizar todo (render rico).
       for (const u of this.economy.investInHomes(this.households.keys())) {
@@ -836,6 +854,72 @@ export class Simulation {
       c.phase = { kind: 'deciding' };
     }
     this.emigrationPressure.delete(worstKey);
+  }
+
+  /** Vigila el anillo vial de cada edificio. La presión empieza cuando se
+   * observa la pérdida, exige diez cierres diarios consecutivos y desaparece
+   * en cuanto vuelve una carretera o sendero. Solo un edificio por ciclo puede
+   * cerrarse para que el cambio sea legible y no vacíe el pueblo de golpe. */
+  private stepAbandonment(): void {
+    const present = new Set<string>();
+    const toAbandon: Array<[number, number]> = [];
+    const toRestore: Array<[number, number]> = [];
+    for (const b of this.index.buildings) {
+      const key = `${b.ax},${b.az}`;
+      present.add(key);
+      if (b.abandoned) {
+        if (b.roadAccess) toRestore.push([b.ax, b.az]);
+        continue;
+      }
+      if (b.roadAccess) {
+        this.roadAccessSeen.add(key);
+        this.noAccessSince.delete(key);
+        continue;
+      }
+      // Un edificio ya desconectado al cargar una semilla no se convierte en
+      // una expulsión retroactiva. El abandono vigila pérdidas de acceso reales.
+      if (!this.roadAccessSeen.has(key)) continue;
+      const since = this.noAccessSince.get(key);
+      if (since === undefined) this.noAccessSince.set(key, this.clock.day);
+      else if (this.clock.day - since >= ABANDON_DAYS) toAbandon.push([b.ax, b.az]);
+    }
+    for (const key of this.noAccessSince.keys()) if (!present.has(key)) this.noAccessSince.delete(key);
+    for (const [ax, az] of toRestore) this.restoreBuilding(ax, az);
+    if (toAbandon.length > 0) this.abandonBuilding(toAbandon[0][0], toAbandon[0][1]);
+  }
+
+  private restoreBuilding(ax: number, az: number): boolean {
+    const building = this.index.at(ax, az);
+    if (!building?.abandoned || !building.roadAccess) return false;
+    if (!this.grid.setBuildingAbandoned(ax, az, false)) return false;
+    this.noAccessSince.delete(`${ax},${az}`);
+    this.index.rebuild();
+    this.economy.rebuild(this.index, this.citizens);
+    return true;
+  }
+
+  /** Cierra sin demoler: la huella permanece ocupada y la familia se realoja
+   * con la misma rutina digna que una demolición. Los puestos se liberan para
+   * que el índice económico deje de ofrecer un edificio inaccesible. */
+  private abandonBuilding(ax: number, az: number): boolean {
+    const building = this.index.at(ax, az);
+    if (!building || building.abandoned || building.roadAccess) return false;
+    const oldKey = `${building.ax},${building.az}`;
+    const oldEntrance = building.entrance ?? [building.ax, building.az] as CellXZ;
+    const residents = [...this.citizens.values()]
+      .filter((c) => c.home.ax === building.ax && c.home.az === building.az)
+      .sort((a, b) => a.id - b.id)
+      .map((c) => c.id);
+    this.rehouseOrEmigrate(residents, oldKey, oldEntrance);
+    for (const c of this.citizens.values()) {
+      if (c.work?.ax === building.ax && c.work.az === building.az) c.work = null;
+    }
+    if (!this.grid.setBuildingAbandoned(building.ax, building.az, true)) return false;
+    this.noAccessSince.delete(oldKey);
+    this.index.rebuild();
+    this.economy.rebuild(this.index, this.citizens);
+    this.events.push({ name: 'buildingAbandoned', data: { id: building.id, label: building.data.name, ax: building.ax, az: building.az } });
+    return true;
   }
 
   /** Despawn DIGNO de quienes llegaron a la salida: se marchan a otra ciudad,
@@ -1154,7 +1238,7 @@ export class Simulation {
     }
     const [oldAx, oldAz] = oldKey.split(',').map(Number);
     const homes = this.index.ofRole('residential')
-      .filter((b) => b.ax !== oldAx || b.az !== oldAz)
+      .filter((b) => (b.ax !== oldAx || b.az !== oldAz) && !b.abandoned)
       .sort((a, b) => manhattan([oldAx, oldAz], [a.ax, a.az]) - manhattan([oldAx, oldAz], [b.ax, b.az]) || a.ax - b.ax || a.az - b.az);
     const target = homes.find((b) => {
       const key = `${b.ax},${b.az}`;
@@ -1524,6 +1608,7 @@ export class Simulation {
       tier: this.tier,
       growthPolicy: this.growthPolicy,
       demand,
+      abandoned: this.index.buildings.filter((b) => b.abandoned).length,
       children,
       adults: s.adults,
       elders,
