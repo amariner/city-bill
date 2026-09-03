@@ -11,7 +11,8 @@ export type Tool =
   | { kind: 'place'; id: string; rot: Rot }
   | { kind: 'bulldoze' }
   | { kind: 'road'; road: 'path' | 'rural' | 'street' | 'avenue'; from: CellXZ | null }
-  | { kind: 'zone'; zone: ZoneKind; from: CellXZ | null; erase: boolean };
+  | { kind: 'zone'; zone: ZoneKind; from: CellXZ | null; erase: boolean }
+  | { kind: 'busLine'; stops: CellXZ[] };
 
 export class ToolState {
   private tool: Tool = { kind: 'none' };
@@ -41,6 +42,12 @@ export class ToolState {
       } else if (key === 'z') {
         e.preventDefault();
         this.set({ kind: 'zone', zone: 'R', from: null, erase: this.shiftDown });
+      } else if (key === 'l') {
+        e.preventDefault();
+        this.set({ kind: 'busLine', stops: [] });
+      } else if (key === 'enter' && this.tool.kind === 'busLine') {
+        e.preventDefault();
+        this.finishBusLine();
       } else if (key === 'tab' && this.tool.kind === 'place') {
         e.preventDefault();
         this.rotate();
@@ -86,6 +93,10 @@ export class ToolState {
   }
 
   handleClick(cell: [number, number], button: PointerButton = 'left'): number | null {
+    if (this.tool.kind === 'busLine' && button === 'right') {
+      if (this.tool.stops.length > 0) this.set({ kind: 'busLine', stops: this.tool.stops.slice(0, -1) });
+      return null;
+    }
     if (button !== 'left') return null;
     let action: PlayerAction;
     if (this.tool.kind === 'place') {
@@ -113,10 +124,23 @@ export class ToolState {
         z1: Math.max(this.tool.from[1], cell[1]),
       };
       this.set({ ...this.tool, from: null });
+    } else if (this.tool.kind === 'busLine') {
+      if (this.tool.stops.length < 12 && !this.tool.stops.some(([cx, cz]) => cx === cell[0] && cz === cell[1])) {
+        this.set({ kind: 'busLine', stops: [...this.tool.stops, [...cell]] });
+      }
+      return null;
     } else {
       return null;
     }
     return this.sim.act(action);
+  }
+
+  /** Cierra la línea desde Enter; dos o más paradas son necesarias. */
+  finishBusLine(): number | null {
+    if (this.tool.kind !== 'busLine' || this.tool.stops.length < 2) return null;
+    const seq = this.sim.act({ kind: 'busLine', op: 'create', stops: this.tool.stops.map(([cx, cz]) => [cx, cz]) });
+    this.cancel();
+    return seq;
   }
 
   handleDragStart(cell: [number, number], button: PointerButton): void {

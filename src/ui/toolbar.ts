@@ -27,6 +27,7 @@ export class Toolbar {
   private roadButton: HTMLButtonElement;
   private zoneButton: HTMLButtonElement;
   private bulldozeButton: HTMLButtonElement;
+  private busButton: HTMLButtonElement;
   private menu: HTMLDivElement;
   private roadMenu: HTMLDivElement;
   private zoneMenu: HTMLDivElement;
@@ -59,7 +60,17 @@ export class Toolbar {
       this.tools.set({ kind: 'bulldoze' });
       this.update();
     });
-    row.append(this.buildButton, this.roadButton, this.zoneButton, this.bulldozeButton);
+    this.busButton = this.actionButton('↝ buses', 'L · dibujar línea de bus', () => {
+      this.menuOpen = false;
+      this.menu.style.display = 'none';
+      this.roadMenuOpen = false;
+      this.roadMenu.style.display = 'none';
+      this.zoneMenuOpen = false;
+      this.zoneMenu.style.display = 'none';
+      this.tools.set({ kind: 'busLine', stops: [] });
+      this.update();
+    });
+    row.append(this.buildButton, this.roadButton, this.zoneButton, this.bulldozeButton, this.busButton);
     this.root.appendChild(row);
 
     const demand = document.createElement('div');
@@ -144,12 +155,15 @@ export class Toolbar {
     this.roadButton.classList.toggle('cb-tool-active', active.kind === 'road');
     this.zoneButton.classList.toggle('cb-tool-active', active.kind === 'zone');
     this.bulldozeButton.classList.toggle('cb-tool-active', active.kind === 'bulldoze');
+    this.busButton.classList.toggle('cb-tool-active', active.kind === 'busLine');
     this.hint.textContent = active.kind === 'place'
       ? `${available.find((item) => item.id === active.id)?.name ?? active.id} · Tab gira · Esc cancela`
       : active.kind === 'road'
         ? `${ROAD_LABELS[active.road]} · ${active.from ? 'elige destino' : 'clic y arrastra'}${this.roadCost !== null && active.from ? ` · coste ${this.roadCost}` : ''} · Esc cancela`
         : active.kind === 'zone'
           ? `${ZONE_LABELS[active.zone]} · ${active.erase ? 'Shift: borrar' : 'clic y arrastra'} · Esc cancela`
+        : active.kind === 'busLine'
+          ? `bus · ${active.stops.length} parada${active.stops.length === 1 ? '' : 's'} · Enter cierra · clic derecho deshace · Esc cancela`
         : active.kind === 'bulldoze' ? 'demoler · Esc cancela' : 'B construir · R vías · X demoler';
   }
 
@@ -236,6 +250,7 @@ export class Toolbar {
     if (this.menuOpen && this.tools.active.kind === 'place') this.tools.cancel();
     if (this.menuOpen && this.tools.active.kind === 'road') this.tools.cancel();
     if (this.menuOpen && this.tools.active.kind === 'zone') this.tools.cancel();
+    if (this.menuOpen && this.tools.active.kind === 'busLine') this.tools.cancel();
     this.update();
   }
 
@@ -248,6 +263,7 @@ export class Toolbar {
     this.zoneMenu.style.display = 'none';
     if (this.roadMenuOpen && (this.tools.active.kind === 'place' || this.tools.active.kind === 'road')) this.tools.cancel();
     if (this.roadMenuOpen && this.tools.active.kind === 'zone') this.tools.cancel();
+    if (this.roadMenuOpen && this.tools.active.kind === 'busLine') this.tools.cancel();
     this.update();
   }
 
@@ -258,7 +274,7 @@ export class Toolbar {
     this.menu.style.display = 'none';
     this.roadMenuOpen = false;
     this.roadMenu.style.display = 'none';
-    if (this.zoneMenuOpen && (this.tools.active.kind === 'place' || this.tools.active.kind === 'road' || this.tools.active.kind === 'zone')) this.tools.cancel();
+    if (this.zoneMenuOpen && (this.tools.active.kind === 'place' || this.tools.active.kind === 'road' || this.tools.active.kind === 'zone' || this.tools.active.kind === 'busLine')) this.tools.cancel();
     this.update();
   }
 

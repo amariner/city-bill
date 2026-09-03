@@ -60,7 +60,7 @@ export class CityHud {
     ].join(';');
     document.body.appendChild(this.el);
 
-    for (const key of ['time', 'pop', 'treasury', 'jobless', 'season', 'granary', 'health', 'happiness', 'congestion', 'wealth', 'abandoned']) {
+    for (const key of ['time', 'pop', 'treasury', 'jobless', 'season', 'granary', 'health', 'happiness', 'congestion', 'bus', 'wealth', 'abandoned']) {
       const root = document.createElement('div');
       root.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:1px';
       const label = document.createElement('span');
@@ -71,7 +71,7 @@ export class CityHud {
       root.appendChild(value);
       this.el.appendChild(root);
       this.chips[key] = { label, value, root };
-      if (key === 'abandoned') root.style.display = 'none';
+      if (key === 'abandoned' || key === 'bus') root.style.display = 'none';
     }
     this.chips.time.label.textContent = 'tiempo';
     this.chips.pop.label.textContent = 'población';
@@ -82,6 +82,7 @@ export class CityHud {
     this.chips.health.label.textContent = 'salud';
     this.chips.happiness.label.textContent = 'ánimo';
     this.chips.congestion.label.textContent = 'tráfico';
+    this.chips.bus.label.textContent = 'bus';
     this.chips.wealth.label.textContent = 'riqueza media';
     this.chips.abandoned.label.textContent = 'cerrados';
   }
@@ -103,6 +104,8 @@ export class CityHud {
       city.sick,
       Math.round(city.happiness * 100),
       Math.round(city.congestion * 100),
+      city.busLines,
+      city.busTrips,
       city.avgWealth | 0,
       city.debt | 0,
       city.bankrupt ? 1 : 0,
@@ -157,6 +160,11 @@ export class CityHud {
     const congestionPct = Math.round(city.congestion * 100);
     congestion.textContent = `${congestionPct}%`;
     congestion.style.color = congestionPct >= 70 ? ALERT : congestionPct >= 35 ? WARN : '';
+
+    const bus = this.chips.bus;
+    bus.root.style.display = city.busLines > 0 ? 'flex' : 'none';
+    bus.value.textContent = `${city.busLines} · ${city.busTrips}`;
+    bus.value.title = `${city.busLines} línea${city.busLines === 1 ? '' : 's'} · ${city.busTrips} embarque${city.busTrips === 1 ? '' : 's'}`;
 
     this.chips.wealth.value.textContent = fmtMoney(city.avgWealth);
 

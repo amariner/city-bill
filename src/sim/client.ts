@@ -59,8 +59,10 @@ export class SimClient {
   buildingStats: Float32Array | null = null;
   /** Último buffer de carga de calzadas (~0,5 Hz); zero-copy para el overlay. */
   traffic: Uint32Array | null = null;
-  /** Vehículos del último snapshot, reservado para el render H5.4. */
+  /** Vehículos del último snapshot (H5.4), transferidos sin copia. */
   vehicles: Float32Array | null = null;
+  /** Paradas del último snapshot: [lineId, cx, cz, stopIndex]. */
+  busStops: Float32Array | null = null;
   onCitizenInfo: ((info: CitizenInfoMsg) => void) | null = null;
   /** Eventos de sim (cityGrew, citizenBorn…) para que el main reaccione. */
   onEvent: ((name: string, data?: Record<string, unknown>) => void) | null = null;
@@ -127,6 +129,7 @@ export class SimClient {
         this.buildings = msg.buildings;
         this.city = msg.city;
         this.vehicles = msg.vehicles;
+        this.busStops = msg.busStops;
         break;
       }
       case 'buildingStats':

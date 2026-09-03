@@ -15,6 +15,7 @@ import { seedWorld, seedFarm, seedSandbox } from './world/seed';
 import { buildShowcase } from './showcase';
 import { SimClient, AgentView } from './sim/client';
 import { CitizenView } from './world/render/citizens';
+import { VehicleView } from './world/render/vehicles';
 import { SelectionMarker } from './world/render/selectionMarker';
 import { ConstructionSites } from './world/render/construction';
 import { Ghost } from './world/render/ghost';
@@ -78,6 +79,7 @@ camera.setZoomIndex(1);
 let worldView: WorldView | null = null;
 let simClient: SimClient | null = null;
 let citizenView: CitizenView | null = null;
+let vehicleView: VehicleView | null = null;
 let selectionMarker: SelectionMarker | null = null;
 let construction: ConstructionSites | null = null;
 let atmosphere: Atmosphere | null = null;
@@ -152,6 +154,8 @@ function buildRenderAndUi(grid: Grid, worldSeed: number): void {
   stage.scene.add(atmosphere.root);
   citizenView = new CitizenView();
   stage.scene.add(citizenView.root);
+  vehicleView = new VehicleView();
+  stage.scene.add(vehicleView.root);
   selectionMarker = new SelectionMarker();
   stage.scene.add(selectionMarker.root);
   // FX de construcción (T4.2): anima cada obra nueva (andamio → pop) en vez de
@@ -356,7 +360,7 @@ pointer.onHover = (cell) => {
   ghost?.update(toolState?.active ?? { kind: 'none' }, cell);
 };
 pointer.onClick = (cell, button) => {
-  if (button !== 'left') return;
+  if (button !== 'left' && !(button === 'right' && toolState?.active.kind === 'busLine')) return;
   if (toolState?.isActive) {
     const seq = toolState.handleClick(cell, button);
     if (seq !== null) ghost?.markPending();
@@ -435,6 +439,7 @@ loop.onUpdate((dt) => {
   if (simClient && citizenView) {
     const n = simClient.view(agentViews);
     citizenView.update(agentViews, n, dt);
+    vehicleView?.update(simClient.vehicles, simClient.busStops);
     overlayLayer?.refreshFromStats(simClient.buildingStats);
     overlayLayer?.refreshFromTraffic(simClient.traffic);
     alertsLayer?.refreshFromStats(simClient.buildingStats);

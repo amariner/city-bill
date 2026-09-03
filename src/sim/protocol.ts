@@ -48,6 +48,7 @@ export const enum TravelModeCode {
 }
 
 export const VEHICLE_STRIDE = 6;
+export const BUS_STOP_STRIDE = 4;
 
 /** Tipo de vehículo en el buffer `SnapshotMsg.vehicles`. */
 export const enum VehicleKindCode {
@@ -305,6 +306,8 @@ export interface SnapshotMsg {
   agents: Float32Array;
   /** count * VEHICLE_STRIDE floats: [id, x, z, heading, kind, lineId]. */
   vehicles: Float32Array;
+  /** count * BUS_STOP_STRIDE floats: [lineId, cx, cz, stopIndex]. */
+  busStops: Float32Array;
 }
 
 /** Canal lento de overlays (~1 Hz), independiente del buffer de agentes. */

@@ -406,8 +406,8 @@ trampas**. Los tests nuevos se añaden al script `"test"` de `package.json`.
 - Trampa resuelta: no se crea fase nueva en el autómata; el viaje conserva la actividad original y continúa a pie desde la parada de bajada.
 
 **H5.4 Bus y paradas: render y herramienta**
-- Archivos: C `render/vehicles.ts` (bus `PALETTE.busBody` + cristal; paradas instanciadas), M `tools.ts` (clic en paradas, Enter cierra), M `toolbar.ts`.
-- Visual: bus en loop en sandbox; pasajeros desaparecen al subir.
+- **✅ implementado** — Archivos: C `render/vehicles.ts` (bus `PALETTE.busBody` + cristal; buses, postes y bases de parada instanciados), M `tools.ts` (clic en paradas, Enter cierra, clic derecho deshace), M `toolbar.ts`/`controlBar.ts`; `SnapshotMsg` transporta buffers de flota y paradas.
+- Visual: la flota aparece en el loop; los pasajeros desaparecen al subir; HUD muestra líneas y embarques.
 
 **H5.5 Distritos y políticas**
 - Archivos: M `grid.ts` (`Cell.district?`), M `actions.ts`, M `tools.ts`, M `simulation.ts` (`districtPolicies: Map<number, {taxDelta, noIndustry, parksPriority, speed30}>`), C `src/ui/districtPanel.ts`.

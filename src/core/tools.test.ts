@@ -31,6 +31,13 @@ tools.set({ kind: 'zone', zone: 'C', from: null, erase: false });
 tools.handleDragStart([1, 2], 'left');
 check('la zona fija el origen al arrastrar', tools.active.kind === 'zone' && tools.active.from?.join() === '1,2');
 check('la zona emite un rectángulo normalizado', tools.handleDragEnd([-2, 5], 'left') === 5 && sent[4]?.kind === 'zone' && sent[4]?.x0 === -2 && sent[4]?.z0 === 2 && sent[4]?.x1 === 1 && sent[4]?.z1 === 5);
+tools.set({ kind: 'busLine', stops: [] });
+check('la línea: el primer clic fija una parada', tools.handleClick([2, 2]) === null && tools.active.kind === 'busLine' && tools.active.stops.length === 1);
+check('la línea: evita duplicar una parada', tools.handleClick([2, 2]) === null && tools.active.kind === 'busLine' && tools.active.stops.length === 1);
+tools.handleClick([6, 2]);
+tools.handleClick([6, 6]);
+const lineSeq = tools.finishBusLine();
+check('la línea: Enter emite busLine y cancela la herramienta', lineSeq === 6 && sent[5]?.kind === 'busLine' && sent[5]?.op === 'create' && !tools.isActive);
 
 console.log(`\ntools.test: ${passed} passed, ${failed} failed`);
 if (failed > 0) throw new Error(`${failed} test(s) failed`);

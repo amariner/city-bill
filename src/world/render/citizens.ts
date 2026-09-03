@@ -5,7 +5,9 @@
  * interpolado del SimClient cada frame; nada de lógica de sim aquí.
  * - Inside → escala 0 (con fade rápido al entrar/salir).
  * - Walking a pie → bobbing sutil; Idle → sway lento.
- * - mode===1 (coche): se dibuja el mesh de coche en vez del peatón,
+ * - mode===1 (coche): se dibuja el mesh de coche en vez del peatón.
+ * - mode===2 (bus): el pasajero no se dibuja mientras va a bordo; la flota
+ *   vive en `render/vehicles.ts`, para que el bus sea el objeto visible.
  *   orientado con el mismo heading (frente del coche a +Z, igual que el
  *   resto de props — ver props.ts).
  */
@@ -164,6 +166,8 @@ export class CitizenView {
       const next = cur + Math.sign(target - cur) * Math.min(Math.abs(target - cur), dt * 5);
       this.appear.set(a.id, next);
       if (next <= 0.01) continue;
+
+      if (a.mode === TravelModeCode.Bus) continue;
 
       this.s.setScalar(next);
 

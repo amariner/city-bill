@@ -25,7 +25,7 @@ import { decayNeeds, restore, NEED_KEYS } from './citizens/needs';
 import { chooseActivity } from './citizens/brain';
 import { ACTIVITY_BY_KIND, SimContext, activityLabel, EDU_PER_HOUR, CLINIC_FEE, isFestivalDay } from './citizens/activities';
 import { SocialSystem, SocialSaveState } from './citizens/social';
-import { AgentState, ActivityKind, activityId, AGENT_STRIDE, AlertBit, BUILDING_STRIDE, VEHICLE_STRIDE, TravelModeCode, VehicleKindCode, CityStats, CitizenInfoMsg, settlementLevel, SETTLEMENT_CLASSES, PlayerAction, RecordedAction, GrowthPolicy, PublicAutobuildPolicy, BudgetHistoryPoint, RoadKind } from './protocol';
+import { AgentState, ActivityKind, activityId, AGENT_STRIDE, AlertBit, BUILDING_STRIDE, BUS_STOP_STRIDE, VEHICLE_STRIDE, TravelModeCode, VehicleKindCode, CityStats, CitizenInfoMsg, settlementLevel, SETTLEMENT_CLASSES, PlayerAction, RecordedAction, GrowthPolicy, PublicAutobuildPolicy, BudgetHistoryPoint, RoadKind } from './protocol';
 import {
   computeDemand, demandLevels, itemForDemand, findParcel, townCenter, townAttractiveness,
   householdHardship, updateEmigrationPressure, EMIGRATE_POP_FLOOR, EMIGRATE_PRESSURE_LIMIT,
@@ -2120,6 +2120,22 @@ export class Simulation {
       arr[i++] = bus.heading;
       arr[i++] = VehicleKindCode.Bus;
       arr[i++] = bus.lineId;
+    }
+    return arr;
+  }
+
+  /** Paradas planas para el render: [lineId, cx, cz, stopIndex]. */
+  busStopsSnapshot(): Float32Array {
+    const lines = [...this.busLines.values()].sort((a, b) => a.id - b.id);
+    const arr = new Float32Array(lines.reduce((total, line) => total + line.stops.length, 0) * BUS_STOP_STRIDE);
+    let i = 0;
+    for (const line of lines) {
+      line.stops.forEach(([cx, cz], stopIndex) => {
+        arr[i++] = line.id;
+        arr[i++] = cx;
+        arr[i++] = cz;
+        arr[i++] = stopIndex;
+      });
     }
     return arr;
   }

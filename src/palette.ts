@@ -85,6 +85,7 @@ export const PALETTE = {
   // Vehículos (chasis en tonos apagados variados, ruedas casi negras)
   carBody: [0x8b96a6, 0xcdbb96, 0xab7f74, 0x8ea082] as const,
   carTire: 0x2c2a26,
+  busBody: 0xc07a52,
 
   // Jardines de estatus (ciclo 9): setos y flores discretas al invertir en casa
   gardenHedge: 0x7a9457,
