@@ -5,6 +5,7 @@ import { PALETTE } from '../../palette';
 import { CELL_SIZE, Grid, rotatedFootprint } from '../grid';
 import { catalogItem } from '../catalog';
 import { placementCheck } from '../placement';
+import { planRoad, previewRoad } from '../roads';
 import type { Tool } from '../../core/tools';
 
 type GhostMaterial = THREE.Material & {
@@ -21,6 +22,8 @@ export class Ghost {
   private signature = '';
   private pending = false;
   private rejectedUntil = 0;
+  /** Coste de la L propuesta, para que la toolbar lo muestre sin duplicar lógica. */
+  onRoadCost: ((cost: number | null) => void) | null = null;
 
   constructor(private grid: Grid) {
     this.root.visible = false;
@@ -28,6 +31,11 @@ export class Ghost {
   }
 
   update(tool: Tool, cell: [number, number]): void {
+    if (tool.kind === 'road') {
+      this.updateRoad(tool, cell);
+      return;
+    }
+    this.onRoadCost?.(null);
     if (tool.kind !== 'place') {
       this.root.visible = false;
       return;
@@ -45,6 +53,40 @@ export class Ghost {
     const color = this.pending ? PALETTE.ghostPending : Date.now() < this.rejectedUntil ? PALETTE.ghostBad : bad ? PALETTE.ghostBad : PALETTE.ghostOk;
     this.tint(color);
     this.root.visible = true;
+  }
+
+  private updateRoad(tool: Extract<Tool, { kind: 'road' }>, cell: [number, number]): void {
+    if (!tool.from) {
+      this.root.visible = false;
+      this.onRoadCost?.(null);
+      return;
+    }
+    const preview = previewRoad(this.grid, planRoad(tool.from, cell), tool.road);
+    this.root.clear();
+    this.footprint = null;
+    this.building = null;
+    this.root.position.set(0, 0, 0);
+    const y: Record<'road' | 'sidewalk' | 'median' | 'margin', number> = {
+      road: 0.19,
+      sidewalk: 0.2,
+      median: 0.16,
+      margin: 0.14,
+    };
+    for (const item of preview.cells) {
+      const color = item.blocked ? PALETTE.ghostBad
+        : item.role === 'road' ? PALETTE.ghostOk
+        : item.role === 'sidewalk' ? PALETTE.path
+        : PALETTE.grass;
+      const plane = new THREE.Mesh(
+        new THREE.PlaneGeometry(CELL_SIZE * 0.9, CELL_SIZE * 0.9),
+        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: item.blocked ? 0.58 : item.existing ? 0.22 : 0.38, depthWrite: false, side: THREE.DoubleSide }),
+      );
+      plane.rotation.x = -Math.PI / 2;
+      plane.position.set((item.cell[0] + 0.5) * CELL_SIZE, y[item.role], (item.cell[1] + 0.5) * CELL_SIZE);
+      this.root.add(plane);
+    }
+    this.onRoadCost?.(preview.cost);
+    this.root.visible = preview.cells.length > 0;
   }
 
   markPending(): void {

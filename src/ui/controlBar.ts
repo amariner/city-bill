@@ -29,7 +29,7 @@ const CONTROLS: Array<[string, string]> = [
   ['clic en vecino', 'inspeccionar'],
   ['F', 'seguir al vecino'],
   ['C', 'abrir la crónica'],
-  ['B · X', 'construir · demoler'],
+  ['B · R · X', 'construir · vías · demoler'],
   ['Tab · Esc', 'rotar · cancelar herramienta'],
   ['0 – 3', 'velocidad del tiempo'],
   ['F3', 'panel de rendimiento'],

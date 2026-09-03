@@ -94,7 +94,7 @@ const VOCATION_QUIT_CHANCE = 0.05;
 const DYNASTY_THRESHOLD = 8;
 
 export interface SimEvent {
-  name: 'citizenBorn' | 'citizenLeft' | 'jobTaken' | 'chatStarted' | 'cityGrew' | 'buildingRazed' | 'tierUnlocked' | 'coupleFormed' | 'festivalDay' | 'roadExtended' | 'epidemic' | 'citizenRetired' | 'homePrestige' | 'cultivationChanged' | 'vocationFound' | 'dynastyRose' | 'dynastyFell' | 'firstBuilding' | 'settlementRose' | 'familyArrived' | 'townFounded';
+  name: 'citizenBorn' | 'citizenLeft' | 'jobTaken' | 'chatStarted' | 'cityGrew' | 'buildingRazed' | 'tierUnlocked' | 'coupleFormed' | 'festivalDay' | 'roadExtended' | 'roadBuilt' | 'epidemic' | 'citizenRetired' | 'homePrestige' | 'cultivationChanged' | 'vocationFound' | 'dynastyRose' | 'dynastyFell' | 'firstBuilding' | 'settlementRose' | 'familyArrived' | 'townFounded';
   data: Record<string, unknown>;
 }
 

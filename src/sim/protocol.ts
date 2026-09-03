@@ -290,6 +290,7 @@ export interface SimEventMsg {
     | 'coupleFormed'
     | 'festivalDay'
     | 'roadExtended'
+    | 'roadBuilt'
     | 'epidemic'
     // Jubilación (ciclo 12, local): un ciudadano deja el empleo al llegar a la edad.
     | 'citizenRetired'

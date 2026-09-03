@@ -108,6 +108,7 @@ function buildRenderAndUi(grid: Grid, worldSeed: number): void {
   // cancele primero la herramienta activa y solo después pueda cerrar la ficha.
   toolState = new ToolState(sim);
   toolbar = new Toolbar(sim, toolState);
+  ghost.onRoadCost = (cost) => toolbar?.setRoadCost(cost);
   toolState.onChange = (tool) => {
     ghost?.update(tool, hoverCell);
     toolbar?.update();
@@ -250,9 +251,17 @@ pointer.onClick = (cell, button) => {
   }
   else inspector?.pickCell(cell);
 };
+pointer.onDragStart = (cell, button) => {
+  if (button === 'left' && toolState?.isActive) toolState.handleDragStart(cell, button);
+};
 pointer.onDrag = (dx, dy, cell, button) => {
   if (button === 'left' && toolState?.isActive) toolState.handleDrag(cell, button);
   else input.feedPan(dx, dy);
+};
+pointer.onDragEnd = (cell, button) => {
+  if (button !== 'left' || !toolState?.isActive) return;
+  const seq = toolState.handleDragEnd(cell, button);
+  if (seq !== null) ghost?.markPending();
 };
 
 /** Overlay de carga para el pre-crecido del banco de pruebas (pastel, discreto). */

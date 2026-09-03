@@ -270,7 +270,7 @@ export function extendRoad(
     for (let w = -1; w <= 1; w++) {
       const cx = bx + px * w, cz = bz + pz * w;
       grid.setProp(cx, cz, undefined);
-      grid.setTerrain(cx, cz, 'road');
+      grid.setRoad(cx, cz, 'rural');
       laid.push([cx, cz]);
     }
     for (const m of [-2, 2]) {

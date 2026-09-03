@@ -3,13 +3,14 @@
 import type { SimClient } from '../sim/client';
 import type { PlayerAction } from '../sim/protocol';
 import type { Rot } from '../world/grid';
+import type { CellXZ } from '../sim/geometry';
 import type { PointerButton } from './pointer';
 
 export type Tool =
   | { kind: 'none' }
   | { kind: 'place'; id: string; rot: Rot }
   | { kind: 'bulldoze' }
-  | { kind: 'road'; road: 'path' | 'rural' | 'street' | 'avenue' }
+  | { kind: 'road'; road: 'path' | 'rural' | 'street' | 'avenue'; from: CellXZ | null }
   | { kind: 'zone'; zone: 'R' | 'C' | 'I' | 'A' | 'P' | null };
 
 export class ToolState {
@@ -26,6 +27,9 @@ export class ToolState {
       } else if (key === 'x') {
         e.preventDefault();
         this.set({ kind: 'bulldoze' });
+      } else if (key === 'r') {
+        e.preventDefault();
+        this.set({ kind: 'road', road: 'rural', from: null });
       } else if (key === 'tab' && this.tool.kind === 'place') {
         e.preventDefault();
         this.rotate();
@@ -68,13 +72,33 @@ export class ToolState {
       action = { kind: 'place', id: this.tool.id, cx: cell[0], cz: cell[1], rot: this.tool.rot };
     } else if (this.tool.kind === 'bulldoze') {
       action = { kind: 'bulldoze', cx: cell[0], cz: cell[1] };
+    } else if (this.tool.kind === 'road') {
+      if (!this.tool.from) {
+        this.set({ ...this.tool, from: [...cell] });
+        return null;
+      }
+      action = { kind: 'road', road: this.tool.road, from: [...this.tool.from], to: [...cell] };
+      this.set({ ...this.tool, from: null });
     } else {
       return null;
     }
     return this.sim.act(action);
   }
 
+  handleDragStart(cell: [number, number], button: PointerButton): void {
+    if (button !== 'left' || this.tool.kind !== 'road' || this.tool.from) return;
+    this.set({ ...this.tool, from: [...cell] });
+  }
+
   handleDrag(_cell: [number, number], _button: PointerButton): void {
-    // Las herramientas de arrastre (vías/zonas) se habilitan en H2.
+    // El destino lo mantiene Pointer en hover; no hace falta mutar la máquina
+    // por cada píxel del arrastre.
+  }
+
+  handleDragEnd(cell: [number, number], button: PointerButton): number | null {
+    if (button !== 'left' || this.tool.kind !== 'road' || !this.tool.from) return null;
+    const action: PlayerAction = { kind: 'road', road: this.tool.road, from: [...this.tool.from], to: [...cell] };
+    this.set({ ...this.tool, from: null });
+    return this.sim.act(action);
   }
 }

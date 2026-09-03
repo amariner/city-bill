@@ -157,6 +157,12 @@ export function chronicleText(name: string, data?: Record<string, unknown>): str
       const label = typeof data?.label === 'string' ? data.label : (data?.id ?? 'un edificio');
       return `se demuele: ${label}`;
     }
+    case 'roadBuilt': {
+      const labels: Record<string, string> = { path: 'sendero', rural: 'vía rural', street: 'calle', avenue: 'avenida' };
+      const road = typeof data?.road === 'string' ? labels[data.road] ?? data.road : 'vía';
+      const cells = typeof data?.cells === 'number' ? data.cells : '?';
+      return `se traza: ${road} (${cells} celdas)`;
+    }
     case 'tierUnlocked':
       return `¡hito! tier ${data?.tier} desbloqueado (${data?.population} hab.)`;
     case 'festivalDay':

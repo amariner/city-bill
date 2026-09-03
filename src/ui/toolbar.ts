@@ -3,6 +3,8 @@ import { PALETTE } from '../palette';
 import { SimClient } from '../sim/client';
 import { CATALOG_ITEMS, CatalogItem } from '../world/catalog';
 import { ToolState } from '../core/tools';
+import { ROAD_SPECS } from '../world/roads';
+import type { RoadKind } from '../sim/protocol';
 import { css, INK, PANEL_BG, PANEL_BORDER, PANEL_SHADOW, rgba } from './theme';
 
 const STYLE_ID = 'city-bill-toolbar-style';
@@ -12,14 +14,22 @@ function playerPlaceable(item: CatalogItem): boolean {
   return item.role !== 'nature' && item.role !== 'infra';
 }
 
+const ROAD_TIERS: Record<RoadKind, number> = { path: 0, rural: 1, street: 2, avenue: 3 };
+const ROAD_LABELS: Record<RoadKind, string> = { path: 'sendero', rural: 'vía rural', street: 'calle', avenue: 'avenida' };
+
 export class Toolbar {
   private root: HTMLDivElement;
   private buildButton: HTMLButtonElement;
+  private roadButton: HTMLButtonElement;
   private bulldozeButton: HTMLButtonElement;
   private menu: HTMLDivElement;
+  private roadMenu: HTMLDivElement;
   private hint: HTMLSpanElement;
   private menuOpen = false;
+  private roadMenuOpen = false;
   private catalogSignature = '';
+  private roadSignature = '';
+  private roadCost: number | null = null;
 
   constructor(private sim: SimClient, private tools: ToolState) {
     this.injectStyle();
@@ -29,19 +39,27 @@ export class Toolbar {
     const row = document.createElement('div');
     row.className = 'cb-toolbar-row';
     this.buildButton = this.actionButton('⌂ construir', 'B · elegir edificio', () => this.toggleMenu());
+    this.roadButton = this.actionButton('═ carretera', 'R · elegir vía', () => this.toggleRoadMenu());
     this.bulldozeButton = this.actionButton('× demoler', 'X · demoler edificio', () => {
       this.menuOpen = false;
       this.menu.style.display = 'none';
+      this.roadMenuOpen = false;
+      this.roadMenu.style.display = 'none';
       this.tools.set({ kind: 'bulldoze' });
       this.update();
     });
-    row.append(this.buildButton, this.bulldozeButton);
+    row.append(this.buildButton, this.roadButton, this.bulldozeButton);
     this.root.appendChild(row);
 
     this.menu = document.createElement('div');
     this.menu.className = 'cb-toolbar-menu';
     this.menu.style.display = 'none';
     this.root.appendChild(this.menu);
+
+    this.roadMenu = document.createElement('div');
+    this.roadMenu.className = 'cb-toolbar-menu cb-road-menu';
+    this.roadMenu.style.display = 'none';
+    this.root.appendChild(this.roadMenu);
 
     const footer = document.createElement('div');
     footer.className = 'cb-toolbar-footer';
@@ -56,18 +74,27 @@ export class Toolbar {
   update(): void {
     const tier = this.sim.city?.tier ?? 1;
     const available = CATALOG_ITEMS.filter((item) => playerPlaceable(item) && item.tier <= tier);
+    const roads = (Object.keys(ROAD_SPECS) as RoadKind[]).filter((road) => ROAD_TIERS[road] <= tier);
     const signature = `${tier}:${available.map((item) => item.id).join(',')}`;
     if (signature !== this.catalogSignature) {
       this.catalogSignature = signature;
       this.rebuildMenu(available);
     }
+    const roadSignature = `${tier}:${roads.join(',')}`;
+    if (roadSignature !== this.roadSignature) {
+      this.roadSignature = roadSignature;
+      this.rebuildRoadMenu(roads);
+    }
 
     const active = this.tools.active;
     this.buildButton.classList.toggle('cb-tool-active', active.kind === 'place');
+    this.roadButton.classList.toggle('cb-tool-active', active.kind === 'road');
     this.bulldozeButton.classList.toggle('cb-tool-active', active.kind === 'bulldoze');
     this.hint.textContent = active.kind === 'place'
       ? `${available.find((item) => item.id === active.id)?.name ?? active.id} · Tab gira · Esc cancela`
-      : active.kind === 'bulldoze' ? 'demoler · Esc cancela' : 'B construir · X demoler';
+      : active.kind === 'road'
+        ? `${ROAD_LABELS[active.road]} · ${active.from ? 'elige destino' : 'clic y arrastra'}${this.roadCost !== null && active.from ? ` · coste ${this.roadCost}` : ''} · Esc cancela`
+        : active.kind === 'bulldoze' ? 'demoler · Esc cancela' : 'B construir · R vías · X demoler';
   }
 
   private rebuildMenu(items: CatalogItem[]): void {
@@ -92,10 +119,51 @@ export class Toolbar {
     }
   }
 
+  private rebuildRoadMenu(roads: RoadKind[]): void {
+    this.roadMenu.replaceChildren();
+    const title = document.createElement('div');
+    title.className = 'cb-toolbar-title';
+    title.textContent = 'vías disponibles';
+    this.roadMenu.appendChild(title);
+    for (const road of roads) {
+      const button = document.createElement('button');
+      button.className = 'cb-building-option cb-road-option';
+      button.textContent = `${ROAD_LABELS[road]} · ${ROAD_SPECS[road].costPerCell}/celda`;
+      button.title = `${ROAD_LABELS[road]} · capacidad ${ROAD_SPECS[road].capacity}`;
+      button.addEventListener('click', (event) => {
+        event.stopPropagation();
+        this.tools.set({ kind: 'road', road, from: null });
+        this.roadMenuOpen = false;
+        this.roadMenu.style.display = 'none';
+        this.update();
+      });
+      this.roadMenu.appendChild(button);
+    }
+  }
+
+  /** Recibe el coste calculado por el mismo preview que usará el worker. */
+  setRoadCost(cost: number | null): void {
+    if (this.roadCost === cost) return;
+    this.roadCost = cost;
+    this.update();
+  }
+
   private toggleMenu(): void {
     this.menuOpen = !this.menuOpen;
     this.menu.style.display = this.menuOpen ? 'grid' : 'none';
+    this.roadMenuOpen = false;
+    this.roadMenu.style.display = 'none';
     if (this.menuOpen && this.tools.active.kind === 'place') this.tools.cancel();
+    if (this.menuOpen && this.tools.active.kind === 'road') this.tools.cancel();
+    this.update();
+  }
+
+  private toggleRoadMenu(): void {
+    this.roadMenuOpen = !this.roadMenuOpen;
+    this.roadMenu.style.display = this.roadMenuOpen ? 'grid' : 'none';
+    this.menuOpen = false;
+    this.menu.style.display = 'none';
+    if (this.roadMenuOpen && (this.tools.active.kind === 'place' || this.tools.active.kind === 'road')) this.tools.cancel();
     this.update();
   }
 
@@ -124,7 +192,7 @@ export class Toolbar {
 .cb-tool-button,.cb-building-option{cursor:pointer;color:${INK};font:600 12px/1.2 ui-monospace,monospace;
   background:${rgba(PALETTE.houseWall, 0.55)};border:1px solid ${rgba(PALETTE.treeBlob, 0.2)};
   border-radius:7px;transition:background .15s ease,border-color .15s ease,transform .08s ease}
-.cb-tool-button{min-width:112px;padding:7px 11px}
+.cb-tool-button{min-width:105px;padding:7px 9px}
 .cb-tool-button:hover,.cb-building-option:hover{background:${rgba(PALETTE.houseWall, 0.85)}}
 .cb-tool-button:active,.cb-building-option:active{transform:translateY(1px)}
 .cb-tool-button.cb-tool-active{background:${rgba(PALETTE.grass, 0.62)};border-color:${css(PALETTE.ghostOk)};

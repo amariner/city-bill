@@ -53,14 +53,14 @@ export function seedWorld(seed: number = SEED): Grid {
     grid.setTerrain(cx, 7, 'grass');
     grid.setTerrain(cx, 11, 'grass');
     grid.setTerrain(cx, 12, 'grass');
-    for (let cz = 8; cz <= 10; cz++) grid.setTerrain(cx, cz, 'road');
+    for (let cz = 8; cz <= 10; cz++) grid.setRoad(cx, cz, 'rural');
   }
   for (let cz = -EXTENT; cz <= EXTENT; cz++) {
     grid.setTerrain(28, cz, 'grass');
     grid.setTerrain(29, cz, 'grass');
     grid.setTerrain(33, cz, 'grass');
     grid.setTerrain(34, cz, 'grass');
-    for (let cx = 30; cx <= 32; cx++) grid.setTerrain(cx, cz, 'road');
+    for (let cx = 30; cx <= 32; cx++) grid.setRoad(cx, cz, 'rural');
   }
 
   // Arbolado con huecos en los márgenes (rasgo de identidad).
@@ -144,7 +144,7 @@ export function seedFarm(seed: number = SEED): Grid {
   for (let cx = -8; cx <= 8; cx++) {
     grid.setTerrain(cx, -2, 'grass');
     grid.setTerrain(cx, 2, 'grass');
-    for (let cz = -1; cz <= 1; cz++) grid.setTerrain(cx, cz, 'road');
+    for (let cz = -1; cz <= 1; cz++) grid.setRoad(cx, cz, 'rural');
     if (cx % 2 === 0 && rng.next() > 0.4) {
       for (const cz of [-3, 3]) grid.setProp(cx, cz, { id: rng.next() < 0.6 ? 'tree-cypress' : 'tree-blob', variant: Math.floor(rng.next() * 1e9) });
     }
@@ -190,7 +190,7 @@ export function seedSandbox(seed: number = SEED): Grid {
   for (let cz = -R; cz <= R; cz++) {
     grid.setTerrain(-2, cz, 'grass');
     grid.setTerrain(2, cz, 'grass');
-    for (let cx = -1; cx <= 1; cx++) grid.setTerrain(cx, cz, 'road');
+    for (let cx = -1; cx <= 1; cx++) grid.setRoad(cx, cz, 'rural');
     if (cz % 3 === 0 && rng.next() > 0.3) {
       for (const cx of [-4, 4]) {
         grid.setProp(cx, cz, {

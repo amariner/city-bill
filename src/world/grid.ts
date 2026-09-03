@@ -14,6 +14,7 @@ export const CHUNK = 64;
 export type Terrain = 'none' | 'field' | 'grass' | 'water' | 'road' | 'path';
 export type Rot = 0 | 1 | 2 | 3;
 export type ZoneKind = 'R' | 'C' | 'I' | 'A' | 'P';
+export type RoadKind = 'path' | 'rural' | 'street' | 'avenue';
 
 /** Referencia a un edificio. Todas las celdas del footprint la comparten;
  * `anchorX/anchorZ` apuntan a la celda ancla (esquina de menor coord). */
@@ -35,6 +36,7 @@ export interface PropRef {
 
 export interface Cell {
   terrain: Terrain;
+  roadKind?: RoadKind;
   building?: BuildingRef;
   prop?: PropRef;
   zone?: ZoneKind;
@@ -123,7 +125,15 @@ export class Grid {
   }
 
   setTerrain(cx: number, cz: number, terrain: Terrain): void {
-    this.ensureCell(cx, cz).terrain = terrain;
+    const cell = this.ensureCell(cx, cz);
+    cell.terrain = terrain;
+    if (terrain !== 'road') delete cell.roadKind;
+  }
+
+  setRoad(cx: number, cz: number, roadKind: RoadKind = 'rural'): void {
+    const cell = this.ensureCell(cx, cz);
+    cell.terrain = 'road';
+    cell.roadKind = roadKind;
   }
 
   fillTerrain(cx0: number, cz0: number, cx1: number, cz1: number, terrain: Terrain): void {
@@ -220,6 +230,7 @@ export class Grid {
     for (const [cx, cz, incoming] of cells) {
       const target = this.ensureCell(cx, cz, false);
       target.terrain = incoming.terrain;
+      target.roadKind = incoming.roadKind;
       target.building = incoming.building;
       target.prop = incoming.prop;
       target.zone = incoming.zone;
@@ -251,6 +262,7 @@ export class Grid {
         // revés al aplicar un patch; JSON.stringify conserva ese orden y
         // rompería la comparación aunque el estado espacial fuera idéntico.
         const normalized: Cell = { terrain: cell.terrain };
+        if (cell.roadKind !== undefined) normalized.roadKind = cell.roadKind;
         if (cell.building) {
           const b = cell.building;
           normalized.building = {
@@ -280,6 +292,7 @@ export class Grid {
     for (const [cx, cz, cell] of data) {
       const target = grid.ensureCell(cx, cz, false);
       target.terrain = cell.terrain;
+      target.roadKind = cell.roadKind;
       target.building = cell.building;
       target.prop = cell.prop;
       target.zone = cell.zone;

@@ -20,6 +20,13 @@ tools.set({ kind: 'bulldoze' });
 check('clic de demoler emite bulldoze', tools.handleClick([4, 7]) === 2 && sent[1]?.kind === 'bulldoze');
 tools.cancel();
 check('cancelar vuelve a none', !tools.isActive);
+tools.set({ kind: 'road', road: 'rural', from: null });
+check('la vía espera un punto de origen', tools.handleClick([2, 3]) === null && tools.active.kind === 'road' && tools.active.from?.join() === '2,3');
+check('el segundo clic emite una L reproducible', tools.handleClick([8, 5]) === 3 && sent[2]?.kind === 'road' && sent[2]?.from.join() === '2,3' && sent[2]?.to.join() === '8,5');
+tools.set({ kind: 'road', road: 'path', from: null });
+tools.handleDragStart([-1, -1], 'left');
+check('el arrastre fija el origen', tools.active.kind === 'road' && tools.active.from?.join() === '-1,-1');
+check('fin de arrastre emite road', tools.handleDragEnd([3, 4], 'left') === 4 && sent[3]?.kind === 'road' && sent[3]?.road === 'path');
 
 console.log(`\ntools.test: ${passed} passed, ${failed} failed`);
 if (failed > 0) throw new Error(`${failed} test(s) failed`);

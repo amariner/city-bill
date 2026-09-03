@@ -1,12 +1,15 @@
 /** Acciones del jugador: validación y replay sin dependencias del render. */
 import type { Simulation } from './simulation';
-import type { PlayerAction, RejectReason, RecordedAction } from './protocol';
+import type { PlayerAction, RejectReason, RecordedAction, RoadKind } from './protocol';
 import { catalogData } from '../world/catalogData';
 import { placementCheck } from '../world/placement';
+import { paintRoadPlan, planRoad, ROAD_SPECS } from '../world/roads';
 
 export type ActionResult =
   | { ok: true; cost: number }
   | { ok: false; reason: RejectReason; detail?: string };
+
+const ROAD_TIERS: Record<RoadKind, number> = { path: 0, rural: 1, street: 2, avenue: 3 };
 
 /** Aplica únicamente el subconjunto de acciones disponible en H1.2. Las
  * acciones de calles, zonas, presupuesto y transporte se habilitan en sus
@@ -33,6 +36,28 @@ export function applyPlayerAction(sim: Simulation, action: PlayerAction): Action
       return sim.removeBuildingAt(action.cx, action.cz)
         ? { ok: true, cost: 0 }
         : { ok: false, reason: 'notFound' };
+    case 'road': {
+      if (ROAD_TIERS[action.road] > sim.tier) return { ok: false, reason: 'tierLocked', detail: `vía aún no desbloqueada: ${action.road}` };
+      const plan = planRoad(action.from, action.to);
+      if (plan.length === 0) return { ok: false, reason: 'invalid', detail: 'la vía necesita origen y destino distintos' };
+      const painted = paintRoadPlan(sim.grid, plan, action.road, sim.seed);
+      if (painted.laid.length === 0) {
+        return painted.blocked.length > 0
+          ? { ok: false, reason: 'blocked', detail: 'la calzada encuentra un obstáculo al salir' }
+          : { ok: false, reason: 'invalid', detail: 'no hay terreno conocido para trazar la vía' };
+      }
+      sim.index.rebuild();
+      sim.economy.rebuild(sim.index, sim.citizens);
+      sim.roadsExtended++;
+      sim.events.push({ name: 'roadBuilt', data: {
+        road: action.road,
+        cells: painted.laid.length,
+        cost: painted.cost,
+        byPlayer: true,
+        speed: ROAD_SPECS[action.road].speed,
+      } });
+      return { ok: true, cost: painted.cost };
+    }
     default:
       return { ok: false, reason: 'invalid', detail: `acción no disponible: ${action.kind}` };
   }

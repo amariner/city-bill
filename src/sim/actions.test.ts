@@ -56,5 +56,31 @@ const placed = rejected.applyAction({ kind: 'place', id: 'cottage', cx: -5, cz: 
 check('place residencial: se acepta', placed.ok);
 check('place residencial: llega al menos una persona', rejected.citizens.size >= 1);
 
+// --- Vías del jugador -------------------------------------------------------
+{
+  const grid = new Grid();
+  grid.fillTerrain(-15, -15, 15, 15, 'field');
+  const sim = new Simulation(grid, 6060);
+  const road: PlayerAction = { kind: 'road', road: 'rural', from: [-4, -2], to: [4, 3] };
+  const result = sim.applyAction(road, 10);
+  check('road: se acepta el trazado rural', result.ok);
+  check('road: el índice crece exactamente con la calzada', sim.index.roadCells.length === (result.ok ? result.cost / 2 : -1) * 1 /* coste rural = 2 */);
+  check('road: conserva roadKind en el grid', sim.grid.get(0, -2)?.roadKind === 'rural');
+  check('road: emite el evento del jugador', sim.events.some((e) => e.name === 'roadBuilt' && e.data.byPlayer === true));
+  check('road: queda registrada para replay', sim.actions.length === 1 && sim.actions[0].action.kind === 'road');
+
+  const replayGrid = new Grid();
+  replayGrid.fillTerrain(-15, -15, 15, 15, 'field');
+  const replay = new Simulation(replayGrid, 6060);
+  replayActions(replay, sim.actions, sim.clock.tick);
+  check('road: replay conserva la geometría', replay.grid.serialize() === sim.grid.serialize());
+
+  const lockedGrid = new Grid();
+  lockedGrid.fillTerrain(-5, -5, 5, 5, 'field');
+  const locked = new Simulation(lockedGrid, 7070);
+  const street = locked.applyAction({ kind: 'road', road: 'street', from: [-2, 0], to: [2, 0] }, 1);
+  check('road: la calle queda bloqueada hasta tier 2', !street.ok && street.reason === 'tierLocked');
+}
+
 console.log(`\nactions.test: ${passed} passed, ${failed} failed`);
 if (failed > 0) throw new Error(`${failed} test(s) failed`);

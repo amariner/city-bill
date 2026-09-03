@@ -54,6 +54,16 @@ function emitCell(buf: QuadBuffers, cx: number, cz: number, cell: Cell, c: THREE
   const shift = cell.terrain === 'field' ? 4 : cell.terrain === 'grass' ? 2 : 8;
   const regionRng = createRng(((cx >> shift) * 73856093) ^ ((cz >> shift) * 19349663));
   c.set(baseColor(cell.terrain, regionRng, season));
+  if (cell.terrain === 'road') {
+    // Los tipos comparten la misma familia de color, pero la jerarquía se lee
+    // también desde lejos: camino claro, calle algo más marcada y avenida más
+    // densa. `terrain === road` sigue siendo la única regla de transitabilidad.
+    const tone = cell.roadKind === 'path' ? 1.02
+      : cell.roadKind === 'street' ? 0.94
+      : cell.roadKind === 'avenue' ? 0.86
+      : 0.98;
+    c.multiplyScalar(tone);
+  }
   if (cell.terrain === 'field' && cultivation > 0) {
     // Faena reciente (economy.cultivation): el barbecho vira a tonos de
     // cultivo, con franjas por fila (surcos) que se marcan más cuanto más
