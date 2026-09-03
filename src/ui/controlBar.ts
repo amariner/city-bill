@@ -37,6 +37,11 @@ const CONTROLS: Array<[string, string]> = [
 
 const STYLE_ID = 'city-bill-controlbar-style';
 
+export interface ControlBarOptions {
+  seed?: number;
+  onNewGame?: () => void;
+}
+
 export class ControlBar {
   private root: HTMLDivElement;
   private pills = new Map<Speed, HTMLButtonElement>();
@@ -45,7 +50,7 @@ export class ControlBar {
   private helpOpen = false;
   private current: Speed | null = null;
 
-  constructor(private setSpeed: (s: Speed) => void) {
+  constructor(private setSpeed: (s: Speed) => void, options: ControlBarOptions = {}) {
     this.injectStyle();
 
     this.root = document.createElement('div');
@@ -71,6 +76,23 @@ export class ControlBar {
       this.pills.set(sp.s, b);
     }
     this.root.appendChild(speedRow);
+
+    if (options.seed !== undefined) {
+      const slot = document.createElement('div');
+      slot.className = 'cb-slot';
+      const seed = document.createElement('span');
+      seed.textContent = `semilla ${options.seed}`;
+      slot.appendChild(seed);
+      if (options.onNewGame) {
+        const fresh = document.createElement('button');
+        fresh.className = 'cb-new-game';
+        fresh.textContent = 'nueva partida';
+        fresh.title = 'Borrar el slot y empezar de cero';
+        fresh.addEventListener('click', () => options.onNewGame?.());
+        slot.appendChild(fresh);
+      }
+      this.root.appendChild(slot);
+    }
 
     // Ayuda: "?" que despliega la leyenda de controles.
     this.helpToggle = document.createElement('button');
@@ -147,6 +169,12 @@ export class ControlBar {
   transition:opacity 0.15s ease,background 0.15s ease}
 .cb-help-toggle:hover{opacity:1;background:${rgba(PALETTE.treeBlob, 0.06)}}
 .cb-help-toggle.cb-active{opacity:1;box-shadow:inset 0 -2px 0 ${ACCENT}}
+.cb-slot{display:flex;align-items:center;gap:7px;padding:3px 8px;border-radius:7px;
+  background:${rgba(PALETTE.houseWall, 0.72)};border:1px solid ${rgba(PALETTE.treeBlob, 0.12)};
+  font-size:9px;opacity:.72}
+.cb-new-game{cursor:pointer;padding:2px 5px;color:${INK};font:9px ui-monospace,monospace;
+  background:transparent;border:1px solid ${rgba(PALETTE.treeBlob, 0.18)};border-radius:5px}
+.cb-new-game:hover{background:${rgba(PALETTE.houseWall, 0.9)}}
 .cb-help{grid-template-columns:auto auto;gap:3px 12px;padding:9px 12px;
   border-radius:9px;background:${PANEL_BG};border:${PANEL_BORDER};box-shadow:${PANEL_SHADOW}}
 .cb-help-row{display:contents}

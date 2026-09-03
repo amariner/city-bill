@@ -138,6 +138,12 @@ export interface EconomySaveState {
   farmerHoursToday: [string, number][];
   wholesalePaid: number;
   corpTaxCollected: number;
+  goodsSold: number;
+  goodsImported: number;
+  lifestyleSpent: number;
+  lifestyleLeft: number;
+  dividendPaid: number;
+  wagesFromTreasury: number;
   visitsToday: [string, number][];
   prosperity: [string, number][];
   cultivation: number;
@@ -539,6 +545,12 @@ export class Economy {
       farmerHoursToday: [...this.farmerHoursToday],
       wholesalePaid: this.wholesalePaid,
       corpTaxCollected: this.corpTaxCollected,
+      goodsSold: this.goodsSold,
+      goodsImported: this.goodsImported,
+      lifestyleSpent: this.lifestyleSpent,
+      lifestyleLeft: this.lifestyleLeft,
+      dividendPaid: this.dividendPaid,
+      wagesFromTreasury: this.wagesFromTreasury,
       visitsToday: [...this.visitsToday],
       prosperity: [...this.prosperity],
       cultivation: this.cultivation,
@@ -563,6 +575,12 @@ export class Economy {
     this.farmerHoursToday = new Map(s.farmerHoursToday);
     this.wholesalePaid = s.wholesalePaid;
     this.corpTaxCollected = s.corpTaxCollected;
+    this.goodsSold = s.goodsSold ?? 0;
+    this.goodsImported = s.goodsImported ?? 0;
+    this.lifestyleSpent = s.lifestyleSpent ?? 0;
+    this.lifestyleLeft = s.lifestyleLeft ?? 0;
+    this.dividendPaid = s.dividendPaid ?? 0;
+    this.wagesFromTreasury = s.wagesFromTreasury ?? 0;
     this.visitsToday = new Map(s.visitsToday);
     this.prosperity = new Map(s.prosperity);
     this.cultivation = s.cultivation;

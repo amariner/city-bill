@@ -2,8 +2,8 @@
  * Generador pseudoaleatorio con semilla (mulberry32).
  * El mundo debe ser determinista: misma semilla, mismo barrio.
  */
-export function createRng(seed: number) {
-  let s = seed >>> 0;
+export function createRng(seed: number, initialState?: number) {
+  let s = (initialState ?? seed) >>> 0;
   const next = () => {
     s |= 0;
     s = (s + 0x6d2b79f5) | 0;

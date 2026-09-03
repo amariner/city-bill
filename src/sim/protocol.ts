@@ -122,6 +122,8 @@ export interface InitMsg {
   preGrowDays?: number;
   /** Escenas de construcción manuales no deben competir con el crecimiento autónomo. */
   autonomousGrowth?: boolean;
+  /** Save completo del worker; excluyente con `preGrowDays`. */
+  saveBlob?: string;
 }
 
 /** Diff espacial producido por el worker. El main nunca reconstruye la lógica
@@ -145,6 +147,17 @@ export interface WorldReadyMsg {
 export interface SetSpeedMsg {
   type: 'setSpeed';
   speed: Speed;
+}
+
+export interface SaveMsg {
+  type: 'save';
+  reason: 'auto' | 'manual' | 'unload';
+}
+
+export interface SaveReadyMsg {
+  type: 'saveReady';
+  reason: SaveMsg['reason'];
+  saveBlob: string;
 }
 
 /** Acción del jugador sobre el mundo (Fase 2/4). El worker es dueño del grid
@@ -202,7 +215,7 @@ export interface DevMsg {
     | { kind: 'advanceDays'; days: number };
 }
 
-export type MainToWorker = InitMsg | SetSpeedMsg | ActionMsg | QueryCitizenMsg | DevMsg;
+export type MainToWorker = InitMsg | SetSpeedMsg | SaveMsg | ActionMsg | QueryCitizenMsg | DevMsg;
 
 // --- worker → main -----------------------------------------------------------
 
@@ -348,4 +361,4 @@ export interface GrowProgressMsg {
   total: number;
 }
 
-export type WorkerToMain = SnapshotMsg | SimEventMsg | CitizenInfoMsg | GrowProgressMsg | GridPatchMsg | WorldReadyMsg | ActionAppliedMsg | ActionRejectedMsg;
+export type WorkerToMain = SnapshotMsg | SimEventMsg | CitizenInfoMsg | GrowProgressMsg | GridPatchMsg | WorldReadyMsg | ActionAppliedMsg | ActionRejectedMsg | SaveReadyMsg;

@@ -4,7 +4,7 @@
  * SPEED_MULT[speed] sub-ticks (así ×3/×8 no cambia el resultado, solo el ritmo).
  */
 import { Grid } from '../world/grid';
-import { Simulation } from './simulation';
+import { Simulation, SimSaveState } from './simulation';
 import { TICK_REAL_S, TICK_GAME_S, DAY_GAME_SECONDS } from './clock';
 import { townCenter } from '../world/growth';
 import {
@@ -76,6 +76,13 @@ function sendSnapshot(): void {
   for (const e of sim.takeEvents()) post({ type: 'event', name: e.name, data: e.data });
 }
 
+function townCenterFor(s: Simulation): [number, number] {
+  const anchors = s.index.buildings
+    .filter((b) => b.data.role !== 'nature')
+    .map((b) => [b.ax, b.az] as [number, number]);
+  return anchors.length > 0 ? townCenter(anchors) : [0, 0];
+}
+
 setInterval(() => {
   if (!sim || !ready) return;
   if (pendingSkip > 0) {
@@ -96,8 +103,21 @@ self.onmessage = (ev: MessageEvent<MainToWorker>) => {
   const msg = ev.data;
   switch (msg.type) {
     case 'init': {
-      const grid = Grid.deserialize(msg.gridJson);
-      sim = new Simulation(grid, msg.seed);
+      let grid = Grid.deserialize(msg.gridJson);
+      let restored = false;
+      if (msg.saveBlob && !msg.preGrowDays) {
+        try {
+          const state = JSON.parse(msg.saveBlob) as SimSaveState;
+          if (state.version === 1 && state.seed === msg.seed && typeof state.gridJson === 'string') {
+            grid = Grid.deserialize(state.gridJson);
+            sim = new Simulation(grid, msg.seed, state);
+            restored = true;
+          }
+        } catch {
+          // Save corrupto o incompatible: se arranca la semilla base sin bloquear.
+        }
+      }
+      if (!sim || !restored) sim = new Simulation(grid, msg.seed);
       if (msg.autonomousGrowth === false) sim.autonomousGrowth = false;
       if (msg.preGrowDays && msg.preGrowDays > 0) {
         // Banco de pruebas: madura la ciudad DENTRO del worker (su sim guarda
@@ -107,11 +127,9 @@ self.onmessage = (ev: MessageEvent<MainToWorker>) => {
         // El render recibe el grid completo de una vez; no debe re-reproducir
         // miles de mutaciones históricas como si fueran obras nuevas.
         sim.takeGridChanges();
-        const anchors = sim.index.buildings
-          .filter((b) => b.data.role !== 'nature')
-          .map((b) => [b.ax, b.az] as [number, number]);
-        const center: [number, number] = anchors.length > 0 ? townCenter(anchors) : [0, 6];
-        post({ type: 'worldReady', gridJson: sim.grid.serialize(), center, restored: false });
+        post({ type: 'worldReady', gridJson: sim.grid.serialize(), center: townCenterFor(sim), restored: false });
+      } else if (restored) {
+        post({ type: 'worldReady', gridJson: sim.grid.serialize(), center: townCenterFor(sim), restored: true });
       }
       ready = true;
       sendSnapshot();
@@ -119,6 +137,9 @@ self.onmessage = (ev: MessageEvent<MainToWorker>) => {
     }
     case 'setSpeed':
       speed = msg.speed;
+      break;
+    case 'save':
+      if (sim) post({ type: 'saveReady', reason: msg.reason, saveBlob: JSON.stringify(sim.serialize()) });
       break;
     case 'action': {
       if (!sim) break;

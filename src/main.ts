@@ -32,8 +32,13 @@ import { DevPanel } from './ui/devPanel';
 import { ControlBar } from './ui/controlBar';
 import { Toolbar } from './ui/toolbar';
 import { Grid, cellToWorld } from './world/grid';
+import { clearSave, loadSave, writeSave } from './save/save';
 
 const sceneName = new URLSearchParams(window.location.search).get('scene');
+const query = new URLSearchParams(window.location.search);
+const saveEnabled = sceneName === null;
+if (saveEnabled && query.get('new') === '1') clearSave();
+const initialSave = saveEnabled && query.get('new') !== '1' ? loadSave() : null;
 
 /** Semilla del mundo: la guardada, o una nueva aleatoria que se persiste. Así el
  * pueblo es único por jugador y sobrevive a las recargas. `?seed=N` la fuerza
@@ -42,6 +47,7 @@ function pickWorldSeed(): number {
   const KEY = 'city-bill:worldSeed';
   const forced = new URLSearchParams(window.location.search).get('seed');
   if (forced !== null && Number.isFinite(Number(forced))) return Number(forced) >>> 0;
+  if (initialSave && Number.isFinite(initialSave.seed)) return initialSave.seed >>> 0;
   const stored = localStorage.getItem(KEY);
   if (stored !== null && Number.isFinite(Number(stored))) return Number(stored) >>> 0;
   const seed = Math.floor(Math.random() * 0x7fffffff); // bootstrap de sesión, no lógica de sim
@@ -149,7 +155,13 @@ function buildRenderAndUi(grid: Grid, worldSeed: number): void {
   cityHud = new CityHud(); // surfacing: siempre visible mientras haya simulación
   // Barra de control (rescate de la veta INTERFAZ): velocidad clicable + leyenda
   // de controles para quien llega en frío. Solo DOM; la lógica sigue en la sim.
-  controlBar = new ControlBar((s) => sim.setSpeed(s));
+  controlBar = new ControlBar((s) => sim.setSpeed(s), saveEnabled ? {
+    seed: worldSeed,
+    onNewGame: () => {
+      clearSave();
+      window.location.reload();
+    },
+  } : undefined);
   // Panel del banco de pruebas: solo en ?scene=test-dev (fuerza/observa mecánicas).
   if (sceneName === 'test-dev') devPanel = new DevPanel(sim);
 }
@@ -198,11 +210,25 @@ if (sceneName === 'buildings') {
   const worldSeed = pickWorldSeed();
   // Escenario "granja" (?scene=farm): arranque mínimo para el modo autónomo
   // (T4.4) — la ciudad se traza sus propias calles desde una sola granja.
-  const grid = sceneName === 'sandbox'
+  let savedGrid: Grid | null = null;
+  if (initialSave && initialSave.seed === worldSeed) {
+    try {
+      const parsed = JSON.parse(initialSave.saveBlob) as { gridJson?: unknown };
+      if (typeof parsed.gridJson === 'string') savedGrid = Grid.deserialize(parsed.gridJson);
+    } catch {
+      // Si el slot está corrupto, la semilla normal sigue siendo jugable.
+    }
+  }
+  const grid = savedGrid ?? (sceneName === 'sandbox'
     ? seedSandbox(worldSeed)
-    : sceneName === 'farm' ? seedFarm(worldSeed) : seedWorld(worldSeed);
+    : sceneName === 'farm' ? seedFarm(worldSeed) : seedWorld(worldSeed));
   camera.setTarget(sceneName === 'sandbox' || sceneName === 'farm' ? 0 : 20, sceneName === 'sandbox' ? 0 : sceneName === 'farm' ? 2 : 20);
-  simClient = new SimClient(worldSeed, grid.serialize(), 0, sceneName !== 'sandbox');
+  simClient = new SimClient(worldSeed, grid.serialize(), 0, sceneName !== 'sandbox', initialSave?.seed === worldSeed ? initialSave.saveBlob : undefined);
+  if (saveEnabled) {
+    simClient.onSaveReady = (msg) => writeSave({ seed: worldSeed, saveBlob: msg.saveBlob });
+    window.setInterval(() => simClient?.save('auto'), 10_000);
+    window.addEventListener('beforeunload', () => simClient?.save('unload'));
+  }
   buildRenderAndUi(grid, worldSeed);
 }
 camera.apply();

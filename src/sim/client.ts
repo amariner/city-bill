@@ -18,6 +18,8 @@ import {
   PlayerAction,
   ActionAppliedMsg,
   ActionRejectedMsg,
+  SaveMsg,
+  SaveReadyMsg,
 } from './protocol';
 import { TICK_REAL_S } from './clock';
 
@@ -64,11 +66,12 @@ export class SimClient {
   onWorldReady: ((gridJson: string, center: [number, number], restored: boolean) => void) | null = null;
   onActionApplied: ((msg: ActionAppliedMsg) => void) | null = null;
   onActionRejected: ((msg: ActionRejectedMsg) => void) | null = null;
+  onSaveReady: ((msg: SaveReadyMsg) => void) | null = null;
 
-  constructor(seed: number, gridJson: string, preGrowDays = 0, autonomousGrowth = true) {
+  constructor(seed: number, gridJson: string, preGrowDays = 0, autonomousGrowth = true, saveBlob?: string) {
     this.worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
     this.worker.onmessage = (ev: MessageEvent<WorkerToMain>) => this.onMessage(ev.data);
-    this.send({ type: 'init', seed, gridJson, preGrowDays, autonomousGrowth });
+    this.send({ type: 'init', seed, gridJson, preGrowDays, autonomousGrowth, saveBlob });
   }
 
   private send(msg: MainToWorker): void {
@@ -95,6 +98,10 @@ export class SimClient {
    * (alternar bandera, disparar epidemia, saltar días). Sin lógica aquí. */
   dev(cmd: DevMsg['cmd']): void {
     this.send({ type: 'dev', cmd });
+  }
+
+  save(reason: SaveMsg['reason'] = 'manual'): void {
+    this.send({ type: 'save', reason });
   }
 
   private onMessage(msg: WorkerToMain): void {
@@ -137,6 +144,9 @@ export class SimClient {
       case 'actionRejected':
         this.pendingActions.delete(msg.seq);
         this.onActionRejected?.(msg);
+        break;
+      case 'saveReady':
+        this.onSaveReady?.(msg);
         break;
     }
   }

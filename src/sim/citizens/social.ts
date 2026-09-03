@@ -7,7 +7,7 @@
 import { Citizen } from './citizen';
 import { restore } from './needs';
 import { TICK_GAME_S } from '../clock';
-import { Rng } from '../../rng';
+import { createRng, Rng } from '../../rng';
 import { consoleGriefBy } from '../grief';
 import { maybeInfect, SICK_ISOLATE } from '../contagion';
 
@@ -42,12 +42,32 @@ export interface ChatPair {
   remaining: number;
 }
 
+export interface SocialSaveState {
+  chats: ChatPair[];
+  chatting: number[];
+  rngState: number;
+}
+
 export class SocialSystem {
   /** Charlas en curso. */
   chats: ChatPair[] = [];
   private chatting = new Set<number>();
 
   constructor(private rng: Rng) {}
+
+  serialize(): SocialSaveState {
+    return {
+      chats: this.chats.map((chat) => ({ ...chat })),
+      chatting: [...this.chatting].sort((a, b) => a - b),
+      rngState: this.rng.state,
+    };
+  }
+
+  restore(state: SocialSaveState): void {
+    this.chats = state.chats.map((chat) => ({ ...chat }));
+    this.chatting = new Set(state.chatting);
+    this.rng = createRng(0, state.rngState);
+  }
 
   isChatting(id: number): boolean {
     return this.chatting.has(id);

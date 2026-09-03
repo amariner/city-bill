@@ -15,12 +15,12 @@ import { GameClock, TICK_GAME_S, DAY_GAME_SECONDS } from './clock';
 import { PathQueue, pathLength } from './pathfinding';
 import { CellXZ, manhattan } from './geometry';
 import { WorldIndex } from './worldIndex';
-import { Economy } from './economy';
-import { Citizen, citizenName, PlannedActivity, TravelMode, jobFitsVocation, vocationOf, VOCATION_PURPOSE_BONUS, surnameOf } from './citizens/citizen';
+import { Economy, EconomySaveState } from './economy';
+import { Citizen, CitizenPhase, citizenName, PlannedActivity, TravelMode, jobFitsVocation, vocationOf, VOCATION_PURPOSE_BONUS, surnameOf } from './citizens/citizen';
 import { decayNeeds, restore, NEED_KEYS } from './citizens/needs';
 import { chooseActivity } from './citizens/brain';
 import { ACTIVITY_BY_KIND, SimContext, activityLabel, EDU_PER_HOUR, CLINIC_FEE, isFestivalDay } from './citizens/activities';
-import { SocialSystem } from './citizens/social';
+import { SocialSystem, SocialSaveState } from './citizens/social';
 import { AgentState, ActivityKind, activityId, AGENT_STRIDE, TravelModeCode, CityStats, CitizenInfoMsg, settlementLevel, SETTLEMENT_CLASSES, PlayerAction, RecordedAction } from './protocol';
 import {
   computeDemand, itemForDemand, findParcel, townCenter, townAttractiveness,
@@ -110,6 +110,60 @@ export interface RazedChange {
   cz: number;
 }
 
+export type CitizenSaveState = Omit<Citizen, 'friends' | 'phase'> & {
+  friends: Array<[number, number]>;
+  phase: CitizenPhase;
+};
+
+/** Snapshot JSON completo del worker. Los campos derivados (índice, workplaces,
+ * PathQueue) se reconstruyen, no se duplican en el contrato de guardado. */
+export interface SimSaveState {
+  version: 1;
+  seed: number;
+  gridJson: string;
+  clock: { time: number; tick: number };
+  citizens: CitizenSaveState[];
+  households: Array<[string, number]>;
+  pantry: Array<[string, number]>;
+  emigrationPressure: Array<[string, number]>;
+  leaving: number[];
+  inEpidemic: boolean;
+  tier: Tier;
+  lastDay: number;
+  lastRoadDay: number;
+  roadsExtended: number;
+  carTrips: number;
+  emigrations: number;
+  vaccinationsGiven: number;
+  firstBuildingSeen: string[];
+  dynastiesSeen: number[];
+  dynastiesFallen: number[];
+  dynastyNames: Array<[number, string]>;
+  settlementLevelSeen: number;
+  nextId: number;
+  flags: {
+    autonomousGrowth: boolean;
+    clinicHealing: boolean;
+    quarantine: boolean;
+    rentEnabled: boolean;
+    vaccination: boolean;
+    vocationalMobility: boolean;
+  };
+  actions: RecordedAction[];
+  rngState: number;
+  churnRngState: number;
+  social: SocialSaveState;
+  economy: EconomySaveState;
+}
+
+function serializePhase(phase: CitizenPhase): CitizenPhase {
+  return phase.kind === 'waitingPath' ? { kind: 'deciding' } : phase;
+}
+
+function restorePhase(phase: CitizenPhase): CitizenPhase {
+  return phase.kind === 'waitingPath' ? { kind: 'deciding' } : phase;
+}
+
 export class Simulation {
   readonly clock = new GameClock();
   readonly index: WorldIndex;
@@ -188,12 +242,16 @@ export class Simulation {
   /** Recogidos al LLEGAR a la salida este tick; se despawnean tras el bucle. */
   private departed: Citizen[] = [];
 
-  constructor(readonly grid: Grid, readonly seed: number) {
+  constructor(readonly grid: Grid, readonly seed: number, restoreState?: SimSaveState) {
     this.rng = createRng(seed ^ 0x5f3759df);
     this.churnRng = createRng(seed ^ 0x243f6a88);
     this.index = new WorldIndex(grid);
     this.social = new SocialSystem(createRng(seed ^ 0x9e3779b9));
     this.paths = new PathQueue(grid);
+    if (restoreState) {
+      this.restore(restoreState);
+      return;
+    }
     this.spawnPopulation();
     this.economy.rebuild(this.index, this.citizens);
     this.hireAndAcquaint();
@@ -206,6 +264,109 @@ export class Simulation {
     // Crónica — la historia necesita un comienzo. La Crónica lo deduplica al
     // recargar (persiste por semilla), así que se emite siempre sin miedo.
     this.events.push({ name: 'townFounded', data: { founders: this.citizens.size } });
+  }
+
+  /** Restaura un save ya validado por el worker. El grid se entrega ya
+   * deserializado para que índice y PathQueue nazcan apuntando a la misma fuente. */
+  private restore(state: SimSaveState): void {
+    this.clock.time = state.clock.time;
+    this.clock.tick = state.clock.tick;
+    this.citizens.clear();
+    for (const raw of state.citizens) {
+      this.citizens.set(raw.id, {
+        ...raw,
+        friends: new Map(raw.friends),
+        phase: restorePhase(raw.phase),
+      });
+    }
+    this.households = new Map(state.households);
+    this.pantry.clear();
+    for (const [key, value] of state.pantry) this.pantry.set(key, value);
+    this.emigrationPressure = new Map(state.emigrationPressure);
+    this.leaving.clear();
+    for (const id of state.leaving) this.leaving.add(id);
+    this.inEpidemic = state.inEpidemic;
+    this.tier = state.tier;
+    this.lastDay = state.lastDay;
+    this.lastRoadDay = state.lastRoadDay;
+    this.roadsExtended = state.roadsExtended;
+    this.carTrips = state.carTrips;
+    this.emigrations = state.emigrations;
+    this.vaccinationsGiven = state.vaccinationsGiven;
+    this.firstBuildingSeen.clear();
+    for (const id of state.firstBuildingSeen) this.firstBuildingSeen.add(id);
+    this.dynastiesSeen.clear();
+    for (const id of state.dynastiesSeen) this.dynastiesSeen.add(id);
+    this.dynastiesFallen.clear();
+    for (const id of state.dynastiesFallen) this.dynastiesFallen.add(id);
+    this.dynastyNames.clear();
+    for (const [id, name] of state.dynastyNames) this.dynastyNames.set(id, name);
+    this.settlementLevelSeen = state.settlementLevelSeen;
+    this.nextId = state.nextId;
+    this.autonomousGrowth = state.flags.autonomousGrowth;
+    this.clinicHealing = state.flags.clinicHealing;
+    this.quarantine = state.flags.quarantine;
+    this.rentEnabled = state.flags.rentEnabled;
+    this.vaccination = state.flags.vaccination;
+    this.vocationalMobility = state.flags.vocationalMobility ?? true;
+    this.actions.push(...state.actions);
+    this.rng = createRng(0, state.rngState);
+    this.churnRng = createRng(0, state.churnRngState);
+    this.social.restore(state.social);
+    this.economy.restore(state.economy);
+    this.pendingBuilt = [];
+    this.pendingRazed = [];
+    this.events = [];
+    this.departed = [];
+    this.churnSeekers.clear();
+    this.economy.rebuild(this.index, this.citizens);
+  }
+
+  /** Serializa el estado que cambia el futuro; las búsquedas A* pendientes se
+   * normalizan a `deciding` porque su heap no forma parte del save. */
+  serialize(): SimSaveState {
+    return {
+      version: 1,
+      seed: this.seed,
+      gridJson: this.grid.serialize(),
+      clock: { time: this.clock.time, tick: this.clock.tick },
+      citizens: [...this.citizens.values()].map((c) => ({
+        ...c,
+        friends: [...c.friends.entries()].sort((a, b) => a[0] - b[0]),
+        phase: serializePhase(c.phase),
+      })),
+      households: [...this.households].sort(([a], [b]) => a.localeCompare(b)),
+      pantry: [...this.pantry].sort(([a], [b]) => a.localeCompare(b)),
+      emigrationPressure: [...this.emigrationPressure].sort(([a], [b]) => a.localeCompare(b)),
+      leaving: [...this.leaving].sort((a, b) => a - b),
+      inEpidemic: this.inEpidemic,
+      tier: this.tier,
+      lastDay: this.lastDay,
+      lastRoadDay: this.lastRoadDay,
+      roadsExtended: this.roadsExtended,
+      carTrips: this.carTrips,
+      emigrations: this.emigrations,
+      vaccinationsGiven: this.vaccinationsGiven,
+      firstBuildingSeen: [...this.firstBuildingSeen].sort(),
+      dynastiesSeen: [...this.dynastiesSeen].sort((a, b) => a - b),
+      dynastiesFallen: [...this.dynastiesFallen].sort((a, b) => a - b),
+      dynastyNames: [...this.dynastyNames].sort(([a], [b]) => a - b),
+      settlementLevelSeen: this.settlementLevelSeen,
+      nextId: this.nextId,
+      flags: {
+        autonomousGrowth: this.autonomousGrowth,
+        clinicHealing: this.clinicHealing,
+        quarantine: this.quarantine,
+        rentEnabled: this.rentEnabled,
+        vaccination: this.vaccination,
+        vocationalMobility: this.vocationalMobility,
+      },
+      actions: this.actions.map((a) => ({ ...a, action: { ...a.action } as PlayerAction })),
+      rngState: this.rng.state,
+      churnRngState: this.churnRng.state,
+      social: this.social.serialize(),
+      economy: this.economy.serialize(),
+    };
   }
 
   // --- Población -------------------------------------------------------------
