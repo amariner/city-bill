@@ -144,6 +144,44 @@ check('place residencial: llega al menos una persona', rejected.citizens.size >=
   check('impuestos: la nómina comercial usa renta, no sociedades', taxes.walletOf('commerce') === 8 && taxes.ledger.taxR === 4 && taxes.ledger.taxC === 0);
 }
 
+// --- Préstamos, quiebra y dividendo solvente (H3.3) -------------------------
+{
+  const loanEconomy = new Economy();
+  const issued = loanEconomy.takeLoan(0);
+  check('préstamo: el tramo sube tesoro y deuda por el mismo importe', issued?.principal === 2000 && loanEconomy.treasury === 2000 && loanEconomy.debt === 2000);
+  check('préstamo: no duplica un tramo vivo', loanEconomy.takeLoan(0) === null && loanEconomy.loans.length === 1);
+  for (let day = 0; day < 40; day++) loanEconomy.serviceLoans();
+  check('préstamo: se amortiza al terminar el plazo', loanEconomy.debt < 1e-9 && loanEconomy.loans.length === 0);
+  check('préstamo: el servicio registra intereses', loanEconomy.interestPaid > 0 && loanEconomy.ledger.interest === loanEconomy.interestPaid);
+
+  const debtDividend = new Economy();
+  debtDividend.treasury = 10_000;
+  debtDividend.takeLoan(0);
+  const shared = debtDividend.payPublicDividend(['a', 'b'], 10);
+  check('dividendo: descuenta la deuda antes de repartir', shared === 1_750 && debtDividend.treasury === 10_250);
+
+  const loanGrid = new Grid();
+  loanGrid.fillTerrain(-20, -20, 20, 20, 'field');
+  const loanSim = new Simulation(loanGrid, 5152);
+  loanSim.autonomousGrowth = false;
+  const loanAction = loanSim.applyAction({ kind: 'loan', tier: 0 }, 1);
+  check('acción préstamo: acepta el primer tramo', loanAction.ok && loanSim.economy.debt === 2000);
+  const duplicateLoan = loanSim.applyAction({ kind: 'loan', tier: 0 }, 2);
+  check('acción préstamo: rechaza el tramo duplicado', !duplicateLoan.ok && duplicateLoan.reason === 'invalid');
+
+  const bankrupt = new Simulation(startingGrid(), 5153);
+  bankrupt.economy.treasury = -10_000;
+  bankrupt.economy.updateBankruptcy(bankrupt.citizens.size);
+  const deniedPlace = bankrupt.applyAction({ kind: 'place', id: 'cottage', cx: -5, cz: 8, rot: 0 }, 1);
+  const deniedRoad = bankrupt.applyAction({ kind: 'road', road: 'rural', from: [-4, -2], to: [4, 3] }, 2);
+  check('quiebra: bloquea colocar y trazar vías', !deniedPlace.ok && deniedPlace.reason === 'bankrupt' && !deniedRoad.ok && deniedRoad.reason === 'bankrupt');
+  for (let day = 0; day < 5; day++) for (let tick = 0; tick < Math.round(2400 / 36); tick++) bankrupt.step();
+  check('quiebra: la simulación sigue viva', bankrupt.citizens.size > 0);
+  const bankruptSave = JSON.parse(JSON.stringify(bankrupt.serialize()));
+  const bankruptRestore = new Simulation(Grid.deserialize(bankruptSave.gridJson), 5153, bankruptSave);
+  check('quiebra: estado y deuda sobreviven al guardado', bankruptRestore.economy.bankrupt === bankrupt.economy.bankrupt && bankruptRestore.economy.debt === bankrupt.economy.debt);
+}
+
 // --- Zonas del jugador ------------------------------------------------------
 {
   const grid = new Grid();

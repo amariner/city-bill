@@ -102,10 +102,34 @@ export const DIVIDEND_RATE = 0.25;
 
 export type PublicSpendCategory = 'build' | 'road' | 'upkeep';
 
+export interface LoanTier {
+  amount: number;
+  interestRate: number;
+  termDays: number;
+}
+
+/** Tramos de rescate disponibles al alcalde: importe, interés diario y plazo. */
+export const LOAN_TIERS: readonly LoanTier[] = [
+  { amount: 2_000, interestRate: 0.004, termDays: 40 },
+  { amount: 5_000, interestRate: 0.006, termDays: 60 },
+  { amount: 15_000, interestRate: 0.009, termDays: 80 },
+];
+
+export interface Loan {
+  id: number;
+  tier: 0 | 1 | 2;
+  principal: number;
+  balance: number;
+  interestRate: number;
+  termDays: number;
+  daysRemaining: number;
+}
+
 export interface EconomyLedger {
   build: number;
   road: number;
   upkeep: number;
+  interest: number;
   taxR: number;
   taxC: number;
   taxI: number;
@@ -165,6 +189,11 @@ export interface EconomySaveState {
   cultivation: number;
   ledger?: EconomyLedger;
   taxRates?: TaxRates;
+  loans?: Loan[];
+  nextLoanId?: number;
+  interestPaid?: number;
+  loanPrincipalPaid?: number;
+  bankrupt?: boolean;
 }
 
 export class Economy {
@@ -210,10 +239,21 @@ export class Economy {
   /** Nómina pública pagada del tesoro, no acuñada (ciclo 37bis — cierre parcial). */
   wagesFromTreasury = 0;
   /** Gasto público acumulado por categoría; sobrevive al guardado. */
-  ledger: EconomyLedger = { build: 0, road: 0, upkeep: 0, taxR: 0, taxC: 0, taxI: 0 };
-  /** Tipos efectivos R/C/I del alcalde. El default conserva el comportamiento
-   * anterior y se serializa para que un save siga la misma política. */
+  ledger: EconomyLedger = { build: 0, road: 0, upkeep: 0, interest: 0, taxR: 0, taxC: 0, taxI: 0 };
+  /** Tipos efectivos R/C/I del alcalde. Los defaults de H3.2 se serializan
+   * para que un save siga la misma política. */
   taxRates: TaxRates = { ...DEFAULT_TAX_RATES };
+  /** Deuda viva del ayuntamiento; las cuotas se liquidan en el cierre diario. */
+  loans: Loan[] = [];
+  private nextLoanId = 1;
+  interestPaid = 0;
+  loanPrincipalPaid = 0;
+  /** Quiebra operativa: bloquea nuevas obras, pero no detiene la simulación. */
+  bankrupt = false;
+
+  get debt(): number {
+    return this.loans.reduce((sum, loan) => sum + loan.balance, 0);
+  }
 
   /** Comprueba y debita una partida pública completa. Nunca deja el tesoro en
    * negativo: si no alcanza, no muta nada y el caller devuelve `noMoney`. */
@@ -240,6 +280,69 @@ export class Economy {
       this.ledger.upkeep += paid;
     }
     return paid;
+  }
+
+  /** Solicita un préstamo de un tramo que no tenga otra deuda viva. */
+  takeLoan(tier: 0 | 1 | 2): Loan | null {
+    const spec = LOAN_TIERS[tier];
+    if (!spec || this.loans.some((loan) => loan.tier === tier)) return null;
+    const loan: Loan = {
+      id: this.nextLoanId++,
+      tier,
+      principal: spec.amount,
+      balance: spec.amount,
+      interestRate: spec.interestRate,
+      termDays: spec.termDays,
+      daysRemaining: spec.termDays,
+    };
+    this.loans.push(loan);
+    this.treasury += loan.principal;
+    return loan;
+  }
+
+  /** Amortiza manualmente una deuda completa si el tesoro puede cubrirla. */
+  repayLoan(id: number): number {
+    const index = this.loans.findIndex((loan) => loan.id === id);
+    if (index < 0) return 0;
+    const loan = this.loans[index];
+    if (this.treasury < loan.balance) return 0;
+    const paid = loan.balance;
+    this.treasury -= paid;
+    this.loanPrincipalPaid += paid;
+    this.loans.splice(index, 1);
+    return paid;
+  }
+
+  /**
+   * Cobra una cuota diaria por préstamo. El principal se amortiza linealmente
+   * y el interés se calcula sobre el saldo al comienzo del día. La cuota se
+   * carga aunque el tesoro entre en negativo: H3.3 necesita que la deuda tenga
+   * una salida determinista y que el déficit sea visible como quiebra.
+   */
+  serviceLoans(): number {
+    let paid = 0;
+    for (const loan of this.loans) {
+      const interest = loan.balance * loan.interestRate;
+      const principal = loan.daysRemaining <= 1
+        ? loan.balance
+        : Math.min(loan.balance, loan.principal / loan.termDays);
+      loan.balance = Math.max(0, loan.balance - principal);
+      loan.daysRemaining = Math.max(0, loan.daysRemaining - 1);
+      this.treasury -= interest + principal;
+      this.interestPaid += interest;
+      this.loanPrincipalPaid += principal;
+      this.ledger.interest += interest;
+      paid += interest + principal;
+    }
+    this.loans = this.loans.filter((loan) => loan.balance > 1e-9);
+    return paid;
+  }
+
+  /** Actualiza el umbral de quiebra según la reserva prudente de la población. */
+  updateBankruptcy(population: number): boolean {
+    const reserve = TREASURY_RESERVE_PER_CAPITA * Math.max(0, population);
+    this.bankrupt = this.treasury < -0.5 * reserve;
+    return this.bankrupt;
   }
 
   /** Carga fiscal ponderada que ve la atractividad. R pesa un poco más porque
@@ -518,7 +621,7 @@ export class Economy {
    * lo repartido. Determinista (reparto por igual, orden no importa). */
   payPublicDividend(homeKeys: string[], population: number): number {
     const reserve = TREASURY_RESERVE_PER_CAPITA * population;
-    const surplus = this.treasury - reserve;
+    const surplus = this.treasury - reserve - this.debt;
     if (surplus <= 0 || homeKeys.length === 0) return 0;
     const shared = surplus * DIVIDEND_RATE;
     const per = shared / homeKeys.length;
@@ -619,6 +722,11 @@ export class Economy {
       cultivation: this.cultivation,
       ledger: { ...this.ledger },
       taxRates: { ...this.taxRates },
+      loans: this.loans.map((loan) => ({ ...loan })),
+      nextLoanId: this.nextLoanId,
+      interestPaid: this.interestPaid,
+      loanPrincipalPaid: this.loanPrincipalPaid,
+      bankrupt: this.bankrupt,
     };
   }
 
@@ -649,8 +757,13 @@ export class Economy {
     this.visitsToday = new Map(s.visitsToday);
     this.prosperity = new Map(s.prosperity);
     this.cultivation = s.cultivation;
-    this.ledger = { build: 0, road: 0, upkeep: 0, taxR: 0, taxC: 0, taxI: 0, ...(s.ledger ?? {}) };
+    this.ledger = { build: 0, road: 0, upkeep: 0, interest: 0, taxR: 0, taxC: 0, taxI: 0, ...(s.ledger ?? {}) };
     this.taxRates = { ...DEFAULT_TAX_RATES, ...(s.taxRates ?? {}) };
+    this.loans = (s.loans ?? []).map((loan) => ({ ...loan }));
+    this.nextLoanId = s.nextLoanId ?? (this.loans.reduce((max, loan) => Math.max(max, loan.id), 0) + 1);
+    this.interestPaid = s.interestPaid ?? 0;
+    this.loanPrincipalPaid = s.loanPrincipalPaid ?? 0;
+    this.bankrupt = s.bankrupt ?? false;
   }
 
   /** Datos agregados para growth (Fase 4) y HUD. */

@@ -710,11 +710,14 @@ export class Simulation {
       this.stepLife();
       this.economy.endOfDay();
       this.chargeUpkeep(); // H3.1: mantenimiento antes de alquileres y pensiones
+      this.economy.serviceLoans(); // H3.3: la deuda se amortiza tras el patrimonio corriente
+      this.economy.updateBankruptcy(this.citizens.size);
       this.chargeRent(); // ciclo 29: la vivienda cuesta (antes de pensiones: la red cubre a quien no llega)
       this.chargeLifestyle(); // ciclo 32: el coste de la vida escala con la riqueza (drena el ahorro excedente)
       this.payPensions();
       this.vaccinate(); // ciclo 33: salud pública preventiva (antes del dividendo: la salud primero)
       this.economy.payPublicDividend([...this.households.keys()], this.citizens.size); // ciclo 32: el tesoro no atesora sin fin — reparte su superávit
+      this.economy.updateBankruptcy(this.citizens.size);
       this.stepOutbreak(); // ciclo 25: en invierno, algún resfriado prende y se propaga
       this.stepEmigration(); // ciclo 14: tras la red de pensiones (última bala)
       this.stepAbandonment(); // H2.6: una vía cortada cierra tras diez días, no de golpe
@@ -1183,6 +1186,7 @@ export class Simulation {
         avgFood: this.avgFood(),
         avgPrestige: this.avgPrestige(),
         taxBurden: this.economy.taxBurden(),
+        bankrupt: this.economy.bankrupt,
       });
       const cap = it.capacity ?? 1;
       const families = Math.max(1, Math.round(cap * attractiveness));
@@ -1217,6 +1221,7 @@ export class Simulation {
         avgFood: this.avgFood(),
         avgPrestige: this.avgPrestige(),
         taxBurden: this.economy.taxBurden(),
+        bankrupt: this.economy.bankrupt,
       });
       this.fillHome(cx, cz, id, Math.max(1, Math.round((it.capacity ?? 1) * attractiveness)), true);
     }
@@ -1596,6 +1601,7 @@ export class Simulation {
         avgFood: this.avgFood(),
         avgPrestige: this.avgPrestige(),
         taxBurden: this.economy.taxBurden(),
+        bankrupt: this.economy.bankrupt,
       }),
       totalPopulation: this.citizens.size,
       carryingCapacity: CARRYING_CAPACITY,
@@ -1624,6 +1630,8 @@ export class Simulation {
       growthPolicy: this.growthPolicy,
       demand,
       taxRates: { ...this.economy.taxRates },
+      debt: this.economy.debt,
+      bankrupt: this.economy.bankrupt,
       abandoned: this.index.buildings.filter((b) => b.abandoned).length,
       children,
       adults: s.adults,

@@ -141,6 +141,7 @@ function footprintIsZone(grid: Grid, id: string, p: { cx: number; cz: number; ro
   const heavy = townAttractiveness({ ...input, taxBurden: 0.5 });
   assert(heavy < normal, 'impuestos: una carga por encima del 20% reduce la atractividad');
   assert(townAttractiveness(input) === normal, 'impuestos: el tipo neutral no cambia la atractividad');
+  assert(townAttractiveness({ ...input, taxBurden: 0.2, bankrupt: true }) < normal, 'quiebra: resta atractividad sin detener el modelo');
 }
 
 console.log(`\ngrowth.test: ${passed} passed, ${failed} failed`);

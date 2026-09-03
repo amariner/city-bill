@@ -201,6 +201,8 @@ export function townAttractiveness(a: {
   avgPrestige: number;
   /** Carga fiscal ponderada; solo la parte sobre el 20 % reduce la llegada. */
   taxBurden?: number;
+  /** Una quiebra municipal resta atractivo, pero no detiene la vida. */
+  bankrupt?: boolean;
 }): number {
   // El prestigio sigue impulsando la llegada, pero con peso moderado: la
   // política fiscal puede mover el ahorro y, por tanto, el prestigio. Un peso
@@ -208,7 +210,8 @@ export function townAttractiveness(a: {
   const raw = 0.45 + 0.2 * a.employment + 0.15 * a.avgHealth + 0.1 * a.avgFood + 0.2 * a.avgPrestige;
   const burden = Math.max(0, a.taxBurden ?? 0);
   const taxFactor = 1 - 0.6 * Math.max(0, burden - 0.2);
-  return Math.min(1, Math.max(0.5, raw * taxFactor));
+  const bankruptcyPenalty = a.bankrupt ? 0.15 : 0;
+  return Math.min(1, Math.max(0.5, raw * taxFactor - bankruptcyPenalty));
 }
 
 // --- Capacidad de carga (ciclo 30 — crecimiento logístico, no exponencial) ----

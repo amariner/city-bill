@@ -18,6 +18,9 @@ export function applyPlayerAction(sim: Simulation, action: PlayerAction): Action
     case 'place': {
       const item = catalogData(action.id);
       if (!item) return { ok: false, reason: 'invalid', detail: `edificio desconocido: ${action.id}` };
+      if (sim.economy.bankrupt || sim.economy.updateBankruptcy(sim.citizens.size)) {
+        return { ok: false, reason: 'bankrupt', detail: 'el tesoro está en quiebra' };
+      }
       if (item.playerPlaceable !== true) return { ok: false, reason: 'notPlayerPlaceable' };
       if (item.tier > sim.tier) return { ok: false, reason: 'tierLocked' };
       const cost = item.cost ?? 0;
@@ -41,6 +44,9 @@ export function applyPlayerAction(sim: Simulation, action: PlayerAction): Action
         ? { ok: true, cost: 0 }
         : { ok: false, reason: 'notFound' };
     case 'road': {
+      if (sim.economy.bankrupt || sim.economy.updateBankruptcy(sim.citizens.size)) {
+        return { ok: false, reason: 'bankrupt', detail: 'el tesoro está en quiebra' };
+      }
       if (ROAD_TIERS[action.road] > sim.tier) return { ok: false, reason: 'tierLocked', detail: `vía aún no desbloqueada: ${action.road}` };
       const plan = planRoad(action.from, action.to);
       if (plan.length === 0) return { ok: false, reason: 'invalid', detail: 'la vía necesita origen y destino distintos' };
@@ -102,6 +108,21 @@ export function applyPlayerAction(sim: Simulation, action: PlayerAction): Action
       if (!Number.isFinite(action.rate)) return { ok: false, reason: 'invalid', detail: 'tipo fiscal no numérico' };
       sim.economy.taxRates[action.sector] = Math.max(0, Math.min(0.5, action.rate));
       return { ok: true, cost: 0 };
+    }
+    case 'loan': {
+      const loan = sim.economy.takeLoan(action.tier);
+      if (!loan) return { ok: false, reason: 'invalid', detail: 'ya existe un préstamo vivo de ese tramo' };
+      sim.economy.updateBankruptcy(sim.citizens.size);
+      return { ok: true, cost: 0 };
+    }
+    case 'repayLoan': {
+      const loan = sim.economy.loans.find((candidate) => candidate.id === action.id);
+      if (!loan) return { ok: false, reason: 'notFound', detail: 'préstamo desconocido' };
+      if (sim.economy.treasury < loan.balance) return { ok: false, reason: 'noMoney', detail: 'faltan fondos para cancelar el préstamo' };
+      const paid = sim.economy.repayLoan(action.id);
+      if (paid <= 0) return { ok: false, reason: 'invalid', detail: 'no se pudo cancelar el préstamo' };
+      sim.economy.updateBankruptcy(sim.citizens.size);
+      return { ok: true, cost: paid };
     }
     case 'setPolicy':
       if (action.policy !== 'growth') return { ok: false, reason: 'invalid', detail: 'política aún no disponible' };

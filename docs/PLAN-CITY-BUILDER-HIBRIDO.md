@@ -331,7 +331,7 @@ trampas**. Los tests nuevos se añaden al script `"test"` de `package.json`.
 - Tests: `payWage` con R=0.3 deja neto 0.7·bruto; atractividad decrece con la carga; fuera de rango ⇒ `invalid`; replay reproduce tasas.
 - Trampas: mantener `TAX_RATE`/`CORP_TAX_RATE` exportadas como defaults.
 
-**H3.3 Préstamos, quiebra y dividendo corregido**
+**H3.3 Préstamos, quiebra y dividendo corregido** — ✅ implementado
 - Archivos: M `economy.ts` (`loans`, `LOAN_TIERS = [{2000, 0.004, 40}, {5000, 0.006, 60}, {15000, 0.009, 80}]`, `takeLoan`, `serviceLoans()`, dividendo sobre `treasury − reserve − debt`, `bankrupt`), M `actions.ts` (máx 1 por tramo vivo; quiebra rechaza `place/road`), M `simulation.ts` (`serviceLoans` tras `chargeUpkeep`), M `growth.ts` (atractividad −0.15 si quiebra).
 - Tests: préstamo sube `treasury` y `debt` igual; tras `days`, `debt ≈ 0` e `interest > 0`; dividendo no reparte por debajo de `reserve + debt`; en quiebra `place` ⇒ `bankrupt` pero `step()` sigue (pop > 0 a 5 días).
 - Trampas: `payWage` cívico ya clampa a 0 (`economy.ts:206`); `payPensions` devuelve si `perHome ≤ 0`.

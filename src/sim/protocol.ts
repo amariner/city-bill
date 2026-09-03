@@ -266,6 +266,9 @@ export interface CityStats {
   demand: { R: number; C: number; I: number };
   /** Tipos efectivos de los tres sectores, para el presupuesto del alcalde. */
   taxRates: TaxRates;
+  /** Deuda viva y estado operativo del tesoro (H3.3). */
+  debt: number;
+  bankrupt: boolean;
   /** Edificios sin acceso a una vía y actualmente fuera de servicio. */
   abandoned: number;
   /** Reparto por edad (banco de pruebas): niños/adultos/mayores. */
