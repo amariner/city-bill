@@ -91,9 +91,14 @@ function coverageGrid(): WorldIndex {
   }
   computeCoverage({ buildings }); // warmup: no se mezcla la compilación JIT con la sonda
   let result = new Map<string, number>();
-  const t0 = performance.now();
-  for (let i = 0; i < 3; i++) result = computeCoverage({ buildings });
-  const elapsed = (performance.now() - t0) / 3;
+  const timings: number[] = [];
+  for (let sample = 0; sample < 5; sample++) {
+    const t0 = performance.now();
+    result = computeCoverage({ buildings });
+    timings.push(performance.now() - t0);
+  }
+  timings.sort((a, b) => a - b);
+  const elapsed = timings[Math.floor(timings.length / 2)];
   check(result.size === 500, 'escala: devuelve una máscara por edificio');
   check(elapsed < 5, `escala: 500 edificios se calculan en menos de 5 ms (${elapsed.toFixed(2)} ms)`);
 }
