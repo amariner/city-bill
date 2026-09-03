@@ -7,6 +7,7 @@
 import { Grid } from '../world/grid';
 import { catalogData, CatalogItemData, SimRole } from '../world/catalogData';
 import { buildingEntrance, CellXZ, isWalkable, rotatedSize } from './geometry';
+import { computeCoverage, coverageKey } from './coverage';
 
 /** Roles que forman parte del tejido urbano para centros, salidas y métricas.
  * La naturaleza sigue siendo paisaje; la infraestructura viaria se consulta
@@ -28,6 +29,8 @@ export interface SimBuilding {
   roadAccess: boolean;
   /** El edificio ocupa la huella, pero está fuera de servicio. */
   abandoned: boolean;
+  /** Máscara de servicios que cubren este edificio (H4.2). */
+  coverage: number;
 }
 
 /** Acceso peatonal mínimo a una vía: basta una carretera o sendero dentro del
@@ -94,6 +97,7 @@ export class WorldIndex {
           cz: cz + fd / 2,
           roadAccess: hasRoadAccess(this.grid, cx, cz, fw, fd),
           abandoned: b.abandoned === true,
+          coverage: 0,
         };
         this.buildings.push(sb);
         if (!sb.abandoned) {
@@ -130,6 +134,8 @@ export class WorldIndex {
     const uniqueSpots = new Map<string, CellXZ>();
     for (const spot of this.strollSpots) uniqueSpots.set(`${spot[0]},${spot[1]}`, spot);
     this.strollSpots = [...uniqueSpots.values()];
+    const coverage = computeCoverage(this);
+    for (const building of this.buildings) building.coverage = coverage.get(coverageKey(building.ax, building.az)) ?? 0;
     // Orden determinista (el muestreo de chunks de un Map ya es de inserción,
     // pero tras deserializar puede variar el orden: fijamos por coordenada).
     this.buildings.sort((a, b) => a.ax - b.ax || a.az - b.az);

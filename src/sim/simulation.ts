@@ -15,6 +15,7 @@ import { GameClock, TICK_GAME_S, DAY_GAME_SECONDS } from './clock';
 import { PathQueue, pathLength } from './pathfinding';
 import { CellXZ, manhattan } from './geometry';
 import { WorldIndex, isUrban } from './worldIndex';
+import { coverageRates } from './coverage';
 import { Economy, EconomySaveState } from './economy';
 import { Citizen, CitizenPhase, citizenName, PlannedActivity, TravelMode, jobFitsVocation, vocationOf, VOCATION_PURPOSE_BONUS, surnameOf } from './citizens/citizen';
 import { decayNeeds, restore, NEED_KEYS } from './citizens/needs';
@@ -1646,6 +1647,7 @@ export class Simulation {
       tier: this.tier,
       growthPolicy: this.growthPolicy,
       demand,
+      coverage: coverageRates(this.index),
       taxRates: { ...this.economy.taxRates },
       debt: this.economy.debt,
       bankrupt: this.economy.bankrupt,

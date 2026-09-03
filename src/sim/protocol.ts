@@ -16,6 +16,7 @@
 import type { Season } from './weather';
 import type { Vocation } from './citizens/citizen';
 import type { Cell, Rot } from '../world/grid';
+import type { CoverageRates } from './coverage';
 
 export type Speed = 0 | 1 | 2 | 3;
 
@@ -303,6 +304,8 @@ export interface CityStats {
   growthPolicy: GrowthPolicy;
   /** Presión latente por sector, para las barras R/C/I de la toolbar. */
   demand: { R: number; C: number; I: number };
+  /** Proporción de viviendas activas cubierta por cada servicio [0,1]. */
+  coverage: CoverageRates;
   /** Tipos efectivos de los tres sectores, para el presupuesto del alcalde. */
   taxRates: TaxRates;
   /** Deuda viva y estado operativo del tesoro (H3.3). */

@@ -359,7 +359,7 @@ trampas**. Los tests nuevos se añaden al script `"test"` de `package.json`.
 - Visual: `?scene=buildings` con los 5 nuevos (§4).
 - Trampas: convención `props.ts` (centrado XZ, y=0, frente +Z). Parques bloquean (son `building`); sus senderos entran como `strollSpots`.
 
-**H4.2 `sim/coverage.ts`**
+**H4.2 `sim/coverage.ts`** — ✅ implementado
 - Archivos: C `src/sim/coverage.ts` (`computeCoverage(index): Map<key, mask>`; Manhattan entre centros ≤ radius; `RoadAccess` de H2.6), M `worldIndex.ts` (`SimBuilding.coverage`), M `simulation.ts` (`cityStats.coverage`), M `activities.ts`.
 - Tests: casa a 8 de escuela radio 10 ⇒ Education; a 12 ⇒ no; máscara combinada; < 5 ms a 500 edificios.
 

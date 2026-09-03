@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "test": "tsx src/world/grid.test.ts && tsx src/world/roads.test.ts && tsx src/world/growth.test.ts && tsx src/world/catalog.test.ts && tsx src/sim/worldIndex.test.ts && tsx src/sim/actions.test.ts && tsx src/sim/money.test.ts && tsx src/ui/startMenu.test.ts && tsx src/core/tools.test.ts && tsx src/sim/bulldoze.test.ts && tsx src/sim/save.test.ts && tsx src/sim/sim.test.ts",
+    "test": "tsx src/world/grid.test.ts && tsx src/world/roads.test.ts && tsx src/world/growth.test.ts && tsx src/world/catalog.test.ts && tsx src/sim/coverage.test.ts && tsx src/sim/worldIndex.test.ts && tsx src/sim/actions.test.ts && tsx src/sim/money.test.ts && tsx src/ui/startMenu.test.ts && tsx src/core/tools.test.ts && tsx src/sim/bulldoze.test.ts && tsx src/sim/save.test.ts && tsx src/sim/sim.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

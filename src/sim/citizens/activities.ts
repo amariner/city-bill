@@ -163,7 +163,7 @@ export const ACTIVITIES: ActivityDef[] = [
       let best: { place: PlaceRef; cell: CellXZ } | null = null;
       let bestD = Infinity;
       for (const b of ctx.index.ofRole('civic')) {
-        if (!b.data.students || !b.entrance) continue;
+        if (b.data.service?.kind !== 'education' || !b.entrance || !b.roadAccess) continue;
         const d = manhattan([c.x | 0, c.z | 0], b.entrance);
         if (d < bestD) {
           bestD = d;
@@ -186,8 +186,8 @@ export const ACTIVITIES: ActivityDef[] = [
     findTarget: (ctx, c) => {
       let best: { place: PlaceRef; cell: CellXZ } | null = null;
       let bestD = Infinity;
-      for (const b of ctx.index.buildings) {
-        if (b.id !== 'clinic' || !b.entrance) continue;
+      for (const b of ctx.index.ofRole('civic')) {
+        if (b.data.service?.kind !== 'health' || !b.entrance || !b.roadAccess) continue;
         const d = manhattan([c.x | 0, c.z | 0], b.entrance);
         if (d < bestD) {
           bestD = d;
