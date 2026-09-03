@@ -308,6 +308,8 @@ export interface CityStats {
   coverage: CoverageRates;
   /** Felicidad media por hogar [0,1], actualizada al cierre del día. */
   happiness: number;
+  /** Valor medio del suelo residencial [0,1], actualizado al cierre del día. */
+  avgLandValue: number;
   /** Tipos efectivos de los tres sectores, para el presupuesto del alcalde. */
   taxRates: TaxRates;
   /** Deuda viva y estado operativo del tesoro (H3.3). */

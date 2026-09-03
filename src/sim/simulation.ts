@@ -17,6 +17,7 @@ import { CellXZ, manhattan } from './geometry';
 import { WorldIndex, isUrban } from './worldIndex';
 import { coverageRates } from './coverage';
 import { householdHappiness } from './happiness';
+import { computeLandValue } from './landValue';
 import { Economy, EconomySaveState } from './economy';
 import { Citizen, CitizenPhase, citizenName, PlannedActivity, TravelMode, jobFitsVocation, vocationOf, VOCATION_PURPOSE_BONUS, surnameOf } from './citizens/citizen';
 import { decayNeeds, restore, NEED_KEYS } from './citizens/needs';
@@ -133,6 +134,8 @@ export interface SimSaveState {
   emigrationPressure: Array<[string, number]>;
   /** Felicidad por hogar, recalculada en cada cierre de día. */
   happiness?: Array<[string, number]>;
+  /** Valor del suelo por edificio, recalculado en cada cierre de día. */
+  landValue?: Array<[string, number]>;
   noAccessSince: Array<[string, number]>;
   /** Edificios que ya estuvieron conectados; evita castigar una semilla antigua
    * hasta que realmente pierda su acceso. */
@@ -257,6 +260,8 @@ export class Simulation {
   private emigrationPressure = new Map<string, number>();
   /** Felicidad por hogar; solo se recalcula en el cierre del día (H4.3). */
   private happiness = new Map<string, number>();
+  /** Valor del suelo por edificio; solo se recalcula en el cierre del día. */
+  private landValue = new Map<string, number>();
   /** Día en que cada edificio activo perdió acceso a la red vial. */
   private noAccessSince = new Map<string, number>();
   /** Accesos conocidos para detectar cortes, no solo edificios nacidos lejos. */
@@ -280,6 +285,7 @@ export class Simulation {
     this.spawnPopulation();
     this.economy.rebuild(this.index, this.citizens);
     this.hireAndAcquaint();
+    this.recalculateLandValue();
     this.recalculateHappiness();
     // Hitos del pueblo (ciclo 45): los edificios de la aldea fundacional no son
     // "primicias" — solo lo será el primer tipo NUEVO que la ciudad levante sola.
@@ -310,6 +316,7 @@ export class Simulation {
     for (const [key, value] of state.pantry) this.pantry.set(key, value);
     this.emigrationPressure = new Map(state.emigrationPressure);
     this.happiness = new Map(state.happiness ?? []);
+    this.landValue = new Map(state.landValue ?? []);
     this.noAccessSince = new Map(state.noAccessSince ?? []);
     this.roadAccessSeen = new Set(state.roadAccessSeen ?? []);
     this.leaving.clear();
@@ -351,6 +358,7 @@ export class Simulation {
     this.departed = [];
     this.churnSeekers.clear();
     this.economy.rebuild(this.index, this.citizens);
+    if (state.landValue === undefined) this.recalculateLandValue();
     if (state.happiness === undefined) this.recalculateHappiness();
   }
 
@@ -371,6 +379,7 @@ export class Simulation {
       pantry: [...this.pantry].sort(([a], [b]) => a.localeCompare(b)),
       emigrationPressure: [...this.emigrationPressure].sort(([a], [b]) => a.localeCompare(b)),
       happiness: [...this.happiness].sort(([a], [b]) => a.localeCompare(b)),
+      landValue: [...this.landValue].sort(([a], [b]) => a.localeCompare(b)),
       noAccessSince: [...this.noAccessSince].sort(([a], [b]) => a.localeCompare(b)),
       roadAccessSeen: [...this.roadAccessSeen].sort(),
       leaving: [...this.leaving].sort((a, b) => a - b),
@@ -533,6 +542,20 @@ export class Simulation {
     let total = 0;
     for (const value of this.happiness.values()) total += value;
     return total / this.happiness.size;
+  }
+
+  /** El valor del suelo es un snapshot diario: no cambia en mitad del día por
+   * una consulta del HUD y no añade trabajo al movimiento de ciudadanos. */
+  private recalculateLandValue(): void {
+    this.landValue = computeLandValue(this.index);
+  }
+
+  private averageLandValue(): number {
+    const homes = this.index.ofRole('residential');
+    if (homes.length === 0) return 0;
+    let total = 0;
+    for (const home of homes) total += this.landValue.get(`${home.ax},${home.az}`) ?? 0;
+    return total / homes.length;
   }
 
   /** Huecos de familia libres en todas las viviendas. */
@@ -809,9 +832,10 @@ export class Simulation {
       this.economy.payPublicDividend([...this.households.keys()], this.citizens.size); // ciclo 32: el tesoro no atesora sin fin — reparte su superávit
       this.economy.updateBankruptcy(this.citizens.size);
       this.stepOutbreak(); // ciclo 25: en invierno, algún resfriado prende y se propaga
-      this.recalculateHappiness(); // H4.3: una muestra estable, solo al cerrar el día
       this.stepEmigration(); // ciclo 14: tras la red de pensiones (última bala)
       this.stepAbandonment(); // H2.6: una vía cortada cierra tras diez días, no de golpe
+      this.recalculateLandValue(); // H4.4: snapshot de ubicación, solo al cerrar el día
+      this.recalculateHappiness(); // H4.3: una muestra estable, solo al cerrar el día
       // Estatus (ciclo 9): cada hogar que mejora emite su evento para que el
       // render decore ESA vivienda (jardín) sin re-sincronizar todo (render rico).
       for (const u of this.economy.investInHomes(this.households.keys())) {
@@ -1060,7 +1084,8 @@ export class Simulation {
       const k = `${b.ax},${b.az}`;
       const families = this.households.get(k) ?? 0;
       if (families <= 0) continue;
-      const rent = RENT_PER_DAY * families * (1 + RENT_TIER_FACTOR * (b.data.tier ?? 0));
+      const land = this.landValue.get(k) ?? 0;
+      const rent = RENT_PER_DAY * families * (1 + RENT_TIER_FACTOR * (b.data.tier ?? 0)) * (1 + 0.5 * land);
       this.economy.collectRent(this.economy.spend(k, rent));
     }
   }
@@ -1735,6 +1760,7 @@ export class Simulation {
       demand,
       coverage: coverageRates(this.index),
       happiness: this.averageHappiness(),
+      avgLandValue: this.averageLandValue(),
       taxRates: { ...this.economy.taxRates },
       debt: this.economy.debt,
       bankrupt: this.economy.bankrupt,
@@ -1846,7 +1872,7 @@ export class Simulation {
     const homeTier = catalogData(c.home.buildingId)?.tier ?? 0;
     const families = this.households.get(homeKey) ?? 0;
     const rent = this.rentEnabled && families > 0
-      ? RENT_PER_DAY * families * (1 + RENT_TIER_FACTOR * homeTier)
+      ? RENT_PER_DAY * families * (1 + RENT_TIER_FACTOR * homeTier) * (1 + 0.5 * (this.landValue.get(homeKey) ?? 0))
       : 0;
     return {
       name: c.name,

@@ -368,8 +368,8 @@ trampas**. Los tests nuevos se añaden al script `"test"` de `package.json`.
 - Tests: monotonías; hogar sin servicios con R=0.5 acaba con presión migratoria (20 días).
 - Trampas: solo en el cierre del día.
 
-**H4.4 Valor del suelo**
-- Archivos: C `src/sim/landValue.ts` (cobertura 0.4, parque/agua ≤6 0.2, centro 0.2 (Manhattan/60), industria ≤6 −0.15, street/avenue +0.1), M `simulation.ts` (`landValue: Map` diario; `avgLandValue`), M `economy.ts` (alquiler ×(1 + 0.5·landValue)).
+**H4.4 Valor del suelo** — ✅ implementado
+- Archivos: C `src/sim/landValue.ts` (cobertura 0.4, parque/agua ≤6 0.2, centro 0.2 (Manhattan/60), industria ≤6 −0.15, street/avenue +0.1), M `simulation.ts` (`landValue: Map` diario; `avgLandValue`; alquiler ×(1 + 0.5·landValue)).
 - Tests: monotonías; alquiler mayor con más valor.
 
 **H4.5 Densificación in situ**
