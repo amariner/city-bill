@@ -13,6 +13,7 @@
 import { Grid, Rot } from './grid';
 import { catalogData, CATALOG_DATA, Tier } from './catalogData';
 import { createRng, Rng } from '../rng';
+import { placementCheck } from './placement';
 
 export interface GrowthPlacement {
   id: string;
@@ -296,17 +297,7 @@ export function extendRoad(
 
 /** canPlace + margen de respeto: 1 celda libre alrededor (retranqueo/paso). */
 function clearForGrowth(grid: Grid, w: number, d: number, ax: number, az: number, rot: Rot): boolean {
-  if (!grid.canPlace(w, d, ax, az, rot)) return false;
-  const [fw, fd] = rot % 2 === 0 ? [w, d] : [d, w];
-  for (let x = ax - 1; x < ax + fw + 1; x++) {
-    for (let z = az - 1; z < az + fd + 1; z++) {
-      const c = grid.get(x, z);
-      if (!c) return false; // fuera del mundo sembrado
-      if (c.building) return false;
-      if (c.terrain === 'water') return false;
-    }
-  }
-  return true;
+  return placementCheck(grid, w, d, ax, az, rot, { margin: 1, allowPath: true }) === null;
 }
 
 /** Centro de masa de los edificios (para crecer compacto). */

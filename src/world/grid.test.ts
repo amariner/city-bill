@@ -3,6 +3,7 @@
  */
 import { Grid, rotatedFootprint, cellToWorld, worldToCell, CELL_SIZE } from './grid';
 import { extendRoad } from './growth';
+import { placementCheck } from './placement';
 
 let passed = 0;
 let failed = 0;
@@ -63,6 +64,23 @@ function assert(cond: boolean, msg: string): void {
   assert(g.canPlace(2, 2, 8, 8) === false, 'no construir sobre carretera');
 }
 
+// --- placementCheck compartido ----------------------------------------------
+{
+  const g = new Grid();
+  g.fillTerrain(-2, -2, 4, 4, 'field');
+  g.setTerrain(1, 1, 'road');
+  g.setTerrain(2, 2, 'water');
+  g.placeBuilding('blocker', 1, 1, 1, 0);
+  assert(placementCheck(g, 1, 1, -3, 0, 0) === 'outOfWorld', 'placementCheck detecta fuera del mundo');
+  assert(placementCheck(g, 1, 1, 1, 1, 0) === 'road', 'placementCheck detecta carretera');
+  assert(placementCheck(g, 1, 1, 2, 2, 0) === 'water', 'placementCheck detecta agua');
+  assert(placementCheck(g, 1, 1, 0, 0, 0, { margin: 1 }) === 'blocked', 'placementCheck margen protege celdas ocupadas');
+  assert(placementCheck(g, 1, 1, 1, 1, 0, { allowPath: true }) === 'road', 'allowPath no permite carretera');
+  g.setTerrain(1, 1, 'path');
+  assert(placementCheck(g, 1, 1, 1, 1, 0) === 'road', 'path se rechaza por defecto');
+  assert(placementCheck(g, 1, 1, 1, 1, 0, { allowPath: true }) === null, 'allowPath permite sendero');
+}
+
 // --- Demolición -------------------------------------------------------------
 {
   const g = new Grid();
@@ -71,6 +89,17 @@ function assert(cond: boolean, msg: string): void {
   let remaining = 0;
   g.forEachInRect(0, 0, 2, 2, (c) => c.building && remaining++);
   assert(remaining === 0, `demolición limpia todas las celdas (quedaron ${remaining})`);
+}
+
+{
+  const g = new Grid();
+  g.placeBuilding('large', 10, 4, 10, 10, 0);
+  g.placeBuilding('neighbor', 1, 1, 21, 10, 0);
+  assert(g.removeBuilding(15, 12), 'demolición exacta desde una celda interior');
+  let cleared = 0;
+  for (let x = 10; x < 20; x++) for (let z = 10; z < 14; z++) if (!g.get(x, z)?.building) cleared++;
+  assert(cleared === 40, `demolición exacta limpia 10x4 (fue ${cleared})`);
+  assert(g.get(21, 10)?.building?.id === 'neighbor', 'demolición exacta conserva vecino');
 }
 
 // --- Conversión celda ↔ mundo -----------------------------------------------

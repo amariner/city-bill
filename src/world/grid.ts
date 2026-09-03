@@ -22,6 +22,9 @@ export interface BuildingRef {
   rot: Rot;
   anchorX: number;
   anchorZ: number;
+  /** Huella rotada exacta; opcional para compatibilidad con grids antiguos. */
+  fw?: number;
+  fd?: number;
 }
 
 export interface PropRef {
@@ -151,10 +154,14 @@ export class Grid {
     return true;
   }
 
+  buildingAt(cx: number, cz: number): BuildingRef | undefined {
+    return this.get(cx, cz)?.building;
+  }
+
   placeBuilding(id: string, w: number, d: number, cx: number, cz: number, rot: Rot = 0): boolean {
     if (!this.canPlace(w, d, cx, cz, rot)) return false;
     const [fw, fd] = rotatedFootprint(w, d, rot);
-    const ref: BuildingRef = { id, rot, anchorX: cx, anchorZ: cz };
+    const ref: BuildingRef = { id, rot, anchorX: cx, anchorZ: cz, fw, fd };
     for (let x = cx; x < cx + fw; x++) {
       for (let z = cz; z < cz + fd; z++) this.ensureCell(x, z).building = ref;
     }
@@ -165,7 +172,21 @@ export class Grid {
     const cell = this.get(cx, cz);
     if (!cell?.building) return false;
     const { anchorX, anchorZ } = cell.building;
-    // Escanea el chunk-vecindario del ancla para limpiar todas sus celdas.
+    const fw = cell.building.fw;
+    const fd = cell.building.fd;
+    if (fw !== undefined && fd !== undefined) {
+      for (let x = anchorX; x < anchorX + fw; x++) {
+        for (let z = anchorZ; z < anchorZ + fd; z++) {
+          const c = this.get(x, z);
+          if (c?.building && c.building.anchorX === anchorX && c.building.anchorZ === anchorZ) {
+            c.building = undefined;
+            this.markChanged(x, z);
+          }
+        }
+      }
+      return true;
+    }
+    // Compatibilidad con saves/escenarios antiguos sin huella guardada.
     for (let x = anchorX - 1; x < anchorX + 40; x++) {
       for (let z = anchorZ - 1; z < anchorZ + 40; z++) {
         const c = this.get(x, z);

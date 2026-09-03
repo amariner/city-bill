@@ -30,6 +30,30 @@ export const enum TravelModeCode {
   Car = 1,
 }
 
+export type RoadKind = 'path' | 'rural' | 'street' | 'avenue';
+export type ZoneKind = 'R' | 'C' | 'I' | 'A' | 'P';
+export type GrowthPolicy = 'free' | 'preferZones' | 'zonesOnly';
+export type TaxSector = 'R' | 'C' | 'I';
+
+export type PlayerAction =
+  | { kind: 'place'; id: string; cx: number; cz: number; rot: Rot }
+  | { kind: 'bulldoze'; cx: number; cz: number }
+  | { kind: 'road'; road: RoadKind; from: [number, number]; to: [number, number] }
+  | { kind: 'zone'; zone: ZoneKind | null; x0: number; z0: number; x1: number; z1: number }
+  | { kind: 'setPolicy'; policy: 'growth'; value: GrowthPolicy }
+  | { kind: 'setPolicy'; policy: 'publicAutobuild'; value: 'off' | 'paid' }
+  | { kind: 'setTax'; sector: TaxSector; rate: number }
+  | { kind: 'loan'; tier: 0 | 1 | 2 }
+  | { kind: 'repayLoan'; id: number }
+  | { kind: 'busLine'; op: 'create' | 'delete'; lineId?: number; stops?: Array<[number, number]>
+  }
+  | { kind: 'district'; op: 'paint' | 'policy'; x0?: number; z0?: number; x1?: number; z1?: number; district?: number; policy?: string; value?: boolean }
+  | { kind: 'rail'; from: [number, number]; to: [number, number] };
+
+export type RejectReason =
+  | 'outOfWorld' | 'blocked' | 'water' | 'road' | 'invalid' | 'notFound'
+  | 'tierLocked' | 'noMoney' | 'bankrupt' | 'notPlayerPlaceable';
+
 /** Estado físico del agente (columna `state` del snapshot). */
 export const enum AgentState {
   /** Dentro de un edificio: no se renderiza (o fade-out). */
@@ -125,10 +149,29 @@ export interface SetSpeedMsg {
  * lógico de sim: replica la acción para mantener navegación/economía al día. */
 export interface ActionMsg {
   type: 'action';
-  action:
-    | { kind: 'place'; id: string; cx: number; cz: number; rot: 0 | 1 | 2 | 3 }
-    | { kind: 'demolish'; cx: number; cz: number }
-    | { kind: 'terrain'; cx: number; cz: number; terrain: string };
+  seq: number;
+  action: PlayerAction;
+}
+
+export interface RecordedAction {
+  seq: number;
+  tick: number;
+  action: PlayerAction;
+}
+
+export interface ActionAppliedMsg {
+  type: 'actionApplied';
+  seq: number;
+  tick: number;
+  cost: number;
+  action: PlayerAction;
+}
+
+export interface ActionRejectedMsg {
+  type: 'actionRejected';
+  seq: number;
+  reason: RejectReason;
+  detail?: string;
 }
 
 export interface QueryCitizenMsg {
@@ -302,4 +345,4 @@ export interface GrowProgressMsg {
   total: number;
 }
 
-export type WorkerToMain = SnapshotMsg | SimEventMsg | CitizenInfoMsg | GrowProgressMsg | GridPatchMsg | WorldReadyMsg;
+export type WorkerToMain = SnapshotMsg | SimEventMsg | CitizenInfoMsg | GrowProgressMsg | GridPatchMsg | WorldReadyMsg | ActionAppliedMsg | ActionRejectedMsg;

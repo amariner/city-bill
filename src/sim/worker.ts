@@ -120,14 +120,14 @@ self.onmessage = (ev: MessageEvent<MainToWorker>) => {
       speed = msg.speed;
       break;
     case 'action': {
-      // La acción antigua de demolición ya usa la costura de cambios; las
-      // acciones completas del jugador se incorporan en H1.2.
       if (!sim) break;
-      const a = msg.action;
-      if (a.kind === 'demolish') {
-        sim.removeBuildingAt(a.cx, a.cz);
-        sendSnapshot();
+      const result = sim.applyAction(msg.action, msg.seq);
+      if (result.ok) {
+        post({ type: 'actionApplied', seq: msg.seq, tick: sim.clock.tick, cost: result.cost, action: msg.action });
+      } else {
+        post({ type: 'actionRejected', seq: msg.seq, reason: result.reason, detail: result.detail });
       }
+      sendSnapshot();
       break;
     }
     case 'queryCitizen': {

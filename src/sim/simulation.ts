@@ -21,7 +21,7 @@ import { decayNeeds, restore, NEED_KEYS } from './citizens/needs';
 import { chooseActivity } from './citizens/brain';
 import { ACTIVITY_BY_KIND, SimContext, activityLabel, EDU_PER_HOUR, CLINIC_FEE, isFestivalDay } from './citizens/activities';
 import { SocialSystem } from './citizens/social';
-import { AgentState, ActivityKind, activityId, AGENT_STRIDE, TravelModeCode, CityStats, CitizenInfoMsg, settlementLevel, SETTLEMENT_CLASSES } from './protocol';
+import { AgentState, ActivityKind, activityId, AGENT_STRIDE, TravelModeCode, CityStats, CitizenInfoMsg, settlementLevel, SETTLEMENT_CLASSES, PlayerAction, RecordedAction } from './protocol';
 import {
   computeDemand, itemForDemand, findParcel, townCenter, townAttractiveness,
   householdHardship, updateEmigrationPressure, EMIGRATE_POP_FLOOR, EMIGRATE_PRESSURE_LIMIT,
@@ -34,6 +34,7 @@ import { healthTick, CLINIC_RECOVERY_PER_HOUR, WORK_BLOCK_HEALTH } from './healt
 import { griefTick, consoleGrief, bereave, GRIEF_PARTNER, GRIEF_FRIEND, GRIEF_FRIEND_AFFINITY } from './grief';
 import { sickenTick, treatSick, SICK_ONSET, VACCINE_IMMUNITY } from './contagion';
 import { weatherAt, seasonalFestivalName, seasonalWarmth, Weather } from './weather';
+import { applyPlayerAction, ActionResult } from './actions';
 
 /** Velocidad al caminar, en celdas por tick (0.25 s reales a vel. 1). */
 const WALK_CELLS_PER_TICK = 0.9; // ≈ 7 km/h de juego a escala urbana
@@ -141,6 +142,8 @@ export class Simulation {
   private nextId = 1;
   private lastDay = 0;
   events: SimEvent[] = [];
+  /** Journal de acciones aceptadas; es la fuente del replay y del guardado. */
+  readonly actions: RecordedAction[] = [];
   /** Cambios espaciales pendientes de entregar al hilo de render. */
   private pendingBuilt: BuiltChange[] = [];
   private pendingRazed: RazedChange[] = [];
@@ -932,6 +935,37 @@ export class Simulation {
       this.firstBuildingSeen.add(p.id);
       this.events.push({ name: 'firstBuilding', data: { id: p.id, name: it.name } });
     }
+  }
+
+  /** Colocación aceptada por una acción del jugador. La mutación ocurre en el
+   * worker y el render la recibe por GridPatch, igual que el crecimiento. */
+  placeBuildingForPlayer(id: string, cx: number, cz: number, rot: 0 | 1 | 2 | 3): boolean {
+    const it = catalogData(id);
+    if (!it || !this.grid.placeBuilding(id, it.w, it.d, cx, cz, rot)) return false;
+    this.pendingBuilt.push({ id, cx, cz, rot });
+    this.index.rebuild();
+    this.economy.rebuild(this.index, this.citizens);
+    if (it.role === 'residential') {
+      const s = this.economy.stats(this.citizens);
+      const attractiveness = townAttractiveness({
+        employment: s.adults > 0 ? s.employed / s.adults : 1,
+        avgHealth: this.avgHealth(),
+        avgFood: this.avgFood(),
+        avgPrestige: this.avgPrestige(),
+      });
+      this.fillHome(cx, cz, id, Math.max(1, Math.round((it.capacity ?? 1) * attractiveness)), true);
+    }
+    this.hireAndAcquaint();
+    this.events.push({ name: 'cityGrew', data: { id, cx, cz, rot, label: it.name, byPlayer: true } });
+    return true;
+  }
+
+  /** Entrada única para acciones. Solo registra acciones aceptadas, de modo
+   * que un intento rechazado nunca contamine el replay. */
+  applyAction(action: PlayerAction, seq: number): ActionResult {
+    const result = applyPlayerAction(this, action);
+    if (result.ok) this.actions.push({ seq, tick: this.clock.tick, action });
+    return result;
   }
 
   /** Demuele desde cualquier celda de la huella y deja un diff para el render.

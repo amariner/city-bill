@@ -15,6 +15,9 @@ import {
   CityStats,
   DevMsg,
   GridPatchMsg,
+  PlayerAction,
+  ActionAppliedMsg,
+  ActionRejectedMsg,
 } from './protocol';
 import { TICK_REAL_S } from './clock';
 
@@ -40,6 +43,8 @@ export class SimClient {
   private curr: SnapshotMsg | null = null;
   private currAt = 0; // performance.now() al llegar `curr`
   private byIdPrev = new Map<number, number>(); // id → offset en prev.agents
+  private nextActionSeq = 1;
+  private pendingActions = new Set<number>();
   speed: Speed = 1;
   /** Tiempo de juego (s) del último snapshot — para HUD. */
   gameTime = 0;
@@ -57,6 +62,8 @@ export class SimClient {
   onGridPatch: ((patch: GridPatchMsg) => void) | null = null;
   /** Grid inicial completo tras pre-crecer la ciudad. */
   onWorldReady: ((gridJson: string, center: [number, number], restored: boolean) => void) | null = null;
+  onActionApplied: ((msg: ActionAppliedMsg) => void) | null = null;
+  onActionRejected: ((msg: ActionRejectedMsg) => void) | null = null;
 
   constructor(seed: number, gridJson: string, preGrowDays = 0) {
     this.worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
@@ -71,6 +78,13 @@ export class SimClient {
   setSpeed(speed: Speed): void {
     this.speed = speed;
     this.send({ type: 'setSpeed', speed });
+  }
+
+  act(action: PlayerAction): number {
+    const seq = this.nextActionSeq++;
+    this.pendingActions.add(seq);
+    this.send({ type: 'action', seq, action });
+    return seq;
   }
 
   queryCitizen(id: number): void {
@@ -115,6 +129,14 @@ export class SimClient {
         break;
       case 'worldReady':
         this.onWorldReady?.(msg.gridJson, msg.center, msg.restored);
+        break;
+      case 'actionApplied':
+        this.pendingActions.delete(msg.seq);
+        this.onActionApplied?.(msg);
+        break;
+      case 'actionRejected':
+        this.pendingActions.delete(msg.seq);
+        this.onActionRejected?.(msg);
         break;
     }
   }
