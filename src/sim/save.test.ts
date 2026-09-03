@@ -17,6 +17,7 @@ function check(name: string, condition: boolean, detail = ''): void {
 const seed = 42;
 const original = new Simulation(seedFarm(seed), seed);
 for (let i = 0; i < 700; i++) original.step();
+original.growthPolicy = 'preferZones';
 const blob = JSON.stringify(original.serialize());
 const state = JSON.parse(blob);
 const restored = new Simulation(Grid.deserialize(state.gridJson), seed, state);
@@ -24,6 +25,7 @@ const restored = new Simulation(Grid.deserialize(state.gridJson), seed, state);
 check('save: el JSON restaura el reloj', restored.clock.tick === original.clock.tick && restored.clock.time === original.clock.time);
 check('save: restaura población y grid', restored.citizens.size === original.citizens.size && restored.grid.serialize() === original.grid.serialize());
 check('save: conserva el registro de acciones', restored.actions.length === original.actions.length);
+check('save: conserva la política de crecimiento', restored.growthPolicy === 'preferZones' && restored.cityStats().growthPolicy === 'preferZones');
 
 for (let i = 0; i < 240 * 3; i++) {
   original.step();

@@ -36,6 +36,12 @@ const FLAGS: { flag: DevFlag; label: string }[] = [
   { flag: 'rentEnabled', label: 'alquiler' },
 ];
 
+const GROWTH_POLICIES: Array<{ value: CityStats['growthPolicy']; label: string }> = [
+  { value: 'free', label: 'libre' },
+  { value: 'preferZones', label: 'prefiere zonas' },
+  { value: 'zonesOnly', label: 'solo zonas' },
+];
+
 /** Fila de contador (etiqueta + valor). */
 interface Row {
   value: HTMLSpanElement;
@@ -46,6 +52,7 @@ export class DevPanel {
   private body: HTMLDivElement;
   private speedBtns = new Map<Speed, HTMLButtonElement>();
   private flagBtns = new Map<DevFlag, HTMLButtonElement>();
+  private policyBtns = new Map<CityStats['growthPolicy'], HTMLButtonElement>();
   private rows: Record<string, Row> = {};
   private last = '';
   private collapsed = false;
@@ -132,6 +139,16 @@ export class DevPanel {
       flagsWrap.appendChild(b);
     }
     this.body.appendChild(flagsWrap);
+
+    // --- Política espacial --------------------------------------------------
+    this.section('crecimiento');
+    const policyRow = this.btnRow();
+    for (const policy of GROWTH_POLICIES) {
+      const b = this.button(policy.label, () => this.sim.act({ kind: 'setPolicy', policy: 'growth', value: policy.value }));
+      b.title = 'La sim la aplica al siguiente intento de crecimiento';
+      this.policyBtns.set(policy.value, b);
+      policyRow.appendChild(b);
+    }
 
     // --- Contadores en vivo ---
     this.section('en vivo');
@@ -241,6 +258,7 @@ export class DevPanel {
       c.clinicHealing ? 1 : 0,
       c.rentEnabled ? 1 : 0,
       c.autonomousGrowth ? 1 : 0,
+      c.growthPolicy,
     ].join('|');
     if (sig === this.last) return;
     this.last = sig;
@@ -258,6 +276,8 @@ export class DevPanel {
       b.style.borderColor = on ? rgba(PALETTE.treeBlob, 0.2) : WARN;
       b.title = on ? 'activo — clic para desactivar (escenario contrafactual)' : 'DESACTIVADO — clic para reactivar';
     }
+
+    for (const [policy, b] of this.policyBtns) this.setActive(b, c.growthPolicy === policy);
 
     this.rows.pop.value.textContent = String(c.population);
     this.rows.ages.value.textContent = `${c.children}·${c.adults}·${c.elders}`;

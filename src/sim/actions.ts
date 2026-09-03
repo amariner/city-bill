@@ -83,6 +83,10 @@ export function applyPlayerAction(sim: Simulation, action: PlayerAction): Action
       sim.economy.rebuild(sim.index, sim.citizens);
       return { ok: true, cost: 0 };
     }
+    case 'setPolicy':
+      if (action.policy !== 'growth') return { ok: false, reason: 'invalid', detail: 'política aún no disponible' };
+      sim.growthPolicy = action.value;
+      return { ok: true, cost: 0 };
     default:
       return { ok: false, reason: 'invalid', detail: `acción no disponible: ${action.kind}` };
   }

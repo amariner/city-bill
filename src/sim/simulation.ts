@@ -21,11 +21,11 @@ import { decayNeeds, restore, NEED_KEYS } from './citizens/needs';
 import { chooseActivity } from './citizens/brain';
 import { ACTIVITY_BY_KIND, SimContext, activityLabel, EDU_PER_HOUR, CLINIC_FEE, isFestivalDay } from './citizens/activities';
 import { SocialSystem, SocialSaveState } from './citizens/social';
-import { AgentState, ActivityKind, activityId, AGENT_STRIDE, TravelModeCode, CityStats, CitizenInfoMsg, settlementLevel, SETTLEMENT_CLASSES, PlayerAction, RecordedAction } from './protocol';
+import { AgentState, ActivityKind, activityId, AGENT_STRIDE, TravelModeCode, CityStats, CitizenInfoMsg, settlementLevel, SETTLEMENT_CLASSES, PlayerAction, RecordedAction, GrowthPolicy } from './protocol';
 import {
   computeDemand, itemForDemand, findParcel, townCenter, townAttractiveness,
   householdHardship, updateEmigrationPressure, EMIGRATE_POP_FLOOR, EMIGRATE_PRESSURE_LIMIT,
-  extendRoad, GrowthPlacement, CARRYING_CAPACITY, fertilityFactor,
+  extendRoad, GrowthPlacement, CARRYING_CAPACITY, fertilityFactor, growthCenter,
 } from '../world/growth';
 import { lifeYear, ADULT_AGE, OLD_AGE, RETIREMENT_AGE } from './lifecycle';
 import { STARTING_MONEY, PENSION_PER_DAY, RENT_PER_DAY, RENT_TIER_FACTOR, SEASON_YIELD_SWING } from './economy';
@@ -149,6 +149,7 @@ export interface SimSaveState {
     vaccination: boolean;
     vocationalMobility: boolean;
   };
+  growthPolicy?: GrowthPolicy;
   actions: RecordedAction[];
   rngState: number;
   churnRngState: number;
@@ -203,6 +204,9 @@ export class Simulation {
   private pendingRazed: RazedChange[] = [];
   /** T4.4: la ciudad crece sola. Activado por defecto (es el alma del juego). */
   autonomousGrowth = true;
+  /** Política espacial del crecimiento: las zonas orientan, no sustituyen la
+   * demanda. Se guarda para que una partida continúe con la misma intención. */
+  growthPolicy: GrowthPolicy = 'free';
   /** Sanidad activa (ciclo 15): si es false, la clínica no cura — permite medir
    * cuánta vida SALVA la sanidad (escenario "sin sistema de salud"). */
   clinicHealing = true;
@@ -304,6 +308,7 @@ export class Simulation {
     this.settlementLevelSeen = state.settlementLevelSeen;
     this.nextId = state.nextId;
     this.autonomousGrowth = state.flags.autonomousGrowth;
+    this.growthPolicy = state.growthPolicy ?? 'free';
     this.clinicHealing = state.flags.clinicHealing;
     this.quarantine = state.flags.quarantine;
     this.rentEnabled = state.flags.rentEnabled;
@@ -361,6 +366,7 @@ export class Simulation {
         vaccination: this.vaccination,
         vocationalMobility: this.vocationalMobility,
       },
+      growthPolicy: this.growthPolicy,
       actions: this.actions.map((a) => ({ ...a, action: { ...a.action } as PlayerAction })),
       rngState: this.rng.state,
       churnRngState: this.churnRng.state,
@@ -975,15 +981,15 @@ export class Simulation {
     const id = itemForDemand(demand, this.tier);
     const it = catalogData(id);
     if (!it) return;
-    const center = townCenter(
+    const center = growthCenter(this.grid,
       this.index.buildings.filter((b) => b.data.role !== 'nature').map((b) => [b.ax, b.az]),
     );
-    const p = findParcel(this.grid, id, center, this.rng);
+    const p = findParcel(this.grid, id, center, this.rng, this.growthPolicy);
     if (!p) {
       // T4.4: hay demanda pero NO queda frente construible junto a una vía →
       // la ciudad se traza una CALLE nueva hacia campo abierto. El siguiente
       // intento de crecer ya encontrará parcela en ella.
-      this.maybeExtendRoad(center);
+      if (this.growthPolicy !== 'zonesOnly') this.maybeExtendRoad(center);
       return;
     }
     this.applyGrowth(p);
@@ -1496,6 +1502,7 @@ export class Simulation {
       epidemic: this.inEpidemic,
       sick,
       tier: this.tier,
+      growthPolicy: this.growthPolicy,
       children,
       adults: s.adults,
       elders,

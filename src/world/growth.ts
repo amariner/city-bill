@@ -11,15 +11,20 @@
  * aplica ese diff al grid de render sin repetir ninguna decisión.
  */
 import { Grid, Rot } from './grid';
-import { catalogData, CATALOG_DATA, Tier } from './catalogData';
+import { catalogData, CATALOG_DATA, SimRole, Tier } from './catalogData';
 import { createRng, Rng } from '../rng';
 import { placementCheck } from './placement';
+import type { GrowthPolicy, ZoneKind } from '../sim/protocol';
 
 export interface GrowthPlacement {
   id: string;
   cx: number;
   cz: number;
   rot: Rot;
+}
+
+export interface FindParcelOptions {
+  searchRadius?: number;
 }
 
 export interface DemandInput {
@@ -48,6 +53,20 @@ export interface DemandInput {
 }
 
 export type DemandKind = 'residential' | 'commerce' | 'work' | 'school' | 'clinic' | null;
+
+/** Zona natural de cada rol de catálogo. Las zonas solo orientan el crecimiento;
+ * el jugador sigue pudiendo colocar manualmente cualquier edificio válido. */
+export function zoneForRole(role: SimRole): ZoneKind | null {
+  switch (role) {
+    case 'residential': return 'R';
+    case 'commerce': return 'C';
+    case 'work': return 'I';
+    case 'agriculture': return 'A';
+    case 'civic':
+    case 'nature': return 'P';
+    case 'infra': return 'I';
+  }
+}
 
 /**
  * T4.1 — ¿Qué pide la ciudad AHORA? Una sola cosa por vez (crecer despacio
@@ -82,7 +101,7 @@ export function itemForDemand(kind: Exclude<DemandKind, null>, tier: Tier): stri
   switch (kind) {
     case 'residential':
       // El de mayor tier disponible ata la densidad al progreso (T4.2 etapas).
-      return byRole(['residential']).sort((a, b) => b.tier - a.tier)[0]?.id ?? 'cottage';
+      return residentialChoices(tier).at(-1) ?? 'cottage';
     case 'commerce':
       return byRole(['commerce']).sort((a, b) => b.tier - a.tier)[0]?.id ?? 'shop';
     case 'work':
@@ -92,6 +111,16 @@ export function itemForDemand(kind: Exclude<DemandKind, null>, tier: Tier): stri
     case 'clinic':
       return 'clinic';
   }
+}
+
+/** Opciones residenciales disponibles para crecimiento autónomo. Mantener esta
+ * lista separada hace explícito el guardarraíl: nunca ofrece una huella de tier
+ * futuro aunque la demanda ya esté activa. */
+export function residentialChoices(tier: Tier): string[] {
+  return CATALOG_DATA
+    .filter((item) => item.role === 'residential' && item.tier > 0 && item.tier <= tier)
+    .sort((a, b) => a.tier - b.tier || a.id.localeCompare(b.id))
+    .map((item) => item.id);
 }
 
 /**
@@ -182,15 +211,19 @@ export function findParcel(
   itemId: string,
   center: [number, number],
   rng: Rng,
-  searchRadius = 60,
+  policy: GrowthPolicy = 'free',
+  options: number | FindParcelOptions = 60,
 ): GrowthPlacement | null {
   const it = catalogData(itemId);
   if (!it) return null;
+  const searchRadius = typeof options === 'number' ? options : options.searchRadius ?? 60;
   const [ccx, ccz] = center;
 
   let best: GrowthPlacement | null = null;
   let bestScore = Infinity;
   let bestDist = Infinity;
+  let bestIsZoned = false;
+  const requiredZone = zoneForRole(it.role);
 
   // Muestreo determinista de celdas de vía alrededor del centro.
   for (let r = 2; r <= searchRadius; r += 1) {
@@ -216,20 +249,51 @@ export function findParcel(
           const ax = cx + t.dx;
           const az = cz + t.dz;
           if (!clearForGrowth(grid, it.w, it.d, ax, az, t.rot)) continue;
+          const zoned = requiredZone !== null && footprintHasZone(grid, it.w, it.d, ax, az, t.rot, requiredZone);
+          if (policy === 'zonesOnly' && !zoned) continue;
           const d = Math.abs(ax - ccx) + Math.abs(az - ccz);
-          const score = d + rng.next() * 4; // pizca de ruido: variedad de trama
+          // Un frente zonificado gana con claridad en preferZones, aunque esté
+          // algo más lejos; la pizca de ruido solo rompe empates locales.
+          const zoneBonus = policy === 'preferZones' && zoned ? -20 : 0;
+          const score = d + zoneBonus + rng.next() * 4;
           if (score < bestScore) {
             bestScore = score;
             bestDist = d;
+            bestIsZoned = zoned;
             best = { id: itemId, cx: ax, cz: az, rot: t.rot };
           }
         }
       }
     }
     // Con candidato en un anillo cercano, no hace falta mirar más lejos.
-    if (best !== null && r > bestDist + 6) break;
+    if (best !== null && (policy === 'free' || bestIsZoned) && r > bestDist + 6) break;
   }
   return best;
+}
+
+function footprintHasZone(grid: Grid, w: number, d: number, ax: number, az: number, rot: Rot, zone: ZoneKind): boolean {
+  const [fw, fd] = [rot % 2 === 0 ? w : d, rot % 2 === 0 ? d : w];
+  for (let x = ax; x < ax + fw; x++) {
+    for (let z = az; z < az + fd; z++) {
+      if (grid.get(x, z)?.zone !== zone) return false;
+    }
+  }
+  return true;
+}
+
+/** Centro para buscar parcelas: masa construida si existe; en un terreno vacío,
+ * el centroide de las zonas pintadas para que el primer crecimiento tenga un
+ * lugar natural donde empezar. */
+export function growthCenter(grid: Grid, anchors: Array<[number, number]>): [number, number] {
+  if (anchors.length > 0) return townCenter(anchors);
+  const zoned: Array<[number, number]> = [];
+  grid.forEachChunk((chunk) => chunk.cells.forEach((cell, key) => {
+    if (!cell.zone) return;
+    const cx = Math.floor(key / 65536) - 32768;
+    const cz = (key % 65536) - 32768;
+    zoned.push([cx, cz]);
+  }));
+  return townCenter(zoned);
 }
 
 // --- T4.4 (núcleo): extensión autónoma de vías --------------------------------

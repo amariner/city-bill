@@ -57,6 +57,10 @@ export class ToolState {
       this.shiftDown = false;
       if (this.tool.kind === 'zone') this.set({ ...this.tool, erase: false });
     });
+    window.addEventListener('blur', () => {
+      this.shiftDown = false;
+      if (this.tool.kind === 'zone' && this.tool.erase) this.set({ ...this.tool, erase: false });
+    });
   }
 
   get active(): Tool {

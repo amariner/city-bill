@@ -255,6 +255,8 @@ export interface CityStats {
   sick: number;
   /** Tier desbloqueado por población (T4.5). */
   tier: number;
+  /** Política con la que la ciudad decide dónde crecer junto a sus vías. */
+  growthPolicy: GrowthPolicy;
   /** Reparto por edad (banco de pruebas): niños/adultos/mayores. */
   children: number;
   adults: number;

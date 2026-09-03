@@ -98,6 +98,11 @@ check('place residencial: llega al menos una persona', rejected.citizens.size >=
   check('zone: sobrevive serialize/deserialize', restored.get(-1, -1)?.zone === 'R');
   const erased = sim.applyAction({ kind: 'zone', zone: null, x0: -2, z0: -2, x1: 3, z1: 3 }, 2);
   check('zone: Shift/borrado limpia el rectángulo', erased.ok && sim.grid.get(-1, -1)?.zone === undefined);
+  const policy = sim.applyAction({ kind: 'setPolicy', policy: 'growth', value: 'zonesOnly' }, 3);
+  check('policy: cambia la política de crecimiento', policy.ok && sim.growthPolicy === 'zonesOnly');
+  const saved = JSON.parse(JSON.stringify(sim.serialize()));
+  const continued = new Simulation(Grid.deserialize(saved.gridJson), 8088, saved);
+  check('policy: sobrevive al guardado', continued.growthPolicy === 'zonesOnly' && continued.cityStats().growthPolicy === 'zonesOnly');
 }
 
 console.log(`\nactions.test: ${passed} passed, ${failed} failed`);

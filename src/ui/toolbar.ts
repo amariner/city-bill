@@ -240,9 +240,9 @@ export class Toolbar {
     style.id = STYLE_ID;
     style.textContent = `
 .cb-toolbar{position:fixed;left:50%;bottom:12px;z-index:12;transform:translateX(-50%);
-  display:flex;flex-direction:column;align-items:center;gap:5px;min-width:280px;
+  display:flex;flex-direction:column;align-items:center;gap:5px;min-width:280px;width:max-content;max-width:calc(100vw - 24px);
   color:${INK};font:12px/1.2 ui-monospace,monospace;user-select:none}
-.cb-toolbar-row{display:flex;gap:5px;padding:5px;border-radius:11px;
+.cb-toolbar-row{display:flex;width:100%;box-sizing:border-box;gap:5px;padding:5px;border-radius:11px;
   background:${PANEL_BG};border:${PANEL_BORDER};box-shadow:${PANEL_SHADOW}}
 .cb-tool-button,.cb-building-option{cursor:pointer;color:${INK};font:600 12px/1.2 ui-monospace,monospace;
   background:${rgba(PALETTE.houseWall, 0.55)};border:1px solid ${rgba(PALETTE.treeBlob, 0.2)};
@@ -258,7 +258,7 @@ export class Toolbar {
 .cb-building-option{padding:6px 7px;text-align:left;font-size:10px;white-space:nowrap}
 .cb-toolbar-footer{padding:3px 9px;border-radius:7px;background:${rgba(PALETTE.houseWall, 0.82)};
   border:1px solid ${rgba(PALETTE.treeBlob, 0.12)};font-size:10px;opacity:.82}
-@media(max-width:560px){.cb-toolbar{min-width:calc(100vw - 24px)}.cb-toolbar-menu{grid-template-columns:1fr 1fr}}
+@media(max-width:560px){.cb-toolbar{width:calc(100vw - 24px);min-width:0}.cb-tool-button{min-width:0;padding:7px 5px;font-size:10px}.cb-toolbar-menu{grid-template-columns:1fr 1fr}}
 `;
     document.head.appendChild(style);
   }
