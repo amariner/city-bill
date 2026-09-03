@@ -27,6 +27,10 @@ tools.set({ kind: 'road', road: 'path', from: null });
 tools.handleDragStart([-1, -1], 'left');
 check('el arrastre fija el origen', tools.active.kind === 'road' && tools.active.from?.join() === '-1,-1');
 check('fin de arrastre emite road', tools.handleDragEnd([3, 4], 'left') === 4 && sent[3]?.kind === 'road' && sent[3]?.road === 'path');
+tools.set({ kind: 'zone', zone: 'C', from: null, erase: false });
+tools.handleDragStart([1, 2], 'left');
+check('la zona fija el origen al arrastrar', tools.active.kind === 'zone' && tools.active.from?.join() === '1,2');
+check('la zona emite un rectángulo normalizado', tools.handleDragEnd([-2, 5], 'left') === 5 && sent[4]?.kind === 'zone' && sent[4]?.x0 === -2 && sent[4]?.z0 === 2 && sent[4]?.x1 === 1 && sent[4]?.z1 === 5);
 
 console.log(`\ntools.test: ${passed} passed, ${failed} failed`);
 if (failed > 0) throw new Error(`${failed} test(s) failed`);

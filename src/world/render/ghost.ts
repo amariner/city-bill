@@ -35,6 +35,10 @@ export class Ghost {
       this.updateRoad(tool, cell);
       return;
     }
+    if (tool.kind === 'zone') {
+      this.updateZone(tool, cell);
+      return;
+    }
     this.onRoadCost?.(null);
     if (tool.kind !== 'place') {
       this.root.visible = false;
@@ -87,6 +91,49 @@ export class Ghost {
     }
     this.onRoadCost?.(preview.cost);
     this.root.visible = preview.cells.length > 0;
+  }
+
+  private updateZone(tool: Extract<Tool, { kind: 'zone' }>, cell: [number, number]): void {
+    this.onRoadCost?.(null);
+    if (!tool.from) {
+      this.root.visible = false;
+      return;
+    }
+    this.root.clear();
+    this.footprint = null;
+    this.building = null;
+    this.root.position.set(0, 0, 0);
+    const x0 = Math.min(tool.from[0], cell[0]);
+    const x1 = Math.max(tool.from[0], cell[0]);
+    const z0 = Math.min(tool.from[1], cell[1]);
+    const z1 = Math.max(tool.from[1], cell[1]);
+    const zoneColor: Record<'R' | 'C' | 'I' | 'A' | 'P', number> = {
+      R: PALETTE.zoneR,
+      C: PALETTE.zoneC,
+      I: PALETTE.zoneI,
+      A: PALETTE.zoneA,
+      P: PALETTE.zoneP,
+    };
+    let count = 0;
+    for (let cx = x0; cx <= x1; cx++) {
+      for (let cz = z0; cz <= z1; cz++) {
+        const current = this.grid.get(cx, cz);
+        if (!current) continue;
+        const eligible = !current.building && current.terrain !== 'road' && current.terrain !== 'water';
+        const color = tool.erase
+          ? current.zone === undefined ? PALETTE.ghostBad : zoneColor[current.zone]
+          : eligible ? zoneColor[tool.zone] : PALETTE.ghostBad;
+        const plane = new THREE.Mesh(
+          new THREE.PlaneGeometry(CELL_SIZE * 0.94, CELL_SIZE * 0.94),
+          new THREE.MeshBasicMaterial({ color, transparent: true, opacity: eligible ? 0.7 : 0.5, depthWrite: false, side: THREE.DoubleSide }),
+        );
+        plane.rotation.x = -Math.PI / 2;
+        plane.position.set((cx + 0.5) * CELL_SIZE, 0.16, (cz + 0.5) * CELL_SIZE);
+        this.root.add(plane);
+        count++;
+      }
+    }
+    this.root.visible = count > 0;
   }
 
   markPending(): void {

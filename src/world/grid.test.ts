@@ -116,11 +116,26 @@ function assert(cond: boolean, msg: string): void {
   g.fillTerrain(-3, -3, 3, 3, 'field');
   g.placeBuilding('barn', 3, 2, 0, 0);
   g.setProp(-2, -2, { id: 'tree', variant: 42 });
+  g.setZone(3, -2, 'C');
   const json = g.serialize();
   const g2 = Grid.deserialize(json);
   assert(g2.get(0, 0)?.building?.id === 'barn', 'edificio sobrevive round-trip');
   assert(g2.get(-2, -2)?.prop?.variant === 42, 'prop sobrevive round-trip');
+  assert(g2.get(3, -2)?.zone === 'C', 'zone sobrevive round-trip');
   assert(g2.serialize() === json, 'serialize es estable tras round-trip');
+}
+
+// --- Patches de zonas ------------------------------------------------------
+{
+  const source = new Grid();
+  source.fillTerrain(0, 0, 2, 2, 'field');
+  source.clearJournal();
+  source.setZone(1, 1, 'R');
+  const patch = source.takeJournal();
+  const twin = new Grid();
+  twin.applyPatch(patch);
+  assert(twin.get(1, 1)?.zone === 'R', 'applyPatch conserva zone');
+  assert(twin.takeJournal().length === 0, 'applyPatch de zone no vuelve a journalizar');
 }
 
 // --- T4.4 núcleo: extensión autónoma de vías --------------------------------

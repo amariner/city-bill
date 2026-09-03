@@ -1,7 +1,7 @@
 /** Máquina mínima de herramientas del jugador. La UI puede cambiar la
  * herramienta, pero la acción siempre sale por SimClient.act(). */
 import type { SimClient } from '../sim/client';
-import type { PlayerAction } from '../sim/protocol';
+import type { PlayerAction, ZoneKind } from '../sim/protocol';
 import type { Rot } from '../world/grid';
 import type { CellXZ } from '../sim/geometry';
 import type { PointerButton } from './pointer';
@@ -11,16 +11,24 @@ export type Tool =
   | { kind: 'place'; id: string; rot: Rot }
   | { kind: 'bulldoze' }
   | { kind: 'road'; road: 'path' | 'rural' | 'street' | 'avenue'; from: CellXZ | null }
-  | { kind: 'zone'; zone: 'R' | 'C' | 'I' | 'A' | 'P' | null };
+  | { kind: 'zone'; zone: ZoneKind; from: CellXZ | null; erase: boolean };
 
 export class ToolState {
   private tool: Tool = { kind: 'none' };
+  private shiftDown = false;
   onChange: ((tool: Tool) => void) | null = null;
 
   constructor(private sim: Pick<SimClient, 'act'>) {
     if (typeof window === 'undefined') return;
     window.addEventListener('keydown', (e) => {
       const key = e.key.toLowerCase();
+      if (key === 'shift') {
+        if (!this.shiftDown) {
+          this.shiftDown = true;
+          if (this.tool.kind === 'zone') this.set({ ...this.tool, erase: true });
+        }
+        return;
+      }
       if (key === 'b') {
         e.preventDefault();
         this.set({ kind: 'place', id: 'cottage', rot: 0 });
@@ -30,6 +38,9 @@ export class ToolState {
       } else if (key === 'r') {
         e.preventDefault();
         this.set({ kind: 'road', road: 'rural', from: null });
+      } else if (key === 'z') {
+        e.preventDefault();
+        this.set({ kind: 'zone', zone: 'R', from: null, erase: this.shiftDown });
       } else if (key === 'tab' && this.tool.kind === 'place') {
         e.preventDefault();
         this.rotate();
@@ -40,6 +51,11 @@ export class ToolState {
           this.cancel();
         }
       }
+    });
+    window.addEventListener('keyup', (e) => {
+      if (e.key.toLowerCase() !== 'shift') return;
+      this.shiftDown = false;
+      if (this.tool.kind === 'zone') this.set({ ...this.tool, erase: false });
     });
   }
 
@@ -79,6 +95,20 @@ export class ToolState {
       }
       action = { kind: 'road', road: this.tool.road, from: [...this.tool.from], to: [...cell] };
       this.set({ ...this.tool, from: null });
+    } else if (this.tool.kind === 'zone') {
+      if (!this.tool.from) {
+        this.set({ ...this.tool, from: [...cell] });
+        return null;
+      }
+      action = {
+        kind: 'zone',
+        zone: this.tool.erase ? null : this.tool.zone,
+        x0: Math.min(this.tool.from[0], cell[0]),
+        z0: Math.min(this.tool.from[1], cell[1]),
+        x1: Math.max(this.tool.from[0], cell[0]),
+        z1: Math.max(this.tool.from[1], cell[1]),
+      };
+      this.set({ ...this.tool, from: null });
     } else {
       return null;
     }
@@ -86,7 +116,7 @@ export class ToolState {
   }
 
   handleDragStart(cell: [number, number], button: PointerButton): void {
-    if (button !== 'left' || this.tool.kind !== 'road' || this.tool.from) return;
+    if (button !== 'left' || (this.tool.kind !== 'road' && this.tool.kind !== 'zone') || this.tool.from) return;
     this.set({ ...this.tool, from: [...cell] });
   }
 
@@ -96,8 +126,17 @@ export class ToolState {
   }
 
   handleDragEnd(cell: [number, number], button: PointerButton): number | null {
-    if (button !== 'left' || this.tool.kind !== 'road' || !this.tool.from) return null;
-    const action: PlayerAction = { kind: 'road', road: this.tool.road, from: [...this.tool.from], to: [...cell] };
+    if (button !== 'left' || (this.tool.kind !== 'road' && this.tool.kind !== 'zone') || !this.tool.from) return null;
+    const action: PlayerAction = this.tool.kind === 'road'
+      ? { kind: 'road', road: this.tool.road, from: [...this.tool.from], to: [...cell] }
+      : {
+        kind: 'zone',
+        zone: this.tool.erase ? null : this.tool.zone,
+        x0: Math.min(this.tool.from[0], cell[0]),
+        z0: Math.min(this.tool.from[1], cell[1]),
+        x1: Math.max(this.tool.from[0], cell[0]),
+        z1: Math.max(this.tool.from[1], cell[1]),
+      };
     this.set({ ...this.tool, from: null });
     return this.sim.act(action);
   }

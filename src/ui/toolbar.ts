@@ -4,7 +4,7 @@ import { SimClient } from '../sim/client';
 import { CATALOG_ITEMS, CatalogItem } from '../world/catalog';
 import { ToolState } from '../core/tools';
 import { ROAD_SPECS } from '../world/roads';
-import type { RoadKind } from '../sim/protocol';
+import type { RoadKind, ZoneKind } from '../sim/protocol';
 import { css, INK, PANEL_BG, PANEL_BORDER, PANEL_SHADOW, rgba } from './theme';
 
 const STYLE_ID = 'city-bill-toolbar-style';
@@ -16,17 +16,21 @@ function playerPlaceable(item: CatalogItem): boolean {
 
 const ROAD_TIERS: Record<RoadKind, number> = { path: 0, rural: 1, street: 2, avenue: 3 };
 const ROAD_LABELS: Record<RoadKind, string> = { path: 'sendero', rural: 'vía rural', street: 'calle', avenue: 'avenida' };
+const ZONE_LABELS: Record<ZoneKind, string> = { R: 'residencial', C: 'comercial', I: 'industrial', A: 'agrícola', P: 'parque' };
 
 export class Toolbar {
   private root: HTMLDivElement;
   private buildButton: HTMLButtonElement;
   private roadButton: HTMLButtonElement;
+  private zoneButton: HTMLButtonElement;
   private bulldozeButton: HTMLButtonElement;
   private menu: HTMLDivElement;
   private roadMenu: HTMLDivElement;
+  private zoneMenu: HTMLDivElement;
   private hint: HTMLSpanElement;
   private menuOpen = false;
   private roadMenuOpen = false;
+  private zoneMenuOpen = false;
   private catalogSignature = '';
   private roadSignature = '';
   private roadCost: number | null = null;
@@ -40,15 +44,18 @@ export class Toolbar {
     row.className = 'cb-toolbar-row';
     this.buildButton = this.actionButton('⌂ construir', 'B · elegir edificio', () => this.toggleMenu());
     this.roadButton = this.actionButton('═ carretera', 'R · elegir vía', () => this.toggleRoadMenu());
+    this.zoneButton = this.actionButton('▦ zonas', 'Z · elegir zona', () => this.toggleZoneMenu());
     this.bulldozeButton = this.actionButton('× demoler', 'X · demoler edificio', () => {
       this.menuOpen = false;
       this.menu.style.display = 'none';
       this.roadMenuOpen = false;
       this.roadMenu.style.display = 'none';
+      this.zoneMenuOpen = false;
+      this.zoneMenu.style.display = 'none';
       this.tools.set({ kind: 'bulldoze' });
       this.update();
     });
-    row.append(this.buildButton, this.roadButton, this.bulldozeButton);
+    row.append(this.buildButton, this.roadButton, this.zoneButton, this.bulldozeButton);
     this.root.appendChild(row);
 
     this.menu = document.createElement('div');
@@ -61,12 +68,18 @@ export class Toolbar {
     this.roadMenu.style.display = 'none';
     this.root.appendChild(this.roadMenu);
 
+    this.zoneMenu = document.createElement('div');
+    this.zoneMenu.className = 'cb-toolbar-menu cb-zone-menu';
+    this.zoneMenu.style.display = 'none';
+    this.root.appendChild(this.zoneMenu);
+
     const footer = document.createElement('div');
     footer.className = 'cb-toolbar-footer';
     this.hint = document.createElement('span');
     footer.appendChild(this.hint);
     this.root.appendChild(footer);
     document.body.appendChild(this.root);
+    this.rebuildZoneMenu();
     this.update();
   }
 
@@ -89,11 +102,14 @@ export class Toolbar {
     const active = this.tools.active;
     this.buildButton.classList.toggle('cb-tool-active', active.kind === 'place');
     this.roadButton.classList.toggle('cb-tool-active', active.kind === 'road');
+    this.zoneButton.classList.toggle('cb-tool-active', active.kind === 'zone');
     this.bulldozeButton.classList.toggle('cb-tool-active', active.kind === 'bulldoze');
     this.hint.textContent = active.kind === 'place'
       ? `${available.find((item) => item.id === active.id)?.name ?? active.id} · Tab gira · Esc cancela`
       : active.kind === 'road'
         ? `${ROAD_LABELS[active.road]} · ${active.from ? 'elige destino' : 'clic y arrastra'}${this.roadCost !== null && active.from ? ` · coste ${this.roadCost}` : ''} · Esc cancela`
+        : active.kind === 'zone'
+          ? `${ZONE_LABELS[active.zone]} · ${active.erase ? 'Shift: borrar' : 'clic y arrastra'} · Esc cancela`
         : active.kind === 'bulldoze' ? 'demoler · Esc cancela' : 'B construir · R vías · X demoler';
   }
 
@@ -141,6 +157,28 @@ export class Toolbar {
     }
   }
 
+  private rebuildZoneMenu(): void {
+    this.zoneMenu.replaceChildren();
+    const title = document.createElement('div');
+    title.className = 'cb-toolbar-title';
+    title.textContent = 'zonas disponibles';
+    this.zoneMenu.appendChild(title);
+    for (const zone of ['R', 'C', 'I', 'A', 'P'] as ZoneKind[]) {
+      const button = document.createElement('button');
+      button.className = 'cb-building-option cb-zone-option';
+      button.textContent = `${zone} · ${ZONE_LABELS[zone]}`;
+      button.title = 'Arrastra para pintar · mantén Shift para borrar';
+      button.addEventListener('click', (event) => {
+        event.stopPropagation();
+        this.tools.set({ kind: 'zone', zone, from: null, erase: false });
+        this.zoneMenuOpen = false;
+        this.zoneMenu.style.display = 'none';
+        this.update();
+      });
+      this.zoneMenu.appendChild(button);
+    }
+  }
+
   /** Recibe el coste calculado por el mismo preview que usará el worker. */
   setRoadCost(cost: number | null): void {
     if (this.roadCost === cost) return;
@@ -153,8 +191,11 @@ export class Toolbar {
     this.menu.style.display = this.menuOpen ? 'grid' : 'none';
     this.roadMenuOpen = false;
     this.roadMenu.style.display = 'none';
+    this.zoneMenuOpen = false;
+    this.zoneMenu.style.display = 'none';
     if (this.menuOpen && this.tools.active.kind === 'place') this.tools.cancel();
     if (this.menuOpen && this.tools.active.kind === 'road') this.tools.cancel();
+    if (this.menuOpen && this.tools.active.kind === 'zone') this.tools.cancel();
     this.update();
   }
 
@@ -163,7 +204,21 @@ export class Toolbar {
     this.roadMenu.style.display = this.roadMenuOpen ? 'grid' : 'none';
     this.menuOpen = false;
     this.menu.style.display = 'none';
+    this.zoneMenuOpen = false;
+    this.zoneMenu.style.display = 'none';
     if (this.roadMenuOpen && (this.tools.active.kind === 'place' || this.tools.active.kind === 'road')) this.tools.cancel();
+    if (this.roadMenuOpen && this.tools.active.kind === 'zone') this.tools.cancel();
+    this.update();
+  }
+
+  private toggleZoneMenu(): void {
+    this.zoneMenuOpen = !this.zoneMenuOpen;
+    this.zoneMenu.style.display = this.zoneMenuOpen ? 'grid' : 'none';
+    this.menuOpen = false;
+    this.menu.style.display = 'none';
+    this.roadMenuOpen = false;
+    this.roadMenu.style.display = 'none';
+    if (this.zoneMenuOpen && (this.tools.active.kind === 'place' || this.tools.active.kind === 'road' || this.tools.active.kind === 'zone')) this.tools.cancel();
     this.update();
   }
 

@@ -19,6 +19,13 @@ export const PALETTE = {
   road: 0xeae0c8,
   path: 0xe6dcc4,
 
+  // Zonas RCIAP (overlay opcional, siempre en pastel y con alfa en el render)
+  zoneR: 0xd9a6a2,
+  zoneC: 0xe0c58e,
+  zoneI: 0xb9a7c9,
+  zoneA: 0x9fb9cb,
+  zoneP: 0xa9c286,
+
   // Hierba de las parcelas habitadas
   grass: 0xa9c286,
   grassPatches: [0x9fb97c, 0xb1c88e, 0x97b174, 0xa4bd80] as const,

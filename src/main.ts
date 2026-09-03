@@ -18,6 +18,7 @@ import { CitizenView } from './world/render/citizens';
 import { SelectionMarker } from './world/render/selectionMarker';
 import { ConstructionSites } from './world/render/construction';
 import { Ghost } from './world/render/ghost';
+import { ZonesLayer } from './world/render/zones';
 import { Atmosphere, lampFactor } from './world/render/atmosphere';
 import { DAY_GAME_SECONDS } from './sim/clock';
 import { seasonalWarmth, weatherAt } from './sim/weather';
@@ -75,6 +76,7 @@ let controlBar: ControlBar | null = null;
 let toolbar: Toolbar | null = null;
 let toolState: ToolState | null = null;
 let ghost: Ghost | null = null;
+let zonesLayer: ZonesLayer | null = null;
 let hoverCell: [number, number] = [0, 0];
 /** Semilla realmente en juego: la del pueblo montado (fija la estación/fiestas
  * del bucle de render). La fija `buildRenderAndUi`. */
@@ -104,6 +106,8 @@ function buildRenderAndUi(grid: Grid, worldSeed: number): void {
   stage.scene.add(construction.root);
   ghost = new Ghost(grid);
   stage.scene.add(ghost.root);
+  zonesLayer = new ZonesLayer(grid);
+  stage.scene.add(zonesLayer.root);
   // La máquina de herramientas se registra antes que el inspector para que Esc
   // cancele primero la herramienta activa y solo después pueda cerrar la ficha.
   toolState = new ToolState(sim);
@@ -111,6 +115,7 @@ function buildRenderAndUi(grid: Grid, worldSeed: number): void {
   ghost.onRoadCost = (cost) => toolbar?.setRoadCost(cost);
   toolState.onChange = (tool) => {
     ghost?.update(tool, hoverCell);
+    zonesLayer?.setToolActive(tool.kind === 'zone');
     toolbar?.update();
   };
   chronicle = new Chronicle(worldSeed);
@@ -120,6 +125,7 @@ function buildRenderAndUi(grid: Grid, worldSeed: number): void {
   sim.onGridPatch = (patch) => {
     grid.applyPatch(patch.cells);
     worldView?.refreshCells(patch.cells);
+    zonesLayer?.refreshCells(patch.cells);
     for (const built of patch.built) {
       const started = construction?.start(built.id, built.cx, built.cz, built.rot, () => atmosphere?.invalidate());
       if (!started) {

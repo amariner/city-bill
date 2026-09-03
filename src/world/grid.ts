@@ -128,12 +128,14 @@ export class Grid {
     const cell = this.ensureCell(cx, cz);
     cell.terrain = terrain;
     if (terrain !== 'road') delete cell.roadKind;
+    if (terrain === 'road' || terrain === 'water') delete cell.zone;
   }
 
   setRoad(cx: number, cz: number, roadKind: RoadKind = 'rural'): void {
     const cell = this.ensureCell(cx, cz);
     cell.terrain = 'road';
     cell.roadKind = roadKind;
+    delete cell.zone;
   }
 
   fillTerrain(cx0: number, cz0: number, cx1: number, cz1: number, terrain: Terrain): void {

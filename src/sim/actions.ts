@@ -58,6 +58,31 @@ export function applyPlayerAction(sim: Simulation, action: PlayerAction): Action
       } });
       return { ok: true, cost: painted.cost };
     }
+    case 'zone': {
+      let eligible = 0;
+      const zone = action.zone ?? undefined;
+      const x0 = Math.min(action.x0, action.x1);
+      const x1 = Math.max(action.x0, action.x1);
+      const z0 = Math.min(action.z0, action.z1);
+      const z1 = Math.max(action.z0, action.z1);
+      for (let cx = x0; cx <= x1; cx++) {
+        for (let cz = z0; cz <= z1; cz++) {
+          const cell = sim.grid.get(cx, cz);
+          if (!cell || cell.building || cell.terrain === 'road' || cell.terrain === 'water') continue;
+          eligible++;
+          if (cell.zone !== zone) {
+            sim.grid.setZone(cx, cz, zone);
+          }
+        }
+      }
+      if (eligible === 0) return { ok: false, reason: 'blocked', detail: 'no hay parcelas libres para zonificar' };
+      // Un repintado idéntico sigue siendo una acción válida: conserva la
+      // intención del jugador y hace que el replay sea fiel aunque no cambie
+      // ninguna celda en ese momento.
+      sim.index.rebuild();
+      sim.economy.rebuild(sim.index, sim.citizens);
+      return { ok: true, cost: 0 };
+    }
     default:
       return { ok: false, reason: 'invalid', detail: `acción no disponible: ${action.kind}` };
   }

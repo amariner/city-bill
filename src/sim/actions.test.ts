@@ -82,5 +82,23 @@ check('place residencial: llega al menos una persona', rejected.citizens.size >=
   check('road: la calle queda bloqueada hasta tier 2', !street.ok && street.reason === 'tierLocked');
 }
 
+// --- Zonas del jugador ------------------------------------------------------
+{
+  const grid = new Grid();
+  grid.fillTerrain(-5, -5, 5, 5, 'field');
+  grid.setRoad(0, 0, 'rural');
+  grid.placeBuilding('barn', 1, 1, 2, 2);
+  const sim = new Simulation(grid, 8088);
+  const painted = sim.applyAction({ kind: 'zone', zone: 'R', x0: -2, z0: -2, x1: 3, z1: 3 }, 1);
+  check('zone: se acepta el rectángulo', painted.ok);
+  check('zone: pinta las parcelas elegibles', sim.grid.get(-1, -1)?.zone === 'R');
+  check('zone: no zonifica una carretera', sim.grid.get(0, 0)?.zone === undefined);
+  check('zone: no zonifica la huella de un edificio', sim.grid.get(2, 2)?.zone === undefined);
+  const restored = Grid.deserialize(sim.grid.serialize());
+  check('zone: sobrevive serialize/deserialize', restored.get(-1, -1)?.zone === 'R');
+  const erased = sim.applyAction({ kind: 'zone', zone: null, x0: -2, z0: -2, x1: 3, z1: 3 }, 2);
+  check('zone: Shift/borrado limpia el rectángulo', erased.ok && sim.grid.get(-1, -1)?.zone === undefined);
+}
+
 console.log(`\nactions.test: ${passed} passed, ${failed} failed`);
 if (failed > 0) throw new Error(`${failed} test(s) failed`);
