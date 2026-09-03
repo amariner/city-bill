@@ -5,7 +5,6 @@
  */
 import * as THREE from 'three';
 import { IsoCamera } from './camera';
-import { worldToCell } from '../world/grid';
 
 export interface DebugStats {
   agents?: number;
@@ -20,9 +19,6 @@ export class DebugHud {
   private acc = 0;
   private frames = 0;
   private fps = 0;
-  private raycaster = new THREE.Raycaster();
-  private ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-  private ndc = new THREE.Vector2(0, 0);
   private hoverCell: [number, number] = [0, 0];
 
   constructor(
@@ -48,12 +44,6 @@ export class DebugHud {
     ].join(';');
     document.body.appendChild(this.el);
 
-    this.renderer.domElement.addEventListener('pointermove', (e) => {
-      const rect = this.renderer.domElement.getBoundingClientRect();
-      this.ndc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-      this.ndc.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-    });
-
     window.addEventListener('keydown', (e) => {
       if (e.key === 'F3' || (e.key === '3' && e.shiftKey)) {
         e.preventDefault();
@@ -67,6 +57,10 @@ export class DebugHud {
     this.stats = { ...this.stats, ...stats };
   }
 
+  setHoverCell(cell: [number, number]): void {
+    this.hoverCell = cell;
+  }
+
   update(dt: number): void {
     this.acc += dt;
     this.frames++;
@@ -76,13 +70,6 @@ export class DebugHud {
       this.frames = 0;
     }
     if (!this.visible) return;
-
-    // Celda bajo el cursor (raycast al plano de suelo).
-    this.raycaster.setFromCamera(this.ndc, this.camera.cam);
-    const hit = new THREE.Vector3();
-    if (this.raycaster.ray.intersectPlane(this.ground, hit)) {
-      this.hoverCell = worldToCell(hit.x, hit.z);
-    }
 
     const r = this.renderer.info.render;
     const mem = this.renderer.info.memory;

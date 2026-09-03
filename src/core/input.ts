@@ -16,24 +16,6 @@ export class Input {
 
   constructor(target: HTMLElement) {
     target.addEventListener('contextmenu', (e) => e.preventDefault());
-
-    target.addEventListener('pointerdown', (e) => {
-      // Botón izquierdo, central o derecho arrastran.
-      this.dragging = true;
-      target.setPointerCapture(e.pointerId);
-    });
-    target.addEventListener('pointermove', (e) => {
-      if (!this.dragging) return;
-      this.dragDX += e.movementX;
-      this.dragDY += e.movementY;
-    });
-    const endDrag = (e: PointerEvent) => {
-      this.dragging = false;
-      if (target.hasPointerCapture(e.pointerId)) target.releasePointerCapture(e.pointerId);
-    };
-    target.addEventListener('pointerup', endDrag);
-    target.addEventListener('pointercancel', endDrag);
-
     target.addEventListener(
       'wheel',
       (e) => {
@@ -52,6 +34,13 @@ export class Input {
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.key.toLowerCase()));
     window.addEventListener('blur', () => this.keys.clear());
+  }
+
+  /** El Pointer unificado entrega aquí solo los píxeles que deben mover la
+   * cámara. Si hay una herramienta activa, el botón izquierdo nunca llega. */
+  feedPan(dx: number, dy: number): void {
+    this.dragDX += dx;
+    this.dragDY += dy;
   }
 
   /** Vector de desplazamiento por teclado (WASD / flechas), normalizado a [-1,1]. */

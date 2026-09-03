@@ -8,6 +8,8 @@ import { Input } from './core/input';
 import { CameraController } from './core/cameraController';
 import { GameLoop } from './core/loop';
 import { DebugHud } from './core/debugHud';
+import { Pointer } from './core/pointer';
+import { ToolState } from './core/tools';
 import { WorldView } from './world/render/worldView';
 import { seedWorld, seedFarm } from './world/seed';
 import { buildShowcase } from './showcase';
@@ -62,6 +64,7 @@ let inspector: CitizenInspector | null = null;
 let cityHud: CityHud | null = null;
 let devPanel: DevPanel | null = null;
 let controlBar: ControlBar | null = null;
+let toolState: ToolState | null = null;
 /** Semilla realmente en juego: la del pueblo montado (fija la estación/fiestas
  * del bucle de render). La fija `buildRenderAndUi`. */
 let activeSeed = 0;
@@ -88,6 +91,9 @@ function buildRenderAndUi(grid: Grid, worldSeed: number): void {
   // que el edificio aparezca de golpe.
   construction = new ConstructionSites(worldView);
   stage.scene.add(construction.root);
+  // La máquina de herramientas se registra antes que el inspector para que Esc
+  // cancele primero la herramienta activa y solo después pueda cerrar la ficha.
+  toolState = new ToolState(sim);
   chronicle = new Chronicle(worldSeed);
   toasts = new Toasts(); // avisos efímeros de los eventos memorables (surfacing)
   // Toda mutación espacial llega del worker como diff. El render solo aplica el
@@ -122,7 +128,7 @@ function buildRenderAndUi(grid: Grid, worldSeed: number): void {
     if (e.key >= '0' && e.key <= '3') sim.setSpeed(Number(e.key) as Speed);
   });
 
-  inspector = new CitizenInspector(stage.renderer, camera, sim);
+  inspector = new CitizenInspector(camera, sim);
   cityHud = new CityHud(); // surfacing: siempre visible mientras haya simulación
   // Barra de control (rescate de la veta INTERFAZ): velocidad clicable + leyenda
   // de controles para quien llega en frío. Solo DOM; la lógica sigue en la sim.
@@ -185,6 +191,17 @@ camera.apply();
 const input = new Input(stage.renderer.domElement);
 const controller = new CameraController(camera, input);
 const hud = new DebugHud(stage.renderer, camera);
+const pointer = new Pointer(stage.renderer.domElement, camera);
+pointer.onHover = (cell) => hud.setHoverCell(cell);
+pointer.onClick = (cell, button) => {
+  if (button !== 'left') return;
+  if (toolState?.isActive) toolState.handleClick(cell, button);
+  else inspector?.pickCell(cell);
+};
+pointer.onDrag = (dx, dy, cell, button) => {
+  if (button === 'left' && toolState?.isActive) toolState.handleDrag(cell, button);
+  else input.feedPan(dx, dy);
+};
 
 /** Overlay de carga para el pre-crecido del banco de pruebas (pastel, discreto). */
 function makeLoadingOverlay(total: number): { progress(day: number): void; remove(): void } {
