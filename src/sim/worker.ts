@@ -52,6 +52,15 @@ function post(msg: WorkerToMain, transfer?: Transferable[]): void {
 
 function sendSnapshot(): void {
   if (!sim) return;
+  const changes = sim.takeGridChanges();
+  if (changes.cells.length > 0 || changes.built.length > 0 || changes.razed.length > 0) {
+    post({
+      type: 'gridPatch',
+      cells: changes.cells,
+      built: changes.built,
+      razed: changes.razed,
+    });
+  }
   const agents = sim.snapshot();
   const msg: SnapshotMsg = {
     type: 'snapshot',
@@ -94,11 +103,14 @@ self.onmessage = (ev: MessageEvent<MainToWorker>) => {
         // toda la vida: gente, edades, relaciones) y devuelve el grid resultante
         // para que el render dibuje lo mismo. Bloquea el worker ~seg, no el main.
         preGrow(sim, msg.preGrowDays);
+        // El render recibe el grid completo de una vez; no debe re-reproducir
+        // miles de mutaciones históricas como si fueran obras nuevas.
+        sim.takeGridChanges();
         const anchors = sim.index.buildings
           .filter((b) => b.data.role !== 'nature')
           .map((b) => [b.ax, b.az] as [number, number]);
         const center: [number, number] = anchors.length > 0 ? townCenter(anchors) : [0, 6];
-        post({ type: 'grownGrid', gridJson: sim.grid.serialize(), center });
+        post({ type: 'worldReady', gridJson: sim.grid.serialize(), center, restored: false });
       }
       ready = true;
       sendSnapshot();
@@ -108,13 +120,14 @@ self.onmessage = (ev: MessageEvent<MainToWorker>) => {
       speed = msg.speed;
       break;
     case 'action': {
-      // Fase 2/4: replicar construcción/demolición y reindexar.
+      // La acción antigua de demolición ya usa la costura de cambios; las
+      // acciones completas del jugador se incorporan en H1.2.
       if (!sim) break;
       const a = msg.action;
-      if (a.kind === 'demolish') sim.grid.removeBuilding(a.cx, a.cz);
-      // 'place' necesita el footprint → catalogData (pendiente de Fase 2).
-      sim.index.rebuild();
-      sim.economy.rebuild(sim.index, sim.citizens);
+      if (a.kind === 'demolish') {
+        sim.removeBuildingAt(a.cx, a.cz);
+        sendSnapshot();
+      }
       break;
     }
     case 'queryCitizen': {

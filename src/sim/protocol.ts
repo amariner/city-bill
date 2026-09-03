@@ -15,6 +15,7 @@
 
 import type { Season } from './weather';
 import type { Vocation } from './citizens/citizen';
+import type { Cell, Rot } from '../world/grid';
 
 export type Speed = 0 | 1 | 2 | 3;
 
@@ -92,9 +93,27 @@ export interface InitMsg {
    * días de juego antes de ir en vivo → su `Simulation` ES la ciudad madura
    * (población, edades, relaciones, obras intactas, sin reseed con pérdida) y
    * arranca a mediodía (la hora con más gente en la calle). Emite `growProgress`
-   * mientras crece y `grownGrid` con el grid resultante para que el render
+   * mientras crece y `worldReady` con el grid resultante para que el render
    * dibuje EXACTAMENTE lo que la sim construyó. */
   preGrowDays?: number;
+}
+
+/** Diff espacial producido por el worker. El main nunca reconstruye la lógica
+ * de crecimiento: aplica estas celdas literalmente a su grid de render. */
+export interface GridPatchMsg {
+  type: 'gridPatch';
+  cells: Array<[number, number, Cell]>;
+  built: Array<{ id: string; cx: number; cz: number; rot: Rot }>;
+  razed: Array<{ cx: number; cz: number }>;
+}
+
+/** Grid completo entregado una sola vez tras el pre-crecimiento del banco de
+ * pruebas. Después de este mensaje, los cambios viajan como GridPatch. */
+export interface WorldReadyMsg {
+  type: 'worldReady';
+  gridJson: string;
+  center: [number, number];
+  restored: boolean;
 }
 
 export interface SetSpeedMsg {
@@ -283,13 +302,4 @@ export interface GrowProgressMsg {
   total: number;
 }
 
-/** Grid ya maduro tras el pre-crecido (worker → main): el render se construye
- * DESDE aquí, así dibuja exactamente lo que la sim del worker construyó (misma
- * ciudad, cero divergencia). `center` es el centro urbano para encuadrar. */
-export interface GrownGridMsg {
-  type: 'grownGrid';
-  gridJson: string;
-  center: [number, number];
-}
-
-export type WorkerToMain = SnapshotMsg | SimEventMsg | CitizenInfoMsg | GrowProgressMsg | GrownGridMsg;
+export type WorkerToMain = SnapshotMsg | SimEventMsg | CitizenInfoMsg | GrowProgressMsg | GridPatchMsg | WorldReadyMsg;

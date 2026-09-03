@@ -8,6 +8,7 @@
  * - Determinismo: dos runs con la misma semilla → mismo estado.
  */
 import { seedWorld, seedFarm } from '../world/seed';
+import { Grid } from '../world/grid';
 import { Simulation } from './simulation';
 import { TICK_GAME_S, DAY_GAME_SECONDS } from './clock';
 import { FOOD_PRICE, Economy, GOODS_COMFORT_FLOOR, GOODS_MAX_SPEND, LIFESTYLE_COMFORT, SEASON_YIELD_SWING, FOOD_PER_FARMER_HOUR } from './economy';
@@ -1652,6 +1653,22 @@ check('determinismo: misma semilla → mismo estado', a.length === b.length && a
   let found = -1;
   for (let i = 0; i < snap.length; i += AGENT_STRIDE) if (snap[i] === first.id) { found = i; break; }
   check('snapshot: el duelo viaja en la 8ª columna', found >= 0 && Math.abs(snap[found + 7] - 0.7) < 1e-5);
+}
+
+// --- GridPatch sim → render -------------------------------------------------
+// El render parte de la misma semilla y solo aplica el diff final del worker.
+// La comparación canónica detecta tanto celdas olvidadas como divergencia de
+// orden de inserción en los chunks.
+{
+  const simGrid = seedFarm(31415);
+  const renderGrid = Grid.deserialize(simGrid.serialize());
+  simGrid.clearJournal();
+  const sim = new Simulation(simGrid, 31415);
+  for (let tick = 0; tick < TICKS_PER_DAY * 5; tick++) sim.step();
+  const changes = sim.takeGridChanges();
+  renderGrid.applyPatch(changes.cells);
+  check('GridPatch: el render reconstruye exactamente el grid de la sim', renderGrid.serialize() === simGrid.serialize());
+  check('GridPatch: las celdas journalizadas llegan ordenadas', changes.cells.every((c, i) => i === 0 || (c[0] > changes.cells[i - 1][0] || (c[0] === changes.cells[i - 1][0] && c[1] >= changes.cells[i - 1][1]))));
 }
 
 console.log(`\n${passed} ok, ${failed} fallos`);

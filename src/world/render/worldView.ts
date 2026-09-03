@@ -5,17 +5,13 @@
  * cámara. La clase ofrece `countVisibleChunks` para el HUD de debug.
  */
 import * as THREE from 'three';
-import { Grid, Chunk, CELL_SIZE, CHUNK, rotatedFootprint } from '../grid';
+import { Grid, Chunk, Cell, CELL_SIZE, CHUNK, rotatedFootprint, cellFromKey } from '../grid';
 import { catalogItem } from '../catalog';
 import { buildTerrainMeshForChunk } from './terrain';
 import { buildVegetationForChunk } from './instances';
 import { mergeBuildingsForChunk } from './buildings';
 import { homeGarden, festivalDecor } from '../../props';
 import { Season } from '../../sim/weather';
-
-function cellFromKey(key: number): [number, number] {
-  return [Math.floor(key / 65536) - 32768, (key % 65536) - 32768];
-}
 
 interface ChunkVisual {
   group: THREE.Group;
@@ -73,6 +69,18 @@ export class WorldView {
     }
     const visual = this.buildChunk(this.grid, chunk);
     if (visual) this.addVisual(chunk, visual);
+  }
+
+  /** Refresca cada chunk afectado por un patch una sola vez. El patch puede
+   * contener carretera, márgenes, vegetación y huellas de edificios que
+   * atraviesen varios chunks. */
+  refreshCells(cells: Array<[number, number, Cell]>): void {
+    const touched = new Set<string>();
+    for (const [cx, cz] of cells) touched.add(`${Math.floor(cx / CHUNK)},${Math.floor(cz / CHUNK)}`);
+    for (const key of touched) {
+      const [chx, chz] = key.split(',').map(Number);
+      this.refreshChunkAt(chx * CHUNK, chz * CHUNK);
+    }
   }
 
   /** Marca un edificio como EN OBRA (T4.2): el chunk deja de dibujarlo (lo anima

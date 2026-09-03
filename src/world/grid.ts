@@ -13,6 +13,7 @@ export const CHUNK = 64;
 
 export type Terrain = 'none' | 'field' | 'grass' | 'water' | 'road' | 'path';
 export type Rot = 0 | 1 | 2 | 3;
+export type ZoneKind = 'R' | 'C' | 'I' | 'A' | 'P';
 
 /** Referencia a un edificio. Todas las celdas del footprint la comparten;
  * `anchorX/anchorZ` apuntan a la celda ancla (esquina de menor coord). */
@@ -33,12 +34,17 @@ export interface Cell {
   terrain: Terrain;
   building?: BuildingRef;
   prop?: PropRef;
+  zone?: ZoneKind;
 }
 
 const HALF = 32768; // offset para empaquetar coords con signo en clave numérica
 
-function cellKey(cx: number, cz: number): number {
+export function cellKey(cx: number, cz: number): number {
   return (cx + HALF) * 65536 + (cz + HALF);
+}
+
+export function cellFromKey(key: number): [number, number] {
+  return [Math.floor(key / 65536) - HALF, (key % 65536) - HALF];
 }
 
 export function chunkCoord(c: number): number {
@@ -63,6 +69,8 @@ export class Chunk {
 
 export class Grid {
   private readonly chunks = new Map<string, Chunk>();
+  /** Celdas mutadas desde el último envío al hilo principal. */
+  private readonly journal = new Set<number>();
 
   // --- Acceso a chunks ------------------------------------------------------
   chunkAt(chx: number, chz: number): Chunk | undefined {
@@ -90,7 +98,7 @@ export class Grid {
     return this.chunks.get(chunkKey(chunkCoord(cx), chunkCoord(cz)))?.cells.get(cellKey(cx, cz));
   }
 
-  private ensureCell(cx: number, cz: number): Cell {
+  private ensureCell(cx: number, cz: number, track = true): Cell {
     const ch = this.ensureChunk(cx, cz);
     const k = cellKey(cx, cz);
     let cell = ch.cells.get(k);
@@ -99,12 +107,16 @@ export class Grid {
       ch.cells.set(k, cell);
     }
     ch.dirty = true;
+    if (track) this.journal.add(k);
     return cell;
   }
 
-  private markDirty(cx: number, cz: number): void {
+  private markChanged(cx: number, cz: number): void {
     const ch = this.chunks.get(chunkKey(chunkCoord(cx), chunkCoord(cz)));
-    if (ch) ch.dirty = true;
+    if (ch) {
+      ch.dirty = true;
+      this.journal.add(cellKey(cx, cz));
+    }
   }
 
   setTerrain(cx: number, cz: number, terrain: Terrain): void {
@@ -119,6 +131,10 @@ export class Grid {
 
   setProp(cx: number, cz: number, prop: PropRef | undefined): void {
     this.ensureCell(cx, cz).prop = prop;
+  }
+
+  setZone(cx: number, cz: number, zone: ZoneKind | undefined): void {
+    this.ensureCell(cx, cz).zone = zone;
   }
 
   // --- Edificios ------------------------------------------------------------
@@ -155,11 +171,40 @@ export class Grid {
         const c = this.get(x, z);
         if (c?.building && c.building.anchorX === anchorX && c.building.anchorZ === anchorZ) {
           c.building = undefined;
-          this.markDirty(x, z);
+          this.markChanged(x, z);
         }
       }
     }
     return true;
+  }
+
+  /** Devuelve y vacía las celdas mutadas, en orden canónico. */
+  takeJournal(): Array<[number, number, Cell]> {
+    const keys = [...this.journal].sort((a, b) => a - b);
+    this.journal.clear();
+    return keys.flatMap((key) => {
+      const [cx, cz] = cellFromKey(key);
+      const cell = this.get(cx, cz);
+      return cell ? [[cx, cz, cell] as [number, number, Cell]] : [];
+    });
+  }
+
+  /** Descarta cambios acumulados al entregar un grid inicial/pre-crecido. */
+  clearJournal(): void {
+    this.journal.clear();
+  }
+
+  /** Aplica un diff recibido del worker sin validarlo ni volver a journalizarlo. */
+  applyPatch(cells: Array<[number, number, Cell]>): void {
+    for (const [cx, cz, incoming] of cells) {
+      const target = this.ensureCell(cx, cz, false);
+      target.terrain = incoming.terrain;
+      target.building = incoming.building;
+      target.prop = incoming.prop;
+      target.zone = incoming.zone;
+      const chunk = this.chunkAt(chunkCoord(cx), chunkCoord(cz));
+      if (chunk) chunk.dirty = true;
+    }
   }
 
   // --- Iteración ------------------------------------------------------------
@@ -183,6 +228,10 @@ export class Grid {
         out.push([cx, cz, cell]);
       });
     });
+    // El orden de inserción cambia al aplicar un patch (el journal se ordena
+    // por clave), así que la serialización debe ser canónica para que sim y
+    // render puedan compararse y para que el replay no dependa de Maps.
+    out.sort((a, b) => cellKey(a[0], a[1]) - cellKey(b[0], b[1]));
     return JSON.stringify(out);
   }
 
@@ -190,11 +239,13 @@ export class Grid {
     const grid = new Grid();
     const data: Array<[number, number, Cell]> = JSON.parse(json);
     for (const [cx, cz, cell] of data) {
-      const target = grid.ensureCell(cx, cz);
+      const target = grid.ensureCell(cx, cz, false);
       target.terrain = cell.terrain;
       target.building = cell.building;
       target.prop = cell.prop;
+      target.zone = cell.zone;
     }
+    grid.clearJournal();
     return grid;
   }
 }

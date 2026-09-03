@@ -14,6 +14,7 @@ import {
   CitizenInfoMsg,
   CityStats,
   DevMsg,
+  GridPatchMsg,
 } from './protocol';
 import { TICK_REAL_S } from './clock';
 
@@ -52,8 +53,10 @@ export class SimClient {
   onEvent: ((name: string, data?: Record<string, unknown>) => void) | null = null;
   /** Banco de pruebas: progreso del pre-crecido (para el overlay de carga). */
   onGrowProgress: ((day: number, total: number) => void) | null = null;
-  /** Banco de pruebas: grid ya maduro (para construir el render desde él). */
-  onGrownGrid: ((gridJson: string, center: [number, number]) => void) | null = null;
+  /** Cambios espaciales producidos por el worker (acciones y crecimiento). */
+  onGridPatch: ((patch: GridPatchMsg) => void) | null = null;
+  /** Grid inicial completo tras pre-crecer la ciudad. */
+  onWorldReady: ((gridJson: string, center: [number, number], restored: boolean) => void) | null = null;
 
   constructor(seed: number, gridJson: string, preGrowDays = 0) {
     this.worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
@@ -107,8 +110,11 @@ export class SimClient {
       case 'growProgress':
         this.onGrowProgress?.(msg.day, msg.total);
         break;
-      case 'grownGrid':
-        this.onGrownGrid?.(msg.gridJson, msg.center);
+      case 'gridPatch':
+        this.onGridPatch?.(msg);
+        break;
+      case 'worldReady':
+        this.onWorldReady?.(msg.gridJson, msg.center, msg.restored);
         break;
     }
   }

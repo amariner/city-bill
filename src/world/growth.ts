@@ -7,12 +7,12 @@
  * mirando hacia ella, con 1 celda de retranqueo, y cerca del centro del
  * pueblo (compacidad). El resultado debe parecer un pueblo, no un vertido.
  *
- * El worker aplica la colocación a SU grid y emite `cityGrew`; el main
- * replica la colocación en el grid de render (misma llamada, mismo resultado).
+ * El worker aplica la colocación a SU grid y emite un `gridPatch`; el main
+ * aplica ese diff al grid de render sin repetir ninguna decisión.
  */
 import { Grid, Rot } from './grid';
 import { catalogData, CATALOG_DATA, Tier } from './catalogData';
-import { Rng } from '../rng';
+import { createRng, Rng } from '../rng';
 
 export interface GrowthPlacement {
   id: string;
@@ -243,13 +243,15 @@ export function findParcel(
  * hierba a los lados y arbolado con huecos (el rasgo de identidad del juego).
  * Solo pisa terreno SIN edificios; se detiene si choca con uno (no arrasa el
  * pueblo). Devuelve las celdas de VÍA nuevas (para que el llamador refresque
- * render y grafo de navegación). Determinista (RNG con semilla). */
+ * render y grafo de navegación). El arbolado usa una semilla derivada de cada
+ * celda, por lo que el resultado no depende del orden de llamadas ni de un RNG
+ * mantenido por el hilo de render. */
 export function extendRoad(
   grid: Grid,
   from: [number, number],
   dir: { dx: number; dz: number },
   length: number,
-  rng: Rng,
+  seed: number,
 ): Array<[number, number]> {
   const laid: Array<[number, number]> = [];
   const px = -dir.dz; // perpendicular (rotación 90°) para el ancho de la vía
@@ -275,6 +277,8 @@ export function extendRoad(
       if (!grid.get(cx, cz)?.building) grid.setTerrain(cx, cz, 'grass');
     }
     // Arbolado con huecos en el margen exterior (±3), cada 2 celdas (identidad).
+    // Un RNG por paso evita compartir estado entre sim y render.
+    const rng = createRng((bx * 73856093) ^ (bz * 19349663) ^ seed);
     if (step % 2 === 0 && rng.next() > 0.35) {
       for (const m of [-3, 3]) {
         const cx = bx + px * m, cz = bz + pz * m;

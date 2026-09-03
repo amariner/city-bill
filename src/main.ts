@@ -10,9 +10,6 @@ import { GameLoop } from './core/loop';
 import { DebugHud } from './core/debugHud';
 import { WorldView } from './world/render/worldView';
 import { seedWorld, seedFarm } from './world/seed';
-import { extendRoad } from './world/growth';
-import { createRng } from './rng';
-import { catalogItem } from './world/catalog';
 import { buildShowcase } from './showcase';
 import { SimClient, AgentView } from './sim/client';
 import { CitizenView } from './world/render/citizens';
@@ -93,34 +90,25 @@ function buildRenderAndUi(grid: Grid, worldSeed: number): void {
   stage.scene.add(construction.root);
   chronicle = new Chronicle(worldSeed);
   toasts = new Toasts(); // avisos efímeros de los eventos memorables (surfacing)
-  const roadRng = createRng(worldSeed ^ 0x1d872b41); // arbolado de las vías nuevas (solo visual)
-  // Crecimiento autónomo (T4.2/T4.4): el worker construye en vivo → replicamos en
-  // el grid de render y refrescamos el chunk (misma colocación, mismo mundo).
+  // Toda mutación espacial llega del worker como diff. El render solo aplica el
+  // resultado y se ocupa de sus efectos visuales (chunk y construcción).
+  sim.onGridPatch = (patch) => {
+    grid.applyPatch(patch.cells);
+    worldView?.refreshCells(patch.cells);
+    for (const built of patch.built) {
+      const started = construction?.start(built.id, built.cx, built.cz, built.rot, () => atmosphere?.invalidate());
+      if (!started) {
+        worldView?.refreshChunkAt(built.cx, built.cz);
+        atmosphere?.invalidate();
+      }
+    }
+    if (patch.razed.length > 0) atmosphere?.invalidate();
+  };
   sim.onEvent = (name, data) => {
     chronicle?.onEvent(name, data);
     toasts?.onEvent(name, data);
     if (!data || !worldView) return;
-    if (name === 'cityGrew') {
-      const { id, cx, cz, rot } = data as { id: string; cx: number; cz: number; rot: 0 | 1 | 2 | 3 };
-      const it = catalogItem(id);
-      if (!it) return;
-      grid.placeBuilding(id, it.w, it.d, cx, cz, rot);
-      // Animación de construcción (T4.2): andamio → pop. Al terminar, el chunk
-      // revela el edificio y se re-escanea la atmósfera (ventanas/chimeneas).
-      const started = construction?.start(id, cx, cz, rot, () => atmosphere?.invalidate());
-      if (!started) {
-        // Sin FX disponible: aparición inmediata (comportamiento previo).
-        worldView.refreshChunkAt(cx, cz);
-        atmosphere?.invalidate();
-      }
-    } else if (name === 'roadExtended') {
-      // La calzada/márgenes son deterministas (sin RNG); el arbolado puede diferir.
-      const { fromX, fromZ, dx, dz, length } = data as { fromX: number; fromZ: number; dx: number; dz: number; length: number };
-      const laid = extendRoad(grid, [fromX, fromZ], { dx, dz }, length, roadRng);
-      for (const [cx, cz] of laid) worldView.refreshChunkAt(cx, cz);
-      // Refresca también los márgenes/arbolado (±3 alrededor de la calzada).
-      for (let s = 1; s <= length; s++) worldView.refreshChunkAt(fromX + dx * s, fromZ + dz * s);
-    } else if (name === 'homePrestige') {
+    if (name === 'homePrestige') {
       // Estatus (ciclo 9): decora ESA vivienda (jardín) sin re-sincronizar todo.
       const { ax, az, prestige } = data as { ax: number; az: number; prestige: number };
       worldView.setHomePrestige(ax, az, prestige);
@@ -173,7 +161,7 @@ if (sceneName === 'buildings') {
   // pueblo resultante es trama 2D tupida, el más vistoso para el banco de pruebas.
   simClient = new SimClient(devSeed, seedFarm(devSeed).serialize(), growDays);
   simClient.onGrowProgress = (day) => overlay.progress(day);
-  simClient.onGrownGrid = (gridJson, center) => {
+  simClient.onWorldReady = (gridJson, center) => {
     buildRenderAndUi(Grid.deserialize(gridJson), devSeed);
     centerCameraOn(center);
     simClient!.setSpeed(2); // arranca en ×3: la ciudad se ve vivir sin esperar

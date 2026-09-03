@@ -9,7 +9,7 @@
  * Con una excepción emergente: si al caminar se cruza con un conocido y ambos
  * van faltos de social, la charla INTERRUMPE el plan (social.ts).
  */
-import { Grid } from '../world/grid';
+import { Cell, Grid } from '../world/grid';
 import { createRng, Rng } from '../rng';
 import { GameClock, TICK_GAME_S, DAY_GAME_SECONDS } from './clock';
 import { PathQueue, pathLength } from './pathfinding';
@@ -97,6 +97,18 @@ export interface SimEvent {
   data: Record<string, unknown>;
 }
 
+export interface BuiltChange {
+  id: string;
+  cx: number;
+  cz: number;
+  rot: 0 | 1 | 2 | 3;
+}
+
+export interface RazedChange {
+  cx: number;
+  cz: number;
+}
+
 export class Simulation {
   readonly clock = new GameClock();
   readonly index: WorldIndex;
@@ -129,6 +141,9 @@ export class Simulation {
   private nextId = 1;
   private lastDay = 0;
   events: SimEvent[] = [];
+  /** Cambios espaciales pendientes de entregar al hilo de render. */
+  private pendingBuilt: BuiltChange[] = [];
+  private pendingRazed: RazedChange[] = [];
   /** T4.4: la ciudad crece sola. Activado por defecto (es el alma del juego). */
   autonomousGrowth = true;
   /** Sanidad activa (ciclo 15): si es false, la clínica no cura — permite medir
@@ -869,7 +884,7 @@ export class Simulation {
           const halfWidth = strategy === 'branch' ? 2 : 1;
           const depth = strategy === 'branch' ? 6 : 10;
           if (!this.branchIsClear(rx, rz, dir, depth, halfWidth)) continue;
-          const laid = extendRoad(this.grid, [rx, rz], dir, 12, this.rng);
+          const laid = extendRoad(this.grid, [rx, rz], dir, 12, this.seed);
           if (laid.length < 8) continue;
           this.index.rebuild();
           this.roadsExtended++;
@@ -887,6 +902,7 @@ export class Simulation {
   private applyGrowth(p: GrowthPlacement): void {
     const it = catalogData(p.id);
     if (!it || !this.grid.placeBuilding(p.id, it.w, it.d, p.cx, p.cz, p.rot)) return;
+    this.pendingBuilt.push({ id: p.id, cx: p.cx, cz: p.cz, rot: p.rot });
     this.index.rebuild();
     this.economy.rebuild(this.index, this.citizens);
     if (it.role === 'residential') {
@@ -916,6 +932,30 @@ export class Simulation {
       this.firstBuildingSeen.add(p.id);
       this.events.push({ name: 'firstBuilding', data: { id: p.id, name: it.name } });
     }
+  }
+
+  /** Demuele desde cualquier celda de la huella y deja un diff para el render.
+   * La lógica de acciones del jugador lo reutiliza; mantener esta costura aquí
+   * evita que el worker tenga que interpretar edificios por su cuenta. */
+  removeBuildingAt(cx: number, cz: number): boolean {
+    const building = this.grid.get(cx, cz)?.building;
+    if (!building || !this.grid.removeBuilding(cx, cz)) return false;
+    this.pendingRazed.push({ cx: building.anchorX, cz: building.anchorZ });
+    this.index.rebuild();
+    this.economy.rebuild(this.index, this.citizens);
+    return true;
+  }
+
+  /** Toma los cambios espaciales desde el último envío al hilo principal. */
+  takeGridChanges(): { cells: Array<[number, number, Cell]>; built: BuiltChange[]; razed: RazedChange[] } {
+    const changes = {
+      cells: this.grid.takeJournal(),
+      built: this.pendingBuilt,
+      razed: this.pendingRazed,
+    };
+    this.pendingBuilt = [];
+    this.pendingRazed = [];
+    return changes;
   }
 
   private stepCitizen(c: Citizen, ctx: SimContext): void {

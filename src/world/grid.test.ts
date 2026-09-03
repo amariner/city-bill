@@ -3,7 +3,6 @@
  */
 import { Grid, rotatedFootprint, cellToWorld, worldToCell, CELL_SIZE } from './grid';
 import { extendRoad } from './growth';
-import { createRng } from '../rng';
 
 let passed = 0;
 let failed = 0;
@@ -99,9 +98,8 @@ function assert(cond: boolean, msg: string): void {
 {
   const g = new Grid();
   g.placeBuilding('barn', 3, 2, 20, 0); // un edificio que la vía NO debe arrasar
-  const rng = createRng(7);
   // Extiende hacia +X desde una celda de arranque, 10 celdas.
-  const laid = extendRoad(g, [0, 0], { dx: 1, dz: 0 }, 10, rng);
+  const laid = extendRoad(g, [0, 0], { dx: 1, dz: 0 }, 10, 7);
 
   assert(laid.length > 0, 'extendRoad traza celdas de vía');
   // La calzada es de 3 celdas de ancho: en x=1 deben ser road cz=-1,0,1.
@@ -117,6 +115,26 @@ function assert(cond: boolean, msg: string): void {
   // No arrasa el edificio en x≈20: la extensión se corta antes.
   assert(g.get(20, 0)?.building?.id === 'barn', 'la vía no arrasa edificios (se corta)');
   assert(laid.every(([cx]) => cx < 20), 'la extensión se detiene antes del edificio');
+}
+
+// --- Journal y patches -----------------------------------------------------
+{
+  const source = new Grid();
+  source.fillTerrain(0, 0, 1, 2, 'field');
+  const patch = source.takeJournal();
+  assert(patch.length === 6, `journal captura toda mutación 2x3 (fue ${patch.length})`);
+  assert(source.takeJournal().length === 0, 'takeJournal vacía el journal');
+
+  const twin = new Grid();
+  twin.applyPatch(patch);
+  assert(twin.serialize() === source.serialize(), 'applyPatch reconstruye un gemelo idéntico');
+  assert(twin.takeJournal().length === 0, 'applyPatch no vuelve a journalizar');
+
+  const roadA = new Grid();
+  const roadB = new Grid();
+  extendRoad(roadA, [0, 0], { dx: 1, dz: 0 }, 10, 1234);
+  extendRoad(roadB, [0, 0], { dx: 1, dz: 0 }, 10, 1234);
+  assert(roadA.serialize() === roadB.serialize(), 'extensión de vía determinista por semilla');
 }
 
 console.log(`\ngrid.test: ${passed} passed, ${failed} failed`);
