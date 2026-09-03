@@ -2,7 +2,7 @@
 import { Grid, rotatedFootprint } from './grid';
 import { createRng } from '../rng';
 import { catalogData } from './catalogData';
-import { findParcel, growthCenter, itemForDemand, residentialChoices, zoneForRole } from './growth';
+import { demandLevels, findParcel, growthCenter, itemForDemand, residentialChoices, zoneForRole } from './growth';
 
 let passed = 0;
 let failed = 0;
@@ -82,6 +82,42 @@ function footprintIsZone(grid: Grid, id: string, p: { cx: number; cz: number; ro
   assert(itemForDemand('residential', 1) === 'cottage', 'tier 1 no ofrece residenciales futuros');
   assert(itemForDemand('residential', 2) === 'row-houses', 'tier 2 ofrece el residencial desbloqueado más alto');
   assert(itemForDemand('residential', 3) !== 'brick-block', 'tier 3 no salta al tier 4');
+}
+
+// --- Demanda continua R/C/I -------------------------------------------------
+{
+  const base = {
+    population: 40,
+    employed: 32,
+    jobs: 40,
+    freeHousing: 2,
+    shops: 2,
+    avgProsperity: 0.6,
+    attractiveness: 0.8,
+    totalPopulation: 42,
+    carryingCapacity: 120,
+  };
+  const full = demandLevels(base);
+  const moreHousing = demandLevels({ ...base, freeHousing: 10 });
+  const moreShops = demandLevels({ ...base, shops: 5 });
+  const prosperous = demandLevels({ ...base, avgProsperity: 1 });
+  const unemployed = demandLevels({ ...base, employed: 10, jobs: 10 });
+  assert(moreHousing.R < full.R, 'la demanda residencial baja cuando sobran viviendas');
+  assert(moreShops.C < full.C, 'la demanda comercial baja al aumentar las tiendas');
+  assert(prosperous.C > full.C, 'la prosperidad confirma y eleva la demanda comercial');
+  assert(unemployed.I > full.I, 'la demanda industrial sube con el desempleo');
+  const extreme = demandLevels({
+    population: 0,
+    employed: -20,
+    jobs: -20,
+    freeHousing: -100,
+    shops: 0,
+    avgProsperity: 4,
+    attractiveness: -2,
+    totalPopulation: 500,
+    carryingCapacity: 10,
+  });
+  assert([extreme.R, extreme.C, extreme.I].every((value) => value >= 0 && value <= 1), 'las tres demandas siempre están acotadas en [0,1]');
 }
 
 console.log(`\ngrowth.test: ${passed} passed, ${failed} failed`);

@@ -23,7 +23,7 @@ import { ACTIVITY_BY_KIND, SimContext, activityLabel, EDU_PER_HOUR, CLINIC_FEE, 
 import { SocialSystem, SocialSaveState } from './citizens/social';
 import { AgentState, ActivityKind, activityId, AGENT_STRIDE, TravelModeCode, CityStats, CitizenInfoMsg, settlementLevel, SETTLEMENT_CLASSES, PlayerAction, RecordedAction, GrowthPolicy } from './protocol';
 import {
-  computeDemand, itemForDemand, findParcel, townCenter, townAttractiveness,
+  computeDemand, demandLevels, itemForDemand, findParcel, townCenter, townAttractiveness,
   householdHardship, updateEmigrationPressure, EMIGRATE_POP_FLOOR, EMIGRATE_PRESSURE_LIMIT,
   extendRoad, GrowthPlacement, CARRYING_CAPACITY, fertilityFactor, growthCenter,
 } from '../world/growth';
@@ -1481,6 +1481,26 @@ export class Simulation {
   cityStats(): CityStats {
     const s = this.economy.stats(this.citizens);
     const unemployment = s.adults > 0 ? 1 - s.employed / s.adults : 0;
+    const shops = this.economy.workplaces.filter((w) => w.building.data.role === 'commerce');
+    let avgProsperity = 0;
+    for (const shop of shops) avgProsperity += this.economy.prosperity.get(`${shop.building.ax},${shop.building.az}`) ?? 0.5;
+    avgProsperity = shops.length > 0 ? avgProsperity / shops.length : 0;
+    const demand = demandLevels({
+      population: s.adults,
+      employed: s.employed,
+      jobs: s.jobs,
+      freeHousing: this.freeHousing(),
+      shops: shops.length,
+      avgProsperity,
+      attractiveness: townAttractiveness({
+        employment: s.adults > 0 ? s.employed / s.adults : 1,
+        avgHealth: this.avgHealth(),
+        avgFood: this.avgFood(),
+        avgPrestige: this.avgPrestige(),
+      }),
+      totalPopulation: this.citizens.size,
+      carryingCapacity: CARRYING_CAPACITY,
+    });
     let totalWealth = 0;
     for (const k of this.households.keys()) totalWealth += this.economy.walletOf(k);
     const avgWealth = this.households.size > 0 ? totalWealth / this.households.size : 0;
@@ -1503,6 +1523,7 @@ export class Simulation {
       sick,
       tier: this.tier,
       growthPolicy: this.growthPolicy,
+      demand,
       children,
       adults: s.adults,
       elders,

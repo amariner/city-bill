@@ -17,6 +17,9 @@ function playerPlaceable(item: CatalogItem): boolean {
 const ROAD_TIERS: Record<RoadKind, number> = { path: 0, rural: 1, street: 2, avenue: 3 };
 const ROAD_LABELS: Record<RoadKind, string> = { path: 'sendero', rural: 'vía rural', street: 'calle', avenue: 'avenida' };
 const ZONE_LABELS: Record<ZoneKind, string> = { R: 'residencial', C: 'comercial', I: 'industrial', A: 'agrícola', P: 'parque' };
+const DEMAND_KEYS = ['R', 'C', 'I'] as const;
+type DemandKey = (typeof DEMAND_KEYS)[number];
+const DEMAND_COLORS: Record<DemandKey, number> = { R: PALETTE.zoneR, C: PALETTE.zoneC, I: PALETTE.zoneI };
 
 export class Toolbar {
   private root: HTMLDivElement;
@@ -28,6 +31,7 @@ export class Toolbar {
   private roadMenu: HTMLDivElement;
   private zoneMenu: HTMLDivElement;
   private hint: HTMLSpanElement;
+  private demandBars: Record<DemandKey, { fill: HTMLDivElement; value: HTMLSpanElement }>;
   private menuOpen = false;
   private roadMenuOpen = false;
   private zoneMenuOpen = false;
@@ -57,6 +61,34 @@ export class Toolbar {
     });
     row.append(this.buildButton, this.roadButton, this.zoneButton, this.bulldozeButton);
     this.root.appendChild(row);
+
+    const demand = document.createElement('div');
+    demand.className = 'cb-demand';
+    const demandTitle = document.createElement('div');
+    demandTitle.className = 'cb-demand-title';
+    demandTitle.textContent = 'demanda';
+    demand.appendChild(demandTitle);
+    this.demandBars = {} as Record<DemandKey, { fill: HTMLDivElement; value: HTMLSpanElement }>;
+    for (const key of DEMAND_KEYS) {
+      const line = document.createElement('div');
+      line.className = 'cb-demand-row';
+      const label = document.createElement('span');
+      label.className = 'cb-demand-label';
+      label.textContent = key;
+      const track = document.createElement('div');
+      track.className = 'cb-demand-track';
+      const fill = document.createElement('div');
+      fill.className = 'cb-demand-fill';
+      fill.style.background = rgba(DEMAND_COLORS[key], 0.9);
+      track.appendChild(fill);
+      const value = document.createElement('span');
+      value.className = 'cb-demand-value';
+      value.textContent = '0%';
+      line.append(label, track, value);
+      demand.appendChild(line);
+      this.demandBars[key] = { fill, value };
+    }
+    this.root.appendChild(demand);
 
     this.menu = document.createElement('div');
     this.menu.className = 'cb-toolbar-menu';
@@ -97,6 +129,14 @@ export class Toolbar {
     if (roadSignature !== this.roadSignature) {
       this.roadSignature = roadSignature;
       this.rebuildRoadMenu(roads);
+    }
+
+    const demand = this.sim.city?.demand;
+    for (const key of DEMAND_KEYS) {
+      const value = demand?.[key] ?? 0;
+      const pct = Math.round(Math.max(0, Math.min(1, value)) * 100);
+      this.demandBars[key].fill.style.width = `${pct}%`;
+      this.demandBars[key].value.textContent = `${pct}%`;
     }
 
     const active = this.tools.active;
@@ -258,6 +298,14 @@ export class Toolbar {
 .cb-building-option{padding:6px 7px;text-align:left;font-size:10px;white-space:nowrap}
 .cb-toolbar-footer{padding:3px 9px;border-radius:7px;background:${rgba(PALETTE.houseWall, 0.82)};
   border:1px solid ${rgba(PALETTE.treeBlob, 0.12)};font-size:10px;opacity:.82}
+.cb-demand{width:100%;box-sizing:border-box;padding:5px 9px 6px;border-radius:8px;background:${rgba(PALETTE.houseWall, 0.82)};
+  border:1px solid ${rgba(PALETTE.treeBlob, 0.12)};font-size:10px}
+.cb-demand-title{font-size:9px;letter-spacing:.08em;text-transform:uppercase;opacity:.55;margin-bottom:3px}
+.cb-demand-row{display:grid;grid-template-columns:12px 1fr 28px;align-items:center;gap:5px;height:9px}
+.cb-demand-label{font-weight:700;opacity:.75}
+.cb-demand-track{height:4px;overflow:hidden;border-radius:3px;background:${rgba(PALETTE.treeBlob, 0.1)}}
+.cb-demand-fill{height:100%;width:0;border-radius:3px;transition:width .2s ease}
+.cb-demand-value{text-align:right;font-size:9px;opacity:.7}
 @media(max-width:560px){.cb-toolbar{width:calc(100vw - 24px);min-width:0}.cb-tool-button{min-width:0;padding:7px 5px;font-size:10px}.cb-toolbar-menu{grid-template-columns:1fr 1fr}}
 `;
     document.head.appendChild(style);

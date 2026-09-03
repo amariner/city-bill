@@ -52,6 +52,67 @@ export interface DemandInput {
   carryingCapacity: number;
 }
 
+/** Demanda continua que alimenta la lectura RCI de la interfaz. Los tres
+ * índices son deliberadamente independientes de `computeDemand`: este último
+ * decide UNA obra concreta, mientras estos valores muestran la presión latente
+ * de cada sector en [0,1]. */
+export interface DemandLevelsInput {
+  /** Adultos: son quienes buscan casa, tienda y empleo. */
+  population: number;
+  employed: number;
+  jobs: number;
+  freeHousing: number;
+  shops: number;
+  avgProsperity: number;
+  /** Atractividad migratoria [0,1]; si falta, se usa una ciudad neutral. */
+  attractiveness?: number;
+  /** Población total y techo logístico; opcionales para conservar una API pura. */
+  totalPopulation?: number;
+  carryingCapacity?: number;
+}
+
+export interface DemandLevels {
+  R: number;
+  C: number;
+  I: number;
+}
+
+function clamp01(value: number): number {
+  return Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
+}
+
+/** H2.5 — Barras continuas de demanda residencial, comercial e industrial.
+ *
+ * R sube cuando faltan huecos de vivienda y cuando el pueblo resulta atractivo;
+ * C sube cuando hay demasiada población por comercio y la prosperidad confirma
+ * que existe consumo; I sube con el desempleo y recibe un pequeño empujón cuando
+ * ya no queda ningún puesto libre. Todo queda acotado para que la UI pueda
+ * pintar el valor directamente como porcentaje. */
+export function demandLevels(d: DemandLevelsInput): DemandLevels {
+  const population = Math.max(0, d.population);
+  const totalPopulation = Math.max(0, d.totalPopulation ?? population);
+  const carryingCapacity = Math.max(1, d.carryingCapacity ?? CARRYING_CAPACITY);
+  const attractiveness = clamp01(d.attractiveness ?? 0.5);
+  const prosperity = clamp01(d.avgProsperity);
+  const housingNeed = 1 - d.freeHousing / Math.max(1, population / 4);
+  const capacityPenalty = totalPopulation >= carryingCapacity ? 0.35 : 0;
+  const R = clamp01(0.5 * housingNeed + 0.5 * attractiveness - capacityPenalty);
+
+  const commercePressure = d.shops > 0
+    ? (population / d.shops - 10) / 10
+    : population >= 8 ? 1 : 0;
+  // La prosperidad funciona como confirmación, no como interruptor: incluso
+  // una tienda modesta puede estar saturada en un pueblo con mucha población.
+  const C = clamp01(commercePressure * (0.55 + 0.45 * prosperity));
+
+  const unemployment = population > 0
+    ? Math.max(0, 1 - d.employed / population)
+    : 0;
+  const openJobs = d.jobs - d.employed;
+  const I = clamp01(unemployment / 0.35 + (openJobs <= 0 ? 0.3 : 0));
+  return { R, C, I };
+}
+
 export type DemandKind = 'residential' | 'commerce' | 'work' | 'school' | 'clinic' | null;
 
 /** Zona natural de cada rol de catálogo. Las zonas solo orientan el crecimiento;

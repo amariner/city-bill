@@ -257,6 +257,8 @@ export interface CityStats {
   tier: number;
   /** Política con la que la ciudad decide dónde crecer junto a sus vías. */
   growthPolicy: GrowthPolicy;
+  /** Presión latente por sector, para las barras R/C/I de la toolbar. */
+  demand: { R: number; C: number; I: number };
   /** Reparto por edad (banco de pruebas): niños/adultos/mayores. */
   children: number;
   adults: number;
