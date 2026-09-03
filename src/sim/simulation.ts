@@ -413,7 +413,7 @@ export class Simulation {
     this.households.set(k, (this.households.get(k) ?? 0) + count);
     // Los recién llegados traen algo de comida y unos ahorros en la mudanza.
     this.pantry.set(k, (this.pantry.get(k) ?? 0) + 3 * count);
-    this.economy.wallets.set(k, (this.economy.wallets.get(k) ?? 0) + STARTING_MONEY * count);
+    this.economy.seedWallet(k, STARTING_MONEY * count, arrival);
     let firstName = '';
     for (let h = 0; h < count; h++) {
       const adults = 1 + Math.floor(this.rng.next() * 2.4); // 1-3
@@ -946,7 +946,15 @@ export class Simulation {
       this.leaving.delete(c.id);
       const k = `${c.home.ax},${c.home.az}`;
       if (![...this.citizens.values()].some((o) => o.home.ax === c.home.ax && o.home.az === c.home.az)) {
-        this.households.set(k, Math.max(0, (this.households.get(k) ?? 1) - 1));
+        const remaining = Math.max(0, (this.households.get(k) ?? 1) - 1);
+        if (remaining === 0) {
+          this.households.delete(k);
+          this.pantry.delete(k);
+          this.economy.removeWalletExternal(k);
+          this.economy.prestige.delete(k);
+        } else {
+          this.households.set(k, remaining);
+        }
       }
       this.emigrations++;
       this.events.push({ name: 'citizenLeft', data: { id: c.id, name: c.name, age: c.age, reason: 'emigrated' } });
@@ -1009,7 +1017,7 @@ export class Simulation {
       if (doses <= 0) break;
       if (c.sick > 0 || c.immune > 0) continue; // solo susceptibles
       if (this.economy.treasury < VACCINE_COST_PER_DOSE) break; // sin fondos, se para la campaña
-      this.economy.treasury -= VACCINE_COST_PER_DOSE;
+      if (!this.economy.spendPublicExternal(VACCINE_COST_PER_DOSE)) break;
       c.immune = VACCINE_IMMUNITY;
       this.vaccinationsGiven++;
       doses--;
@@ -1408,7 +1416,7 @@ export class Simulation {
         const homeKey = `${c.home.ax},${c.home.az}`;
         let mode: TravelMode = 'foot';
         if (pathLength(res.path) > CAR_TRIP_THRESHOLD && this.economy.walletOf(homeKey) >= CAR_TRIP_COST) {
-          this.economy.spend(homeKey, CAR_TRIP_COST);
+          this.economy.spendExternal(homeKey, CAR_TRIP_COST, 'transport');
           mode = 'car';
           this.carTrips++;
         }
@@ -1493,7 +1501,7 @@ export class Simulation {
       // (acopla salud↔dinero↔gobierno). Si no llega a cubrirla, se atiende
       // igual (nadie se queda sin curar por 6 monedas) pero el gasto es 0.
       const k = `${c.home.ax},${c.home.az}`;
-      this.economy.treasury += this.economy.spend(k, CLINIC_FEE);
+      this.economy.collectWalletPayment(k, CLINIC_FEE);
       if (planned.target) this.economy.registerVisit(planned.target);
     }
     if (planned.activity === 'eat') {

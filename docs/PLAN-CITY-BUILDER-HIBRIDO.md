@@ -340,10 +340,11 @@ trampas**. Los tests nuevos se añaden al script `"test"` de `package.json`.
 - Archivos: C `src/ui/budgetPanel.ts` (tecla T; desglose por categoría; sliders R/C/I → `act(setTax)`; préstamos; sparkline 30 días de `treasury` en `CityStats.budget.history`), M `cityHud.ts` (tesoro rojo si quiebra, ámbar si deuda), M `theme.ts`.
 - Visual: panel abierto; colores de paleta. Trampas: firma-diff a 4 Hz.
 
-**H3.5 Conservación de dinero y replay con dinero**
-- Archivos: C `src/sim/money.test.ts`, M `package.json`.
-- Propiedad: `M(t) = Σwallets + Σtills + treasury`; `M(t) − M(0) == minted − leaked − build − interest + loanIn − loanOut` (±1e-6) en 10 días con 3 acciones (road, school, loan). `minted` = nómina privada + tasa I + pensiones acuñadas; `leaked` = `goodsImported + lifestyleLeft + wholesale externo`.
-- Trampas: canalizar por `ledger` las 11 escrituras a `treasury` (lista en Parte A).
+**H3.5 Conservación de dinero y replay con dinero** — ✅ implementado
+- Archivos: C `src/sim/money.test.ts`, M `economy.ts`, `simulation.ts`, `package.json`.
+- Propiedad: `M(t) = Σwallets + Σtills + treasury`; `M(t) − M(0) == minted − leaked − build − interest + loanIn − loanOut` (±1e-6) en 10 días con 3 acciones (road, school, loan). `minted` desglosa nómina privada, tasa I, fallback de nómina pública, pensiones acuñadas y capital de llegadas; `leaked` cubre `goodsImported + lifestyleLeft + wholesale externo` y también los sumideros externos existentes (mantenimiento, prestigio, transporte y vacunación).
+- `Economy.moneySupply()` y `Economy.moneyFlow()` son la fuente única de la sonda: las escrituras internas al tesoro pasan por `changeTreasury()`, los pagos de cartera por `collectWalletPayment()` y los gastos externos por métodos explícitos. El replay verifica snapshot, grid, masa monetaria, flujo auditado y save restaurado.
+- Trampas resueltas: no dejar pagos directos a `treasury` en la simulación; una cartera que emigra se retira de `wallets` y se contabiliza como salida externa; el mayorista solo cuenta como fuga en la parte que no vuelve a una cartera granjera.
 
 **H3.6 Menú de partida**
 - Archivos: C `src/ui/startMenu.ts` (continuar (día N) / nueva partida con semilla / sandbox), M `main.ts`, M `save/save.ts`.

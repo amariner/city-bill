@@ -135,6 +135,31 @@ export interface EconomyLedger {
   taxI: number;
 }
 
+/** Flujo monetario acumulado desde el nacimiento de esta instancia.
+ * `supply` es la masa observable (carteras + cajas + tesoro). */
+export interface MoneyFlow {
+  supply: number;
+  minted: number;
+  leaked: number;
+  build: number;
+  interest: number;
+  loanIn: number;
+  loanOut: number;
+  privatePayroll: number;
+  activityLevy: number;
+  pensionsMinted: number;
+  publicWageFallback: number;
+  arrivalMoney: number;
+  goodsImported: number;
+  lifestyleLeft: number;
+  wholesaleExternal: number;
+  otherLeak: number;
+  upkeep: number;
+  prestige: number;
+  transport: number;
+  publicExternal: number;
+}
+
 // --- Lógica de gobierno (ciclo 3): impuestos y pensiones ----------------------
 /** Parte del salario que va al tesoro municipal. */
 export const TAX_RATE = 0.2;
@@ -199,6 +224,16 @@ export interface EconomySaveState {
   incomeToday?: number;
   expenseToday?: number;
   upkeepDueToday?: number;
+  privatePayrollMinted?: number;
+  activityLevyMinted?: number;
+  pensionsMinted?: number;
+  publicWageFallback?: number;
+  arrivalMoney?: number;
+  wholesaleExternal?: number;
+  transportSpent?: number;
+  publicExternalSpent?: number;
+  otherExternalSpent?: number;
+  loanPrincipalIssued?: number;
 }
 
 export class Economy {
@@ -243,6 +278,12 @@ export class Economy {
   dividendPaid = 0;
   /** Nómina pública pagada del tesoro, no acuñada (ciclo 37bis — cierre parcial). */
   wagesFromTreasury = 0;
+  /** Fuentes de acuñación separadas para la auditoría monetaria H3.5. */
+  privatePayrollMinted = 0;
+  activityLevyMinted = 0;
+  pensionsMinted = 0;
+  publicWageFallback = 0;
+  arrivalMoney = 0;
   /** Gasto público acumulado por categoría; sobrevive al guardado. */
   ledger: EconomyLedger = { build: 0, road: 0, upkeep: 0, interest: 0, taxR: 0, taxC: 0, taxI: 0 };
   /** Tipos efectivos R/C/I del alcalde. Los defaults de H3.2 se serializan
@@ -252,6 +293,7 @@ export class Economy {
   loans: Loan[] = [];
   private nextLoanId = 1;
   interestPaid = 0;
+  loanPrincipalIssued = 0;
   loanPrincipalPaid = 0;
   /** Quiebra operativa: bloquea nuevas obras, pero no detiene la simulación. */
   bankrupt = false;
@@ -263,6 +305,17 @@ export class Economy {
   expenseToday = 0;
   upkeepDueToday = 0;
 
+  /** Sumideros observables que antes quedaban implícitos en `spend()`. */
+  wholesaleExternal = 0;
+  transportSpent = 0;
+  publicExternalSpent = 0;
+  otherExternalSpent = 0;
+
+  /** Único punto de escritura interna del tesoro. */
+  private changeTreasury(delta: number): void {
+    if (Number.isFinite(delta)) this.treasury += delta;
+  }
+
   get debt(): number {
     return this.loans.reduce((sum, loan) => sum + loan.balance, 0);
   }
@@ -271,7 +324,7 @@ export class Economy {
    * negativo: si no alcanza, no muta nada y el caller devuelve `noMoney`. */
   spendPublic(amount: number, category: PublicSpendCategory): boolean {
     if (!Number.isFinite(amount) || amount < 0 || amount > this.treasury) return false;
-    this.treasury -= amount;
+    this.changeTreasury(-amount);
     this.ledger[category] += amount;
     this.expenseToday += amount;
     return true;
@@ -290,7 +343,7 @@ export class Economy {
     this.upkeepDueToday = due;
     const paid = Math.min(Math.max(0, this.treasury), due);
     if (paid > 0) {
-      this.treasury -= paid;
+      this.changeTreasury(-paid);
       this.ledger.upkeep += paid;
       this.expenseToday += paid;
     }
@@ -311,7 +364,8 @@ export class Economy {
       daysRemaining: spec.termDays,
     };
     this.loans.push(loan);
-    this.treasury += loan.principal;
+    this.changeTreasury(loan.principal);
+    this.loanPrincipalIssued += loan.principal;
     this.incomeToday += loan.principal;
     return loan;
   }
@@ -323,7 +377,7 @@ export class Economy {
     const loan = this.loans[index];
     if (this.treasury < loan.balance) return 0;
     const paid = loan.balance;
-    this.treasury -= paid;
+    this.changeTreasury(-paid);
     this.expenseToday += paid;
     this.loanPrincipalPaid += paid;
     this.loans.splice(index, 1);
@@ -345,7 +399,7 @@ export class Economy {
         : Math.min(loan.balance, loan.principal / loan.termDays);
       loan.balance = Math.max(0, loan.balance - principal);
       loan.daysRemaining = Math.max(0, loan.daysRemaining - 1);
-      this.treasury -= interest + principal;
+      this.changeTreasury(-(interest + principal));
       this.expenseToday += interest + principal;
       this.interestPaid += interest;
       this.loanPrincipalPaid += principal;
@@ -391,13 +445,19 @@ export class Economy {
     const net = gross - tax;
     if (employerRole === 'civic') {
       const fromTreasury = Math.min(Math.max(0, this.treasury), gross);
-      this.treasury -= fromTreasury; // el erario paga a sus empleados (no se acuña)
+      this.changeTreasury(-fromTreasury); // el erario paga a sus empleados (no se acuña)
       this.wagesFromTreasury += fromTreasury;
       this.expenseToday += fromTreasury;
+      this.publicWageFallback += Math.max(0, gross - fromTreasury);
+    } else {
+      // Separa la tasa I como fuente propia sin cambiar el comportamiento
+      // vigente: ambas partidas suman exactamente el bruto acuñado.
+      this.privatePayrollMinted += gross - activityLevy;
+      this.activityLevyMinted += activityLevy;
     }
     this.wallets.set(homeKey, (this.wallets.get(homeKey) ?? 0) + net);
     this.wagesPaid += net;
-    this.treasury += tax;
+    this.changeTreasury(tax);
     this.taxesCollected += tax;
     this.incomeToday += tax;
     this.ledger.taxR += incomeTax;
@@ -414,7 +474,7 @@ export class Economy {
     if (perHome <= 0) return;
     for (const k of needyHomes) {
       this.wallets.set(k, (this.wallets.get(k) ?? 0) + perHome);
-      this.treasury -= perHome;
+      this.changeTreasury(-perHome);
       this.pensionsPaid += perHome;
       this.expenseToday += perHome;
     }
@@ -423,7 +483,7 @@ export class Economy {
   /** Gasta hasta `amount` del hogar; devuelve lo realmente gastado. */
   spend(homeKey: string, amount: number): number {
     const w = this.wallets.get(homeKey) ?? 0;
-    const spent = Math.min(w, amount);
+    const spent = Math.min(Math.max(0, w), Math.max(0, Number.isFinite(amount) ? amount : 0));
     this.wallets.set(homeKey, w - spent);
     this.moneySpent += spent;
     return spent;
@@ -432,10 +492,54 @@ export class Economy {
   /** Ingresa alquiler municipal y deja el importe visible en el presupuesto. */
   collectRent(amount: number): number {
     const collected = Math.max(0, Number.isFinite(amount) ? amount : 0);
-    this.treasury += collected;
+    this.changeTreasury(collected);
     this.rentCollected += collected;
     this.incomeToday += collected;
     return collected;
+  }
+
+  /** Registra capital que llega con una familia nueva. El capital inicial de
+   * los fundadores se siembra antes de empezar la auditoría; las llegadas en
+   * mitad de partida sí cuentan como dinero nuevo. */
+  seedWallet(homeKey: string, amount: number, countsAsArrival = false): void {
+    const value = Math.max(0, Number.isFinite(amount) ? amount : 0);
+    this.wallets.set(homeKey, this.walletOf(homeKey) + value);
+    if (countsAsArrival) this.arrivalMoney += value;
+  }
+
+  /** Paga un servicio local desde una cartera al tesoro. Es una transferencia,
+   * no una acuñación ni un sumidero externo. */
+  collectWalletPayment(homeKey: string, amount: number): number {
+    const collected = this.spend(homeKey, amount);
+    if (collected <= 0) return 0;
+    this.changeTreasury(collected);
+    this.incomeToday += collected;
+    return collected;
+  }
+
+  /** Gasto de cartera sin receptor local (combustible, por ejemplo). */
+  spendExternal(homeKey: string, amount: number, sink: 'transport' | 'prestige' | 'other' = 'other'): number {
+    const spent = this.spend(homeKey, amount);
+    if (sink === 'transport') this.transportSpent += spent;
+    if (sink === 'other') this.otherExternalSpent += spent;
+    return spent;
+  }
+
+  /** Saca del pueblo una cartera que abandona la ciudad. */
+  removeWalletExternal(homeKey: string): number {
+    const amount = Math.max(0, this.walletOf(homeKey));
+    this.wallets.delete(homeKey);
+    this.otherExternalSpent += amount;
+    return amount;
+  }
+
+  /** Gasto público que compra un servicio fuera del circuito observable. */
+  spendPublicExternal(amount: number): boolean {
+    if (!Number.isFinite(amount) || amount < 0 || amount > this.treasury) return false;
+    this.changeTreasury(-amount);
+    this.publicExternalSpent += amount;
+    this.expenseToday += amount;
+    return true;
   }
 
   walletOf(homeKey: string): number {
@@ -458,7 +562,7 @@ export class Economy {
     for (const k of [...homeKeys].sort()) {
       if (this.prestigeOf(k) >= 1) continue;
       if (this.walletOf(k) < PRESTIGE_SAVE_THRESHOLD) continue;
-      this.spend(k, PRESTIGE_INVEST_COST);
+      this.spendExternal(k, PRESTIGE_INVEST_COST, 'prestige');
       const next = Math.min(1, this.prestigeOf(k) + PRESTIGE_STEP);
       this.prestige.set(k, next);
       this.prestigeInvested += PRESTIGE_INVEST_COST;
@@ -618,7 +722,7 @@ export class Economy {
     const spent = this.spend(homeKey, want);
     if (spent <= 0) return 0;
     const tax = spent * GOODS_SALES_TAX;
-    this.treasury += tax;
+    this.changeTreasury(tax);
     this.taxesCollected += tax;
     this.goodsTaxCollected += tax;
     this.incomeToday += tax;
@@ -639,7 +743,7 @@ export class Economy {
     const spent = this.spend(homeKey, excess * LIFESTYLE_DRAIN);
     if (spent <= 0) return 0;
     const local = spent * LIFESTYLE_LOCAL_SHARE;
-    this.treasury += local;
+    this.changeTreasury(local);
     this.taxesCollected += local;
     this.incomeToday += local;
     this.lifestyleLeft += spent - local; // sale del pueblo — sumidero
@@ -659,7 +763,7 @@ export class Economy {
     const shared = surplus * DIVIDEND_RATE;
     const per = shared / homeKeys.length;
     for (const k of homeKeys) this.wallets.set(k, (this.wallets.get(k) ?? 0) + per);
-    this.treasury -= shared;
+    this.changeTreasury(-shared);
     this.dividendPaid += shared;
     this.expenseToday += shared;
     return shared;
@@ -686,17 +790,23 @@ export class Economy {
       this.wholesalePaid += paid;
       // El mayorista paga a los hogares granjeros de HOY, a prorrata de horas.
       const totalHours = [...this.farmerHoursToday.values()].reduce((a, b) => a + b, 0);
+      let localPaid = 0;
       if (totalHours > 0 && paid > 0) {
         for (const [homeKey, hours] of this.farmerHoursToday) {
-          farmPool.set(homeKey, (farmPool.get(homeKey) ?? 0) + (paid * hours) / totalHours);
+          const share = (paid * hours) / totalHours;
+          farmPool.set(homeKey, (farmPool.get(homeKey) ?? 0) + share);
+          localPaid += share;
         }
       }
+      // El mayorista no modelado es un sumidero externo; solo la parte que
+      // vuelve a una cartera granjera permanece dentro de M(t).
+      this.wholesaleExternal += Math.max(0, paid - localPaid);
       // Impuesto de sociedades sobre el margen del día (ventas - mayorista).
       const revenue = unitsSold * FOOD_PRICE;
       const margin = Math.max(0, revenue - wholesaleCost);
       const corpTax = Math.min(this.tillOf(shopKey), margin * this.taxRates.C);
       this.tills.set(shopKey, this.tillOf(shopKey) - corpTax);
-      this.treasury += corpTax;
+      this.changeTreasury(corpTax);
       this.corpTaxCollected += corpTax;
       this.incomeToday += corpTax;
       this.ledger.taxC += corpTax;
@@ -737,6 +847,52 @@ export class Economy {
     this.upkeepDueToday = 0;
   }
 
+  /** Masa monetaria que existe dentro de los tres contenedores modelados. */
+  moneySupply(): number {
+    let supply = this.treasury;
+    for (const value of this.wallets.values()) supply += value;
+    for (const value of this.tills.values()) supply += value;
+    return supply;
+  }
+
+  /** Auditoría acumulada. La ecuación que debe cumplir una partida es:
+   * `Δsupply = minted - leaked - build - interest + loanIn - loanOut`.
+   * `leaked` incluye los tres sumideros económicos del plan y también los
+   * gastos externos que existen en la simulación (mantenimiento, prestigio,
+   * transporte y vacunación), para no ocultar una escritura legítima. */
+  moneyFlow(): MoneyFlow {
+    const upkeep = this.ledger.upkeep;
+    const prestige = this.prestigeInvested;
+    const transport = this.transportSpent;
+    const publicExternal = this.publicExternalSpent;
+    const otherLeak = upkeep + prestige + transport + publicExternal + this.otherExternalSpent;
+    const minted = this.privatePayrollMinted + this.activityLevyMinted
+      + this.pensionsMinted + this.publicWageFallback + this.arrivalMoney;
+    const leaked = this.goodsImported + this.lifestyleLeft + this.wholesaleExternal + otherLeak;
+    return {
+      supply: this.moneySupply(),
+      minted,
+      leaked,
+      build: this.ledger.build + this.ledger.road,
+      interest: this.ledger.interest,
+      loanIn: this.loanPrincipalIssued,
+      loanOut: this.loanPrincipalPaid,
+      privatePayroll: this.privatePayrollMinted,
+      activityLevy: this.activityLevyMinted,
+      pensionsMinted: this.pensionsMinted,
+      publicWageFallback: this.publicWageFallback,
+      arrivalMoney: this.arrivalMoney,
+      goodsImported: this.goodsImported,
+      lifestyleLeft: this.lifestyleLeft,
+      wholesaleExternal: this.wholesaleExternal,
+      otherLeak,
+      upkeep,
+      prestige,
+      transport,
+      publicExternal,
+    };
+  }
+
   serialize(): EconomySaveState {
     return {
       granary: this.granary,
@@ -775,6 +931,16 @@ export class Economy {
       incomeToday: this.incomeToday,
       expenseToday: this.expenseToday,
       upkeepDueToday: this.upkeepDueToday,
+      privatePayrollMinted: this.privatePayrollMinted,
+      activityLevyMinted: this.activityLevyMinted,
+      pensionsMinted: this.pensionsMinted,
+      publicWageFallback: this.publicWageFallback,
+      arrivalMoney: this.arrivalMoney,
+      wholesaleExternal: this.wholesaleExternal,
+      transportSpent: this.transportSpent,
+      publicExternalSpent: this.publicExternalSpent,
+      otherExternalSpent: this.otherExternalSpent,
+      loanPrincipalIssued: this.loanPrincipalIssued,
     };
   }
 
@@ -817,6 +983,16 @@ export class Economy {
     this.incomeToday = s.incomeToday ?? 0;
     this.expenseToday = s.expenseToday ?? 0;
     this.upkeepDueToday = s.upkeepDueToday ?? 0;
+    this.privatePayrollMinted = s.privatePayrollMinted ?? 0;
+    this.activityLevyMinted = s.activityLevyMinted ?? 0;
+    this.pensionsMinted = s.pensionsMinted ?? 0;
+    this.publicWageFallback = s.publicWageFallback ?? 0;
+    this.arrivalMoney = s.arrivalMoney ?? 0;
+    this.wholesaleExternal = s.wholesaleExternal ?? 0;
+    this.transportSpent = s.transportSpent ?? 0;
+    this.publicExternalSpent = s.publicExternalSpent ?? 0;
+    this.otherExternalSpent = s.otherExternalSpent ?? 0;
+    this.loanPrincipalIssued = s.loanPrincipalIssued ?? this.loanPrincipalPaid + this.loans.reduce((sum, loan) => sum + loan.balance, 0);
   }
 
   /** Datos agregados para growth (Fase 4) y HUD. */
