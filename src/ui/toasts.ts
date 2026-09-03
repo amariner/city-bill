@@ -11,10 +11,7 @@
  */
 import { PALETTE } from '../palette';
 import { chronicleText, isLegacyDeath } from './chronicle';
-
-function css(hex: number): string {
-  return `#${hex.toString(16).padStart(6, '0')}`;
-}
+import { css, INK, panelStyle, rgba } from './theme';
 const ALERT = css(PALETTE.signRed);
 const GOLDEN = css(PALETTE.signYellow);
 const MILESTONE = css(PALETTE.grass);
@@ -76,7 +73,7 @@ export class Toasts {
     this.el = document.createElement('div');
     this.el.style.cssText = [
       'position:fixed',
-      'bottom:16px',
+      'bottom:72px',
       'left:50%',
       'transform:translateX(-50%)',
       'display:flex',
@@ -121,12 +118,10 @@ export class Toasts {
       'max-width:340px',
       'padding:7px 13px',
       'font:12px/1.35 ui-monospace,monospace',
-      'color:#2d3327',
-      'background:rgba(241,239,230,0.94)',
-      'border:1px solid rgba(45,51,39,0.18)',
-      `border-left:3px solid ${style.accent || 'rgba(45,51,39,0.35)'}`,
+      `color:${INK}`,
+      panelStyle(0.94),
+      `border-left:3px solid ${style.accent || rgba(PALETTE.treeBlob, 0.35)}`,
       'border-radius:8px',
-      'box-shadow:0 1px 6px rgba(45,51,39,0.14)',
       'opacity:0',
       'transform:translateY(6px)',
       `transition:opacity ${FADE_MS}ms ease,transform ${FADE_MS}ms ease`,

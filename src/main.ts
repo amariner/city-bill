@@ -11,7 +11,7 @@ import { DebugHud } from './core/debugHud';
 import { Pointer } from './core/pointer';
 import { ToolState } from './core/tools';
 import { WorldView } from './world/render/worldView';
-import { seedWorld, seedFarm } from './world/seed';
+import { seedWorld, seedFarm, seedSandbox } from './world/seed';
 import { buildShowcase } from './showcase';
 import { SimClient, AgentView } from './sim/client';
 import { CitizenView } from './world/render/citizens';
@@ -30,6 +30,7 @@ import { CityHud } from './ui/cityHud';
 import { Toasts } from './ui/toasts';
 import { DevPanel } from './ui/devPanel';
 import { ControlBar } from './ui/controlBar';
+import { Toolbar } from './ui/toolbar';
 import { Grid, cellToWorld } from './world/grid';
 
 const sceneName = new URLSearchParams(window.location.search).get('scene');
@@ -65,6 +66,7 @@ let inspector: CitizenInspector | null = null;
 let cityHud: CityHud | null = null;
 let devPanel: DevPanel | null = null;
 let controlBar: ControlBar | null = null;
+let toolbar: Toolbar | null = null;
 let toolState: ToolState | null = null;
 let ghost: Ghost | null = null;
 let hoverCell: [number, number] = [0, 0];
@@ -99,7 +101,11 @@ function buildRenderAndUi(grid: Grid, worldSeed: number): void {
   // La máquina de herramientas se registra antes que el inspector para que Esc
   // cancele primero la herramienta activa y solo después pueda cerrar la ficha.
   toolState = new ToolState(sim);
-  toolState.onChange = (tool) => ghost?.update(tool, hoverCell);
+  toolbar = new Toolbar(sim, toolState);
+  toolState.onChange = (tool) => {
+    ghost?.update(tool, hoverCell);
+    toolbar?.update();
+  };
   chronicle = new Chronicle(worldSeed);
   toasts = new Toasts(); // avisos efímeros de los eventos memorables (surfacing)
   // Toda mutación espacial llega del worker como diff. El render solo aplica el
@@ -192,9 +198,11 @@ if (sceneName === 'buildings') {
   const worldSeed = pickWorldSeed();
   // Escenario "granja" (?scene=farm): arranque mínimo para el modo autónomo
   // (T4.4) — la ciudad se traza sus propias calles desde una sola granja.
-  const grid = sceneName === 'farm' ? seedFarm(worldSeed) : seedWorld(worldSeed);
-  camera.setTarget(sceneName === 'farm' ? 0 : 20, sceneName === 'farm' ? 2 : 20);
-  simClient = new SimClient(worldSeed, grid.serialize());
+  const grid = sceneName === 'sandbox'
+    ? seedSandbox(worldSeed)
+    : sceneName === 'farm' ? seedFarm(worldSeed) : seedWorld(worldSeed);
+  camera.setTarget(sceneName === 'sandbox' || sceneName === 'farm' ? 0 : 20, sceneName === 'sandbox' ? 0 : sceneName === 'farm' ? 2 : 20);
+  simClient = new SimClient(worldSeed, grid.serialize(), 0, sceneName !== 'sandbox');
   buildRenderAndUi(grid, worldSeed);
 }
 camera.apply();
@@ -316,6 +324,7 @@ loop.onUpdate((dt) => {
     hud.setStats({ agents: n, clock: `${hh}:${mm} día ${day} ×${simClient.speed}` });
     cityHud?.update(simClient.city, { day, hour: h, speed: simClient.speed });
     controlBar?.update(simClient.speed); // resalta la pastilla de velocidad activa
+    toolbar?.update();
     devPanel?.update();
     chronicle?.update(t, simClient.population, simClient.buildings);
   }

@@ -11,10 +11,7 @@
  */
 import { PALETTE } from '../palette';
 import { Speed } from '../sim/protocol';
-
-function css(hex: number): string {
-  return `#${hex.toString(16).padStart(6, '0')}`;
-}
+import { css, INK, PANEL_BG, PANEL_BORDER, PANEL_SHADOW, rgba } from './theme';
 const ACCENT = css(PALETTE.selectRing); // oro suave para la velocidad activa
 const WARN = css(PALETTE.signYellow); // ámbar de "pausa" (coherente con el HUD)
 
@@ -32,6 +29,8 @@ const CONTROLS: Array<[string, string]> = [
   ['clic en vecino', 'inspeccionar'],
   ['F', 'seguir al vecino'],
   ['C', 'abrir la crónica'],
+  ['B · X', 'construir · demoler'],
+  ['Tab · Esc', 'rotar · cancelar herramienta'],
   ['0 – 3', 'velocidad del tiempo'],
   ['F3', 'panel de rendimiento'],
 ];
@@ -124,36 +123,32 @@ export class ControlBar {
     s.textContent = `
 .cb-bar{position:fixed;left:12px;bottom:12px;z-index:10;
   display:flex;flex-direction:column;align-items:flex-start;gap:7px;
-  font:12px/1.2 ui-monospace,monospace;color:#2d3327;user-select:none}
+  font:12px/1.2 ui-monospace,monospace;color:${INK};user-select:none}
 .cb-brand{display:flex;align-items:center;gap:6px;font-weight:600;font-size:13px;
   letter-spacing:0.04em;padding:4px 10px;border-radius:9px;
-  background:rgba(241,239,230,0.9);border:1px solid rgba(45,51,39,0.18);
-  box-shadow:0 1px 6px rgba(45,51,39,0.12)}
+  background:${PANEL_BG};border:${PANEL_BORDER};box-shadow:${PANEL_SHADOW}}
 .cb-brand-dot{width:8px;height:8px;border-radius:50%;background:${ACCENT};
-  box-shadow:0 0 0 3px rgba(216,178,90,0.22)}
+  box-shadow:0 0 0 3px ${rgba(PALETTE.selectRing, 0.22)}}
 .cb-brand-sep{opacity:0.4;margin:0 1px}
 .cb-speed{display:flex;gap:4px;padding:4px;border-radius:10px;
-  background:rgba(241,239,230,0.9);border:1px solid rgba(45,51,39,0.18);
-  box-shadow:0 1px 6px rgba(45,51,39,0.12)}
+  background:${PANEL_BG};border:${PANEL_BORDER};box-shadow:${PANEL_SHADOW}}
 .cb-pill{--cb-accent:${ACCENT};cursor:pointer;min-width:30px;height:24px;
-  padding:0 8px;font:11px/1 ui-monospace,monospace;color:#2d3327;
+  padding:0 8px;font:11px/1 ui-monospace,monospace;color:${INK};
   background:transparent;border:1px solid transparent;border-radius:7px;
   transition:background 0.15s ease,border-color 0.15s ease,transform 0.08s ease}
-.cb-pill:hover{background:rgba(45,51,39,0.07)}
+.cb-pill:hover{background:${rgba(PALETTE.treeBlob, 0.07)}}
 .cb-pill:active{transform:translateY(1px)}
-.cb-pill.cb-active{background:rgba(45,51,39,0.09);
-  border-color:var(--cb-accent);color:#1f241b;font-weight:700;
+.cb-pill.cb-active{background:${rgba(PALETTE.treeBlob, 0.09)};
+  border-color:var(--cb-accent);color:${INK};font-weight:700;
   box-shadow:inset 0 -2px 0 var(--cb-accent)}
 .cb-help-toggle{cursor:pointer;align-self:flex-start;padding:4px 10px;
   font:10px/1 ui-monospace,monospace;letter-spacing:0.08em;text-transform:uppercase;
-  color:#2d3327;opacity:0.7;background:rgba(241,239,230,0.9);
-  border:1px solid rgba(45,51,39,0.18);border-radius:8px;
+  color:${INK};opacity:0.7;background:${PANEL_BG};border:${PANEL_BORDER};border-radius:8px;
   transition:opacity 0.15s ease,background 0.15s ease}
-.cb-help-toggle:hover{opacity:1;background:rgba(45,51,39,0.06)}
+.cb-help-toggle:hover{opacity:1;background:${rgba(PALETTE.treeBlob, 0.06)}}
 .cb-help-toggle.cb-active{opacity:1;box-shadow:inset 0 -2px 0 ${ACCENT}}
 .cb-help{grid-template-columns:auto auto;gap:3px 12px;padding:9px 12px;
-  border-radius:9px;background:rgba(241,239,230,0.92);
-  border:1px solid rgba(45,51,39,0.18);box-shadow:0 1px 6px rgba(45,51,39,0.12)}
+  border-radius:9px;background:${PANEL_BG};border:${PANEL_BORDER};box-shadow:${PANEL_SHADOW}}
 .cb-help-row{display:contents}
 .cb-key{font-weight:600;white-space:nowrap}
 .cb-what{opacity:0.62;white-space:nowrap}

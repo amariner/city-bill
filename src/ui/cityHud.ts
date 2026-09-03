@@ -11,11 +11,7 @@
  */
 import { PALETTE } from '../palette';
 import { CityStats, Speed, settlementClass } from '../sim/protocol';
-
-/** Hex numérico de la paleta → color CSS. */
-function css(hex: number): string {
-  return `#${hex.toString(16).padStart(6, '0')}`;
-}
+import { css, INK, panelStyle } from './theme';
 
 const ALERT = css(PALETTE.signRed);
 const WARN = css(PALETTE.signYellow);
@@ -55,11 +51,9 @@ export class CityHud {
       'align-items:center',
       'padding:7px 16px',
       'font:12px/1.2 ui-monospace,monospace',
-      'color:#2d3327',
-      'background:rgba(241,239,230,0.9)',
-      'border:1px solid rgba(45,51,39,0.18)',
+      `color:${INK}`,
+      panelStyle(0.9),
       'border-radius:10px',
-      'box-shadow:0 1px 6px rgba(45,51,39,0.12)',
       'pointer-events:none',
       'z-index:10',
       'white-space:nowrap',

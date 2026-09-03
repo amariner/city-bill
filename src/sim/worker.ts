@@ -98,6 +98,7 @@ self.onmessage = (ev: MessageEvent<MainToWorker>) => {
     case 'init': {
       const grid = Grid.deserialize(msg.gridJson);
       sim = new Simulation(grid, msg.seed);
+      if (msg.autonomousGrowth === false) sim.autonomousGrowth = false;
       if (msg.preGrowDays && msg.preGrowDays > 0) {
         // Banco de pruebas: madura la ciudad DENTRO del worker (su sim guarda
         // toda la vida: gente, edades, relaciones) y devuelve el grid resultante

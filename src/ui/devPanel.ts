@@ -16,14 +16,10 @@ import { PALETTE } from '../palette';
 import { SimClient } from '../sim/client';
 import { CityStats, Speed, DevFlag } from '../sim/protocol';
 import { DAYS_PER_SEASON, DAYS_PER_YEAR } from '../sim/weather';
-
-function css(hex: number): string {
-  return `#${hex.toString(16).padStart(6, '0')}`;
-}
+import { css, INK, PANEL_BG, PANEL_BORDER, rgba } from './theme';
 const ALERT = css(PALETTE.signRed);
 const WARN = css(PALETTE.signYellow);
 const OK = css(PALETTE.grass);
-const INK = '#2d3327';
 
 const SPEEDS: { s: Speed; label: string }[] = [
   { s: 0, label: '⏸' },
@@ -63,8 +59,8 @@ export class DevPanel {
       'width:212px',
       'font:11px/1.35 ui-monospace,monospace',
       `color:${INK}`,
-      'background:rgba(241,239,230,0.94)',
-      'border:1px solid rgba(45,51,39,0.18)',
+      `background:${PANEL_BG}`,
+      `border:${PANEL_BORDER}`,
       'border-radius:10px',
       'box-shadow:0 2px 10px rgba(45,51,39,0.16)',
       'z-index:20',
@@ -75,7 +71,7 @@ export class DevPanel {
     // --- Cabecera (plegable) ---
     const header = document.createElement('div');
     header.style.cssText =
-      'display:flex;align-items:center;justify-content:space-between;gap:6px;padding:7px 10px;cursor:pointer;background:rgba(45,51,39,0.05)';
+      `display:flex;align-items:center;justify-content:space-between;gap:6px;padding:7px 10px;cursor:pointer;background:${rgba(PALETTE.treeBlob, 0.05)}`;
     const title = document.createElement('span');
     title.textContent = '⚙ banco de pruebas';
     title.style.cssText = 'font-size:10px;letter-spacing:0.05em;text-transform:uppercase;font-weight:600;opacity:0.8';
@@ -192,13 +188,13 @@ export class DevPanel {
       'padding:4px 6px',
       'font:600 10px/1.2 ui-monospace,monospace',
       `color:${INK}`,
-      'background:rgba(255,255,255,0.55)',
-      'border:1px solid rgba(45,51,39,0.2)',
+      `background:${rgba(PALETTE.houseWall, 0.55)}`,
+      `border:1px solid ${rgba(PALETTE.treeBlob, 0.2)}`,
       'border-radius:6px',
       'cursor:pointer',
       'white-space:nowrap',
     ].join(';');
-    b.onmouseenter = () => (b.style.background = 'rgba(255,255,255,0.85)');
+    b.onmouseenter = () => (b.style.background = rgba(PALETTE.houseWall, 0.85));
     b.onmouseleave = () => this.repaintButtonBase(b);
     b.onclick = (e) => {
       e.stopPropagation();
@@ -210,7 +206,7 @@ export class DevPanel {
   /** Fondo base del botón (los activos se repintan en update). */
   private repaintButtonBase(b: HTMLButtonElement): void {
     if (b.dataset.active === '1') return; // update lo mantiene resaltado
-    b.style.background = 'rgba(255,255,255,0.55)';
+    b.style.background = rgba(PALETTE.houseWall, 0.55);
   }
 
   private currentFlag(flag: DevFlag): boolean {
@@ -258,8 +254,8 @@ export class DevPanel {
       const b = this.flagBtns.get(flag)!;
       const on = c[flag] as boolean;
       b.dataset.active = on ? '1' : '0';
-      b.style.background = on ? 'rgba(169,194,134,0.55)' : 'rgba(212,174,75,0.4)';
-      b.style.borderColor = on ? 'rgba(45,51,39,0.2)' : WARN;
+      b.style.background = on ? rgba(PALETTE.grass, 0.55) : rgba(PALETTE.signYellow, 0.4);
+      b.style.borderColor = on ? rgba(PALETTE.treeBlob, 0.2) : WARN;
       b.title = on ? 'activo — clic para desactivar (escenario contrafactual)' : 'DESACTIVADO — clic para reactivar';
     }
 
@@ -291,8 +287,8 @@ export class DevPanel {
 
   private setActive(b: HTMLButtonElement, active: boolean): void {
     b.dataset.active = active ? '1' : '0';
-    b.style.background = active ? 'rgba(169,194,134,0.6)' : 'rgba(255,255,255,0.55)';
-    b.style.borderColor = active ? 'rgba(45,51,39,0.35)' : 'rgba(45,51,39,0.2)';
+    b.style.background = active ? rgba(PALETTE.grass, 0.6) : rgba(PALETTE.houseWall, 0.55);
+    b.style.borderColor = active ? rgba(PALETTE.treeBlob, 0.35) : rgba(PALETTE.treeBlob, 0.2);
   }
 }
 

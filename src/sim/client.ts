@@ -65,10 +65,10 @@ export class SimClient {
   onActionApplied: ((msg: ActionAppliedMsg) => void) | null = null;
   onActionRejected: ((msg: ActionRejectedMsg) => void) | null = null;
 
-  constructor(seed: number, gridJson: string, preGrowDays = 0) {
+  constructor(seed: number, gridJson: string, preGrowDays = 0, autonomousGrowth = true) {
     this.worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
     this.worker.onmessage = (ev: MessageEvent<WorkerToMain>) => this.onMessage(ev.data);
-    this.send({ type: 'init', seed, gridJson, preGrowDays });
+    this.send({ type: 'init', seed, gridJson, preGrowDays, autonomousGrowth });
   }
 
   private send(msg: MainToWorker): void {

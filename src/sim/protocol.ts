@@ -120,6 +120,8 @@ export interface InitMsg {
    * mientras crece y `worldReady` con el grid resultante para que el render
    * dibuje EXACTAMENTE lo que la sim construyó. */
   preGrowDays?: number;
+  /** Escenas de construcción manuales no deben competir con el crecimiento autónomo. */
+  autonomousGrowth?: boolean;
 }
 
 /** Diff espacial producido por el worker. El main nunca reconstruye la lógica

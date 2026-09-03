@@ -246,7 +246,25 @@ export class Grid {
         const packed = k;
         const cx = Math.floor(packed / 65536) - HALF;
         const cz = (packed % 65536) - HALF;
-        out.push([cx, cz, cell]);
+        // Normaliza también el orden de las propiedades de cada celda. Un
+        // árbol puede escribirse antes que un edificio en una semilla y al
+        // revés al aplicar un patch; JSON.stringify conserva ese orden y
+        // rompería la comparación aunque el estado espacial fuera idéntico.
+        const normalized: Cell = { terrain: cell.terrain };
+        if (cell.building) {
+          const b = cell.building;
+          normalized.building = {
+            id: b.id,
+            rot: b.rot,
+            anchorX: b.anchorX,
+            anchorZ: b.anchorZ,
+            ...(b.fw === undefined ? {} : { fw: b.fw }),
+            ...(b.fd === undefined ? {} : { fd: b.fd }),
+          };
+        }
+        if (cell.prop) normalized.prop = { id: cell.prop.id, variant: cell.prop.variant };
+        if (cell.zone !== undefined) normalized.zone = cell.zone;
+        out.push([cx, cz, normalized]);
       });
     });
     // El orden de inserción cambia al aplicar un patch (el journal se ordena

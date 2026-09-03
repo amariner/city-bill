@@ -159,3 +159,50 @@ export function seedFarm(seed: number = SEED): Grid {
 
   return grid;
 }
+
+/**
+ * Sandbox de construcción manual: terreno amplio, una cruz rural legible y
+ * ningún edificio. El worker recibe `autonomousGrowth=false` desde main.ts,
+ * así el jugador puede probar el bucle colocar → obra → vida sin que la IA
+ * compita por las primeras parcelas.
+ */
+export function seedSandbox(seed: number = SEED): Grid {
+  const grid = new Grid();
+  const rng = createRng(seed);
+  const R = EXTENT;
+  grid.fillTerrain(-R, -R, R, R, 'field');
+
+  // Cruz rural de tres celdas y márgenes de hierba: deja una lectura clara de
+  // dónde empieza la parcela sin introducir todavía zonas ni vías complejas.
+  for (let cx = -R; cx <= R; cx++) {
+    grid.setTerrain(cx, -2, 'grass');
+    grid.setTerrain(cx, 2, 'grass');
+    for (let cz = -1; cz <= 1; cz++) grid.setTerrain(cx, cz, 'road');
+    if (cx % 3 === 0 && rng.next() > 0.3) {
+      for (const cz of [-4, 4]) {
+        grid.setProp(cx, cz, {
+          id: rng.next() < 0.6 ? 'tree-cypress' : 'tree-blob',
+          variant: Math.floor(rng.next() * 1e9),
+        });
+      }
+    }
+  }
+  for (let cz = -R; cz <= R; cz++) {
+    grid.setTerrain(-2, cz, 'grass');
+    grid.setTerrain(2, cz, 'grass');
+    for (let cx = -1; cx <= 1; cx++) grid.setTerrain(cx, cz, 'road');
+    if (cz % 3 === 0 && rng.next() > 0.3) {
+      for (const cx of [-4, 4]) {
+        grid.setProp(cx, cz, {
+          id: rng.next() < 0.6 ? 'tree-cypress' : 'tree-blob',
+          variant: Math.floor(rng.next() * 1e9),
+        });
+      }
+    }
+  }
+
+  // Paisaje de prueba muy ligero: suficiente textura para que la herramienta
+  // se pueda evaluar visualmente, sin convertir el sandbox en otro escenario.
+  scatterTrees(grid, rng, -R, -R, R, R, 72, 0.45);
+  return grid;
+}
