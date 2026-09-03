@@ -306,6 +306,8 @@ export interface CityStats {
   demand: { R: number; C: number; I: number };
   /** Proporción de viviendas activas cubierta por cada servicio [0,1]. */
   coverage: CoverageRates;
+  /** Felicidad media por hogar [0,1], actualizada al cierre del día. */
+  happiness: number;
   /** Tipos efectivos de los tres sectores, para el presupuesto del alcalde. */
   taxRates: TaxRates;
   /** Deuda viva y estado operativo del tesoro (H3.3). */
@@ -394,6 +396,8 @@ export interface CitizenInfoMsg {
   work?: [number, number];
   /** Salud, ahorro y despensa del hogar — ciclos 2/4/5 de RESEARCH.md. */
   health: number;
+  /** Felicidad diaria del hogar [0,1] (H4.3). */
+  happiness: number;
   wallet: number;
   pantry: number;
   /** Prestigio de la vivienda [0,1] — ciclo 9. */

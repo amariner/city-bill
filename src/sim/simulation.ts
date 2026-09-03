@@ -16,6 +16,7 @@ import { PathQueue, pathLength } from './pathfinding';
 import { CellXZ, manhattan } from './geometry';
 import { WorldIndex, isUrban } from './worldIndex';
 import { coverageRates } from './coverage';
+import { householdHappiness } from './happiness';
 import { Economy, EconomySaveState } from './economy';
 import { Citizen, CitizenPhase, citizenName, PlannedActivity, TravelMode, jobFitsVocation, vocationOf, VOCATION_PURPOSE_BONUS, surnameOf } from './citizens/citizen';
 import { decayNeeds, restore, NEED_KEYS } from './citizens/needs';
@@ -130,6 +131,8 @@ export interface SimSaveState {
   households: Array<[string, number]>;
   pantry: Array<[string, number]>;
   emigrationPressure: Array<[string, number]>;
+  /** Felicidad por hogar, recalculada en cada cierre de día. */
+  happiness?: Array<[string, number]>;
   noAccessSince: Array<[string, number]>;
   /** Edificios que ya estuvieron conectados; evita castigar una semilla antigua
    * hasta que realmente pierda su acceso. */
@@ -252,6 +255,8 @@ export class Simulation {
   private lastRoadDay = -10;
   /** Presión migratoria por hogar ('ax,az') — penuria sostenida (ciclo 14). */
   private emigrationPressure = new Map<string, number>();
+  /** Felicidad por hogar; solo se recalcula en el cierre del día (H4.3). */
+  private happiness = new Map<string, number>();
   /** Día en que cada edificio activo perdió acceso a la red vial. */
   private noAccessSince = new Map<string, number>();
   /** Accesos conocidos para detectar cortes, no solo edificios nacidos lejos. */
@@ -275,6 +280,7 @@ export class Simulation {
     this.spawnPopulation();
     this.economy.rebuild(this.index, this.citizens);
     this.hireAndAcquaint();
+    this.recalculateHappiness();
     // Hitos del pueblo (ciclo 45): los edificios de la aldea fundacional no son
     // "primicias" — solo lo será el primer tipo NUEVO que la ciudad levante sola.
     for (const b of this.index.buildings) this.firstBuildingSeen.add(b.id);
@@ -303,6 +309,7 @@ export class Simulation {
     this.pantry.clear();
     for (const [key, value] of state.pantry) this.pantry.set(key, value);
     this.emigrationPressure = new Map(state.emigrationPressure);
+    this.happiness = new Map(state.happiness ?? []);
     this.noAccessSince = new Map(state.noAccessSince ?? []);
     this.roadAccessSeen = new Set(state.roadAccessSeen ?? []);
     this.leaving.clear();
@@ -344,6 +351,7 @@ export class Simulation {
     this.departed = [];
     this.churnSeekers.clear();
     this.economy.rebuild(this.index, this.citizens);
+    if (state.happiness === undefined) this.recalculateHappiness();
   }
 
   /** Serializa el estado que cambia el futuro; las búsquedas A* pendientes se
@@ -362,6 +370,7 @@ export class Simulation {
       households: [...this.households].sort(([a], [b]) => a.localeCompare(b)),
       pantry: [...this.pantry].sort(([a], [b]) => a.localeCompare(b)),
       emigrationPressure: [...this.emigrationPressure].sort(([a], [b]) => a.localeCompare(b)),
+      happiness: [...this.happiness].sort(([a], [b]) => a.localeCompare(b)),
       noAccessSince: [...this.noAccessSince].sort(([a], [b]) => a.localeCompare(b)),
       roadAccessSeen: [...this.roadAccessSeen].sort(),
       leaving: [...this.leaving].sort((a, b) => a - b),
@@ -452,6 +461,78 @@ export class Simulation {
     let sum = 0;
     for (const b of homes) sum += this.economy.prestigeOf(`${b.ax},${b.az}`);
     return sum / homes.length;
+  }
+
+  /** Muestrea la situación de cada hogar en un solo cierre diario. Los
+   * agregados por hogar evitan que la felicidad sea un atributo individual
+   * ruidoso y permiten que la migración observe una presión sostenida. */
+  private recalculateHappiness(): void {
+    const people = new Map<string, Citizen[]>();
+    for (const citizen of this.citizens.values()) {
+      const key = `${citizen.home.ax},${citizen.home.az}`;
+      const members = people.get(key) ?? [];
+      members.push(citizen);
+      people.set(key, members);
+    }
+
+    const next = new Map<string, number>();
+    const homes = [...this.households.keys()].sort();
+    const industrial = this.index.ofRole('work');
+    for (const key of homes) {
+      const [ax, az] = key.split(',').map(Number);
+      const home = this.index.at(ax, az);
+      const members = people.get(key) ?? [];
+      const needs = { energy: 0, food: 0, social: 0, fun: 0, purpose: 0 };
+      let illness = 0;
+      let grief = 0;
+      let children = 0;
+      let workingAdults = 0;
+      let employed = 0;
+      for (const citizen of members) {
+        needs.energy += citizen.needs.energy;
+        needs.food += citizen.needs.food;
+        needs.social += citizen.needs.social;
+        needs.fun += citizen.needs.fun;
+        needs.purpose += citizen.needs.purpose;
+        illness += Math.max(1 - citizen.health, citizen.sick);
+        grief += citizen.grief;
+        if (citizen.age < ADULT_AGE) children++;
+        if (citizen.age >= ADULT_AGE && citizen.age < OLD_AGE) {
+          workingAdults++;
+          if (citizen.work) employed++;
+        }
+      }
+      const count = Math.max(1, members.length);
+      needs.energy /= count;
+      needs.food /= count;
+      needs.social /= count;
+      needs.fun /= count;
+      needs.purpose /= count;
+      illness /= count;
+      grief /= count;
+      const unemployment = workingAdults > 0 ? 1 - employed / workingAdults : 0;
+      const industryPressure = home && industrial.some((building) =>
+        Math.abs(home.cx - building.cx) + Math.abs(home.cz - building.cz) < 6,
+      ) ? 1 : 0;
+      next.set(key, householdHappiness({
+        needs,
+        coverage: home?.coverage ?? 0,
+        children,
+        taxBurden: this.economy.taxBurden(),
+        unemployment,
+        illness,
+        grief,
+        industryPressure,
+      }));
+    }
+    this.happiness = next;
+  }
+
+  private averageHappiness(): number {
+    if (this.happiness.size === 0) return 1;
+    let total = 0;
+    for (const value of this.happiness.values()) total += value;
+    return total / this.happiness.size;
   }
 
   /** Huecos de familia libres en todas las viviendas. */
@@ -728,6 +809,7 @@ export class Simulation {
       this.economy.payPublicDividend([...this.households.keys()], this.citizens.size); // ciclo 32: el tesoro no atesora sin fin — reparte su superávit
       this.economy.updateBankruptcy(this.citizens.size);
       this.stepOutbreak(); // ciclo 25: en invierno, algún resfriado prende y se propaga
+      this.recalculateHappiness(); // H4.3: una muestra estable, solo al cerrar el día
       this.stepEmigration(); // ciclo 14: tras la red de pensiones (última bala)
       this.stepAbandonment(); // H2.6: una vía cortada cierra tras diez días, no de golpe
       // Estatus (ciclo 9): cada hogar que mejora emite su evento para que el
@@ -852,7 +934,8 @@ export class Simulation {
     let worstPressure = -1;
     for (const [k, h] of byHome) {
       const hardship = householdHardship({ workingAdults: h.workingAdults, employed: h.employed, wallet: this.economy.walletOf(k) });
-      const p = updateEmigrationPressure(this.emigrationPressure.get(k) ?? 0, hardship);
+      const unhappy = (this.happiness.get(k) ?? 1) < 0.25;
+      const p = updateEmigrationPressure(this.emigrationPressure.get(k) ?? 0, hardship || unhappy);
       this.emigrationPressure.set(k, p);
       // Un pueblo diminuto no se despuebla; y no re-elige a quien ya se marcha.
       if (this.citizens.size <= EMIGRATE_POP_FLOOR || h.anyLeaving) continue;
@@ -1202,6 +1285,7 @@ export class Simulation {
         avgHealth: this.avgHealth(),
         avgFood: this.avgFood(),
         avgPrestige: this.avgPrestige(),
+        avgHappiness: this.averageHappiness(),
         taxBurden: this.economy.taxBurden(),
         bankrupt: this.economy.bankrupt,
       });
@@ -1237,6 +1321,7 @@ export class Simulation {
         avgHealth: this.avgHealth(),
         avgFood: this.avgFood(),
         avgPrestige: this.avgPrestige(),
+        avgHappiness: this.averageHappiness(),
         taxBurden: this.economy.taxBurden(),
         bankrupt: this.economy.bankrupt,
       });
@@ -1618,6 +1703,7 @@ export class Simulation {
         avgHealth: this.avgHealth(),
         avgFood: this.avgFood(),
         avgPrestige: this.avgPrestige(),
+        avgHappiness: this.averageHappiness(),
         taxBurden: this.economy.taxBurden(),
         bankrupt: this.economy.bankrupt,
       }),
@@ -1648,6 +1734,7 @@ export class Simulation {
       growthPolicy: this.growthPolicy,
       demand,
       coverage: coverageRates(this.index),
+      happiness: this.averageHappiness(),
       taxRates: { ...this.economy.taxRates },
       debt: this.economy.debt,
       bankrupt: this.economy.bankrupt,
@@ -1776,6 +1863,7 @@ export class Simulation {
       home: [c.home.ax, c.home.az],
       work: c.work ? [c.work.ax, c.work.az] : undefined,
       health: c.health,
+      happiness: this.happiness.get(homeKey) ?? 0.5,
       grief: c.grief,
       sick: c.sick,
       wallet: this.economy.walletOf(homeKey),

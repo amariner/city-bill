@@ -363,8 +363,8 @@ trampas**. Los tests nuevos se añaden al script `"test"` de `package.json`.
 - Archivos: C `src/sim/coverage.ts` (`computeCoverage(index): Map<key, mask>`; Manhattan entre centros ≤ radius; `RoadAccess` de H2.6), M `worldIndex.ts` (`SimBuilding.coverage`), M `simulation.ts` (`cityStats.coverage`), M `activities.ts`.
 - Tests: casa a 8 de escuela radio 10 ⇒ Education; a 12 ⇒ no; máscara combinada; < 5 ms a 500 edificios.
 
-**H4.3 Felicidad por hogar**
-- Archivos: C `src/sim/happiness.ts` (`householdHappiness(input)` puro; pesos necesidades 0.35, cobertura 0.25 (educación solo con niños), impuestos 0.15, paro 0.10, enfermedad/duelo 0.10, industria <6 celdas 0.05), M `simulation.ts` (`happiness: Map` diario; `cityStats.happiness`; atractividad; emigración por felicidad < 0.25 sostenida 3 años), M `protocol.ts` (`CitizenInfoMsg.happiness`), M `inspector.ts`.
+**H4.3 Felicidad por hogar** — ✅ implementado
+- Archivos: C `src/sim/happiness.ts` (`householdHappiness(input)` puro; pesos necesidades 0.35, cobertura 0.25 (educación solo con niños), impuestos 0.15, paro 0.10, enfermedad/duelo 0.10, industria <6 celdas 0.05), M `simulation.ts` (`happiness: Map` diario; `cityStats.happiness`; atractividad; emigración por felicidad < 0.25 sostenida 3 años), M `protocol.ts` (`CitizenInfoMsg.happiness`), M `inspector.ts`, M `cityHud.ts`.
 - Tests: monotonías; hogar sin servicios con R=0.5 acaba con presión migratoria (20 días).
 - Trampas: solo en el cierre del día.
 

@@ -156,6 +156,7 @@ export class CitizenInspector {
       .join('\n');
     const meta = [
       `salud   ${bar(info.health)}`,
+      `ánimo   ${bar(info.happiness)}`,
       // Enfermedad contagiosa (ciclo 25): solo cuando está enfermo.
       ...(info.sick > 0.05 ? [`enfermo ${bar(info.sick)}`] : []),
       // Duelo (ciclo 16): solo se muestra cuando pesa — un doliente reconocible.

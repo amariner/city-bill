@@ -60,7 +60,7 @@ export class CityHud {
     ].join(';');
     document.body.appendChild(this.el);
 
-    for (const key of ['time', 'pop', 'treasury', 'jobless', 'season', 'granary', 'health', 'wealth', 'abandoned']) {
+    for (const key of ['time', 'pop', 'treasury', 'jobless', 'season', 'granary', 'health', 'happiness', 'wealth', 'abandoned']) {
       const root = document.createElement('div');
       root.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:1px';
       const label = document.createElement('span');
@@ -80,6 +80,7 @@ export class CityHud {
     this.chips.season.label.textContent = 'estación';
     this.chips.granary.label.textContent = 'granero';
     this.chips.health.label.textContent = 'salud';
+    this.chips.happiness.label.textContent = 'ánimo';
     this.chips.wealth.label.textContent = 'riqueza media';
     this.chips.abandoned.label.textContent = 'cerrados';
   }
@@ -99,6 +100,7 @@ export class CityHud {
       city.granary | 0,
       city.epidemic ? 1 : 0,
       city.sick,
+      Math.round(city.happiness * 100),
       city.avgWealth | 0,
       city.debt | 0,
       city.bankrupt ? 1 : 0,
@@ -143,6 +145,11 @@ export class CityHud {
       hv.textContent = 'sana';
       hv.style.color = '';
     }
+
+    const happiness = this.chips.happiness.value;
+    const happinessPct = Math.round(city.happiness * 100);
+    happiness.textContent = `${happinessPct}%`;
+    happiness.style.color = happinessPct < 25 ? ALERT : happinessPct < 50 ? WARN : '';
 
     this.chips.wealth.value.textContent = fmtMoney(city.avgWealth);
 
