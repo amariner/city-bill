@@ -50,7 +50,9 @@ export const CATALOG_DATA: CatalogItemData[] = [
   // --- Residencial ----------------------------------------------------------
   { id: 'farmhouse', name: 'Casa de campo', w: 5, d: 4, tier: 0, role: 'residential', capacity: 1, cost: 4500, playerPlaceable: true },
   { id: 'cottage', name: 'Casita de pueblo', w: 3, d: 3, tier: 1, role: 'residential', capacity: 1, cost: 2025, playerPlaceable: true },
+  { id: 'town-house', name: 'Casa con jardín', w: 3, d: 3, tier: 2, role: 'residential', capacity: 3, cost: 3600, playerPlaceable: true },
   { id: 'row-houses', name: 'Adosados', w: 8, d: 3, tier: 2, role: 'residential', capacity: 4, cost: 5400, playerPlaceable: true },
+  { id: 'low-block', name: 'Bloque bajo', w: 4, d: 3, tier: 3, role: 'residential', capacity: 8, cost: 7200, playerPlaceable: true },
   { id: 'apartment-slab', name: 'Bloque panelák', w: 10, d: 4, tier: 3, role: 'residential', capacity: 18, cost: 9000, playerPlaceable: true },
   { id: 'brick-block', name: 'Bloque Zlín', w: 7, d: 5, tier: 4, role: 'residential', capacity: 24, cost: 7875, playerPlaceable: true },
 

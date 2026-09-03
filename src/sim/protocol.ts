@@ -350,6 +350,7 @@ export interface SimEventMsg {
     | 'chatStarted'
     | 'cityGrew'
     | 'buildingRazed'
+    | 'buildingUpgraded'
     | 'tierUnlocked'
     | 'coupleFormed'
     | 'festivalDay'

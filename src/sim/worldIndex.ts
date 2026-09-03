@@ -7,6 +7,7 @@
 import { Grid } from '../world/grid';
 import { catalogData, CatalogItemData, SimRole } from '../world/catalogData';
 import { buildingEntrance, CellXZ, isWalkable, rotatedSize } from './geometry';
+import type { Rot } from '../world/grid';
 import { computeCoverage, coverageKey } from './coverage';
 
 /** Roles que forman parte del tejido urbano para centros, salidas y métricas.
@@ -20,6 +21,8 @@ export interface SimBuilding {
   ax: number;
   az: number;
   id: string;
+  /** Rotación original de la huella; la densificación la conserva. */
+  rot: Rot;
   data: CatalogItemData;
   entrance: CellXZ | null;
   /** Celda central (para distancias). */
@@ -91,6 +94,7 @@ export class WorldIndex {
           ax: cx,
           az: cz,
           id: b.id,
+          rot: b.rot,
           data,
           entrance: buildingEntrance(this.grid, cx, cz, fw, fd),
           cx: cx + fw / 2,

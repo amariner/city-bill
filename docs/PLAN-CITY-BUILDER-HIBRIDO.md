@@ -372,8 +372,8 @@ trampas**. Los tests nuevos se añaden al script `"test"` de `package.json`.
 - Archivos: C `src/sim/landValue.ts` (cobertura 0.4, parque/agua ≤6 0.2, centro 0.2 (Manhattan/60), industria ≤6 −0.15, street/avenue +0.1), M `simulation.ts` (`landValue: Map` diario; `avgLandValue`; alquiler ×(1 + 0.5·landValue)).
 - Tests: monotonías; alquiler mayor con más valor.
 
-**H4.5 Densificación in situ**
-- Archivos: M `catalogData.ts` (+`town-house` 3×3 cap 3 T2, `low-block` 4×3 cap 8 T3), M `props.ts`, M `growth.ts` (`DENSITY_LADDER`, `upgradeCandidate(grid, b, tier, landValue)` con `placementCheck` tratando las celdas del actual como libres, misma rotación), M `simulation.ts` (`maybeUpgrade()` 1/día entre viviendas con `landValue ≥ 0.6` y `households == capacity`; `razeBuilding` sin realojar + `placeBuilding` + `moveHomeKey` si cambia el ancla + `fillHome` para huecos + evento `buildingUpgraded` + `pendingBuilt`), M `main.ts`.
+**H4.5 Densificación in situ** — ✅ implementado
+- Archivos: M `catalogData.ts` (+`town-house` 3×3 cap 3 T2, `low-block` 4×3 cap 8 T3), M `props.ts`, M `growth.ts` (`DENSITY_LADDER`, `upgradeCandidate(grid, b, tier, landValue)` con `placementCheck` tratando las celdas del actual como libres, misma rotación), M `simulation.ts` (`maybeUpgrade()` 1/día entre viviendas con `landValue ≥ 0.6` y `households == capacity`; reemplazo sin realojar + `placeBuilding` + `moveHomeKey` si cambia el ancla + `fillHome` para huecos + evento `buildingUpgraded` + `pendingBuilt`), M `main.ts` (el `GridPatch` existente replica la sustitución).
 - Tests: residentes conservan `home` válido y `households ≤ capacity`; el previo no existe en el índice; con valor bajo nunca; el ladder nunca baja ni supera `sim.tier`.
 - Trampas: claves `'ax,az'` (`households/wallets/pantry/prestige`) → `moveHomeKey` obligatorio.
 

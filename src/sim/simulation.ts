@@ -15,6 +15,7 @@ import { GameClock, TICK_GAME_S, DAY_GAME_SECONDS } from './clock';
 import { PathQueue, pathLength } from './pathfinding';
 import { CellXZ, manhattan } from './geometry';
 import { WorldIndex, isUrban } from './worldIndex';
+import type { SimBuilding } from './worldIndex';
 import { coverageRates } from './coverage';
 import { householdHappiness } from './happiness';
 import { computeLandValue } from './landValue';
@@ -29,6 +30,7 @@ import {
   computeDemand, demandLevels, itemForDemand, findParcel, townCenter, townAttractiveness,
   householdHardship, updateEmigrationPressure, EMIGRATE_POP_FLOOR, EMIGRATE_PRESSURE_LIMIT,
   extendRoad, GrowthPlacement, CARRYING_CAPACITY, fertilityFactor, growthCenter,
+  upgradeCandidate, UPGRADE_LAND_VALUE,
 } from '../world/growth';
 import { lifeYear, ADULT_AGE, OLD_AGE, RETIREMENT_AGE } from './lifecycle';
 import { STARTING_MONEY, PENSION_PER_DAY, RENT_PER_DAY, RENT_TIER_FACTOR, SEASON_YIELD_SWING } from './economy';
@@ -100,7 +102,7 @@ const VOCATION_QUIT_CHANCE = 0.05;
 const DYNASTY_THRESHOLD = 8;
 
 export interface SimEvent {
-  name: 'citizenBorn' | 'citizenLeft' | 'jobTaken' | 'chatStarted' | 'cityGrew' | 'buildingRazed' | 'buildingAbandoned' | 'tierUnlocked' | 'coupleFormed' | 'festivalDay' | 'roadExtended' | 'roadBuilt' | 'epidemic' | 'citizenRetired' | 'homePrestige' | 'cultivationChanged' | 'vocationFound' | 'dynastyRose' | 'dynastyFell' | 'firstBuilding' | 'settlementRose' | 'familyArrived' | 'townFounded';
+  name: 'citizenBorn' | 'citizenLeft' | 'jobTaken' | 'chatStarted' | 'cityGrew' | 'buildingRazed' | 'buildingUpgraded' | 'buildingAbandoned' | 'tierUnlocked' | 'coupleFormed' | 'festivalDay' | 'roadExtended' | 'roadBuilt' | 'epidemic' | 'citizenRetired' | 'homePrestige' | 'cultivationChanged' | 'vocationFound' | 'dynastyRose' | 'dynastyFell' | 'firstBuilding' | 'settlementRose' | 'familyArrived' | 'townFounded';
   data: Record<string, unknown>;
 }
 
@@ -136,6 +138,8 @@ export interface SimSaveState {
   happiness?: Array<[string, number]>;
   /** Valor del suelo por edificio, recalculado en cada cierre de día. */
   landValue?: Array<[string, number]>;
+  /** Último día con intento de densificación; evita dos upgrades en un día. */
+  lastUpgradeDay?: number;
   noAccessSince: Array<[string, number]>;
   /** Edificios que ya estuvieron conectados; evita castigar una semilla antigua
    * hasta que realmente pierda su acceso. */
@@ -256,6 +260,8 @@ export class Simulation {
   roadsExtended = 0;
   /** Último día en que se trazó vía (T4.4 — ritmo: una calle no cada tick). */
   private lastRoadDay = -10;
+  /** Último día en que se intentó una densificación (H4.5 — una obra/día). */
+  private lastUpgradeDay = -10;
   /** Presión migratoria por hogar ('ax,az') — penuria sostenida (ciclo 14). */
   private emigrationPressure = new Map<string, number>();
   /** Felicidad por hogar; solo se recalcula en el cierre del día (H4.3). */
@@ -325,6 +331,7 @@ export class Simulation {
     this.tier = state.tier;
     this.lastDay = state.lastDay;
     this.lastRoadDay = state.lastRoadDay;
+    this.lastUpgradeDay = state.lastUpgradeDay ?? -10;
     this.roadsExtended = state.roadsExtended;
     this.carTrips = state.carTrips;
     this.emigrations = state.emigrations;
@@ -387,6 +394,7 @@ export class Simulation {
       tier: this.tier,
       lastDay: this.lastDay,
       lastRoadDay: this.lastRoadDay,
+      lastUpgradeDay: this.lastUpgradeDay,
       roadsExtended: this.roadsExtended,
       carTrips: this.carTrips,
       emigrations: this.emigrations,
@@ -556,6 +564,64 @@ export class Simulation {
     let total = 0;
     for (const home of homes) total += this.landValue.get(`${home.ax},${home.az}`) ?? 0;
     return total / homes.length;
+  }
+
+  /** Elige una vivienda llena y bien situada para densificarla. La selección
+   * es estable por coordenada; el límite diario hace que cada upgrade sea una
+   * pequeña historia urbana y no una demolición en cadena. */
+  private maybeUpgrade(): void {
+    if (!this.autonomousGrowth || this.lastUpgradeDay === this.clock.day) return;
+    this.lastUpgradeDay = this.clock.day;
+    const candidates = this.index.ofRole('residential')
+      .filter((building) => {
+        const key = `${building.ax},${building.az}`;
+        return (this.landValue.get(key) ?? 0) >= UPGRADE_LAND_VALUE
+          && (this.households.get(key) ?? 0) === (building.data.capacity ?? 1);
+      })
+      .sort((a, b) => a.ax - b.ax || a.az - b.az);
+    for (const building of candidates) {
+      const key = `${building.ax},${building.az}`;
+      const candidate = upgradeCandidate(this.grid, building, this.tier, this.landValue.get(key) ?? 0);
+      if (candidate && this.applyUpgrade(building, candidate)) return;
+    }
+  }
+
+  /** Sustituye una vivienda sin pasar por el flujo de demolición: las personas
+   * siguen teniendo el mismo hogar mientras cambia la huella. Los huecos nuevos
+   * se ocupan después de reconstruir el índice, para que nazcan con una puerta
+   * válida y entren en la contratación de ese mismo cierre. */
+  private applyUpgrade(building: SimBuilding, candidate: GrowthPlacement): boolean {
+    const oldKey = `${building.ax},${building.az}`;
+    const oldId = building.id;
+    const oldFamilies = this.households.get(oldKey) ?? 0;
+    const next = catalogData(candidate.id);
+    if (!next || oldFamilies > (next.capacity ?? 1)) return false;
+    if (!this.grid.removeBuilding(building.ax, building.az)) return false;
+    if (!this.grid.placeBuilding(candidate.id, next.w, next.d, candidate.cx, candidate.cz, candidate.rot)) {
+      if (!this.grid.placeBuilding(oldId, building.data.w, building.data.d, building.ax, building.az, building.rot)) {
+        throw new Error('no se pudo restaurar una vivienda tras fallar su upgrade');
+      }
+      return false;
+    }
+    this.pendingRazed.push({ cx: building.ax, cz: building.az });
+    this.pendingBuilt.push(candidate);
+    const newKey = `${candidate.cx},${candidate.cz}`;
+    this.moveHomeKey(oldKey, newKey, candidate.id);
+    this.index.rebuild();
+    this.economy.rebuild(this.index, this.citizens);
+    const vacancies = Math.max(0, (next.capacity ?? 1) - oldFamilies);
+    if (vacancies > 0) this.fillHome(candidate.cx, candidate.cz, candidate.id, vacancies, true);
+    this.hireAndAcquaint();
+    this.events.push({ name: 'buildingUpgraded', data: {
+      from: oldId,
+      id: candidate.id,
+      fromLabel: building.data.name,
+      label: next.name,
+      cx: candidate.cx,
+      cz: candidate.cz,
+      rot: candidate.rot,
+    } });
+    return true;
   }
 
   /** Huecos de familia libres en todas las viviendas. */
@@ -835,6 +901,7 @@ export class Simulation {
       this.stepEmigration(); // ciclo 14: tras la red de pensiones (última bala)
       this.stepAbandonment(); // H2.6: una vía cortada cierra tras diez días, no de golpe
       this.recalculateLandValue(); // H4.4: snapshot de ubicación, solo al cerrar el día
+      this.maybeUpgrade(); // H4.5: una densificación autónoma como máximo por día
       this.recalculateHappiness(); // H4.3: una muestra estable, solo al cerrar el día
       // Estatus (ciclo 9): cada hogar que mejora emite su evento para que el
       // render decore ESA vivienda (jardín) sin re-sincronizar todo (render rico).
@@ -1427,6 +1494,41 @@ export class Simulation {
     // hogar al mudarse, para que demoler no castigue dos veces a la familia.
     const oldPrestige = this.economy.prestigeOf(oldKey);
     if (oldPrestige > this.economy.prestigeOf(targetKey)) this.economy.prestige.set(targetKey, oldPrestige);
+    this.economy.prestige.delete(oldKey);
+  }
+
+  /** Mueve todas las bolsas que pertenecen al hogar cuando una obra cambia su
+   * ancla. En H4.5 la mayoría de upgrades conserva la ancla, pero mantener esta
+   * costura explícita evita dejar ciudadanos o dinero apuntando a una clave
+   * huérfana si una futura reparcelación la necesita. */
+  private moveHomeKey(oldKey: string, newKey: string, buildingId: string): void {
+    const [newAx, newAz] = newKey.split(',').map(Number);
+    for (const citizen of this.citizens.values()) {
+      if (`${citizen.home.ax},${citizen.home.az}` !== oldKey) continue;
+      citizen.home = { ax: newAx, az: newAz, buildingId };
+    }
+    if (oldKey === newKey) return;
+
+    const addMap = (map: Map<string, number>) => {
+      const value = map.get(oldKey);
+      if (value === undefined) return;
+      map.set(newKey, (map.get(newKey) ?? 0) + value);
+      map.delete(oldKey);
+    };
+    addMap(this.households);
+    addMap(this.pantry);
+    addMap(this.economy.wallets);
+    addMap(this.emigrationPressure);
+    const preserveMap = (map: Map<string, number>) => {
+      const value = map.get(oldKey);
+      if (value === undefined) return;
+      if (!map.has(newKey)) map.set(newKey, value);
+      map.delete(oldKey);
+    };
+    preserveMap(this.happiness);
+    preserveMap(this.landValue);
+    const oldPrestige = this.economy.prestigeOf(oldKey);
+    if (oldPrestige > this.economy.prestigeOf(newKey)) this.economy.prestige.set(newKey, oldPrestige);
     this.economy.prestige.delete(oldKey);
   }
 

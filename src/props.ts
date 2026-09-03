@@ -181,6 +181,12 @@ export function cottage(w = 5, d = 4.2, porchSide = true): THREE.Group {
   return g;
 }
 
+/** Casa con jardín: el escalón intermedio conserva la huella de la casita,
+ * pero su cubierta y porche tienen una presencia algo más cuidada. */
+export function townHouse(): THREE.Group {
+  return cottage(5.2, 4.5, true);
+}
+
 /** Tienda/almacén de pueblo: volumen bajo con frente recto y toldo. */
 export function shop(): THREE.Group {
   const g = new THREE.Group();
@@ -328,6 +334,12 @@ export function apartmentSlab(floors = 6, w = 20, d = 8): THREE.Group {
   g.add(canopy);
   windowGrid(g, w, d, wallH, floors, { litRatio: 0.3 });
   return g;
+}
+
+/** Bloque bajo: tres plantas y huella compacta para densificar una parcela sin
+ * saltar todavía a una losa que exigiría reparcelación. */
+export function lowBlock(floors = 3, w = 8, d = 6): THREE.Group {
+  return apartmentSlab(floors, w, d);
 }
 
 /** Bloque de ladrillo estilo Zlín: rojizo con retícula de ventanas crema. */

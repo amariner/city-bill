@@ -4,10 +4,10 @@ Catálogo completo de lo construible. Cada entrada define: tamaño en celdas de 
 (1 celda = 2×2 m), tier de desbloqueo, rol en la simulación y notas visuales.
 Los colores SIEMPRE salen de `src/palette.ts` (ampliándola si hace falta, nunca hardcodeando).
 
-**La fuente de verdad de lo implementado es `src/world/catalogData.ts`** (22 ítems; el
+**La fuente de verdad de lo implementado es `src/world/catalogData.ts`** (24 ítems; el
 worker de sim importa ese archivo y `catalog.ts` le añade los `build()` de mesh). Este
 documento es el catálogo de DISEÑO: ✅ = en el código, con su `id` real; sin marca =
-pendiente de modelar. *Sincronizado con el código el 2026-09-03 (H4.1): footprints,
+pendiente de modelar. *Sincronizado con el código el 2026-09-03 (H4.5): footprints,
 tiers, servicios y empleos de los ✅ son los del código.*
 
 Tiers: **T0** disponible desde el inicio · **T1** aldea (pop 20) · **T2** pueblo (pop 100)
@@ -47,8 +47,8 @@ son deliberadamente legibles y el ledger del tesoro se conserva en el guardado.
 | Adosados | 8×3 | T2 | 4 familias | ✅ `row-houses` — fila con tejado teja, muros alternos blanco/crema |
 | Bloque panelák | 10×4 | T3 | 18 familias | ✅ `apartment-slab` — losa de hormigón claro, ventanas mixtas, caja de escalera |
 | Bloque Zlín | 7×5 | T4 | 24 familias | ✅ `brick-block` — ladrillo rojizo `brick`, retícula de ventanas crema, tejado plano oscuro |
-| Casa con jardín | 3×3 | T2 | 1 familia | Jardín trasero con árbol propio |
-| Bloque bajo | 4×3 | T3 | 8 familias | 3 plantas, balcones facetados |
+| Casa con jardín | 3×3 | T2 | 3 familias | ✅ `town-house` — upgrade de la casita, porche y jardín |
+| Bloque bajo | 4×3 | T3 | 8 familias | ✅ `low-block` — tres plantas, huella compacta para upgrade |
 | Torre residencial | 4×4 | T4 | 40 familias | 8-10 plantas, coronación blanca — base aprovechable de `office` |
 
 ## Trabajo y servicios

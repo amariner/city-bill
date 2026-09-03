@@ -10,10 +10,11 @@
  * El worker aplica la colocación a SU grid y emite un `gridPatch`; el main
  * aplica ese diff al grid de render sin repetir ninguna decisión.
  */
-import { Grid, Rot } from './grid';
+import { Grid, Rot, rotatedFootprint } from './grid';
 import { catalogData, CATALOG_DATA, SimRole, Tier } from './catalogData';
 import { createRng, Rng } from '../rng';
 import { placementCheck } from './placement';
+import type { SimBuilding } from '../sim/worldIndex';
 import type { GrowthPolicy, ZoneKind } from '../sim/protocol';
 
 export interface GrowthPlacement {
@@ -179,10 +180,44 @@ export function itemForDemand(kind: Exclude<DemandKind, null>, tier: Tier): stri
  * lista separada hace explícito el guardarraíl: nunca ofrece una huella de tier
  * futuro aunque la demanda ya esté activa. */
 export function residentialChoices(tier: Tier): string[] {
+  const order = ['farmhouse', 'cottage', 'town-house', 'row-houses', 'low-block', 'apartment-slab', 'brick-block'];
+  const rank = new Map(order.map((id, index) => [id, index]));
   return CATALOG_DATA
     .filter((item) => item.role === 'residential' && item.tier > 0 && item.tier <= tier)
-    .sort((a, b) => a.tier - b.tier || a.id.localeCompare(b.id))
+    .sort((a, b) => a.tier - b.tier || (rank.get(a.id) ?? 99) - (rank.get(b.id) ?? 99) || a.id.localeCompare(b.id))
     .map((item) => item.id);
+}
+
+/** Escalera de densificación que cabe en una parcela existente. El salto a la
+ * losa queda fuera: su huella exige reparcelación, no un simple reemplazo. */
+export const DENSITY_LADDER = ['cottage', 'town-house', 'low-block'] as const;
+export const UPGRADE_LAND_VALUE = 0.6;
+
+/** H4.5 — Busca el siguiente peldaño residencial, manteniendo ancla y giro.
+ * La validación ignora únicamente la huella del edificio actual: el resto del
+ * margen sigue protegiendo vecinos, agua y vías. */
+export function upgradeCandidate(
+  grid: Grid,
+  building: SimBuilding,
+  tier: Tier,
+  landValue: number,
+): GrowthPlacement | null {
+  if (!Number.isFinite(landValue) || landValue < UPGRADE_LAND_VALUE) return null;
+  const currentIndex = DENSITY_LADDER.indexOf(building.id as (typeof DENSITY_LADDER)[number]);
+  if (currentIndex < 0 || currentIndex >= DENSITY_LADDER.length - 1) return null;
+  const nextId = DENSITY_LADDER[currentIndex + 1];
+  const next = catalogData(nextId);
+  if (!next || next.tier > tier) return null;
+  const current = grid.get(building.ax, building.az)?.building;
+  if (!current || current.anchorX !== building.ax || current.anchorZ !== building.az) return null;
+  const [currentW, currentD] = rotatedFootprint(building.data.w, building.data.d, building.rot);
+  const reason = placementCheck(grid, next.w, next.d, building.ax, building.az, building.rot, {
+    margin: 1,
+    allowPath: true,
+    ignoreFootprint: { cx: building.ax, cz: building.az, w: building.data.w, d: building.data.d, rot: building.rot },
+  });
+  if (reason || current.fw !== undefined && current.fd !== undefined && (current.fw !== currentW || current.fd !== currentD)) return null;
+  return { id: nextId, cx: building.ax, cz: building.az, rot: building.rot };
 }
 
 /**

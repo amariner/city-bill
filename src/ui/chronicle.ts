@@ -157,6 +157,11 @@ export function chronicleText(name: string, data?: Record<string, unknown>): str
       const label = typeof data?.label === 'string' ? data.label : (data?.id ?? 'un edificio');
       return `se demuele: ${label}`;
     }
+    case 'buildingUpgraded': {
+      const from = typeof data?.fromLabel === 'string' ? data.fromLabel : (data?.from ?? 'una vivienda');
+      const to = typeof data?.label === 'string' ? data.label : (data?.id ?? 'una vivienda');
+      return `se densifica: ${from} → ${to}`;
+    }
     case 'buildingAbandoned': {
       const label = typeof data?.label === 'string' ? data.label : (data?.id ?? 'un edificio');
       return `se cierra: ${label} — no tiene acceso a una vía`;

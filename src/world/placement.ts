@@ -10,6 +10,9 @@ export interface PlacementOptions {
   margin?: 0 | 1;
   /** Los senderos existentes sí pueden quedar bajo una construcción. */
   allowPath?: boolean;
+  /** Huella de un edificio que se va a sustituir; sus celdas cuentan como
+   * libres para validar un upgrade in situ. */
+  ignoreFootprint?: { cx: number; cz: number; w: number; d: number; rot: Rot };
 }
 
 export function placementCheck(
@@ -23,6 +26,8 @@ export function placementCheck(
 ): RejectReason | null {
   const margin = options.margin ?? 0;
   const allowPath = options.allowPath ?? false;
+  const ignored = options.ignoreFootprint;
+  const [ignoredW, ignoredD] = ignored ? rotatedFootprint(ignored.w, ignored.d, ignored.rot) : [0, 0];
   const [fw, fd] = rotatedFootprint(w, d, rot);
   for (let x = cx - margin; x < cx + fw + margin; x++) {
     for (let z = cz - margin; z < cz + fd + margin; z++) {
@@ -36,7 +41,12 @@ export function placementCheck(
         if (cell.terrain === 'water') return 'water';
         continue;
       }
-      if (cell.building) return 'blocked';
+      const isIgnoredBuilding = ignored
+        && x >= ignored.cx && x < ignored.cx + ignoredW
+        && z >= ignored.cz && z < ignored.cz + ignoredD
+        && cell.building?.anchorX === ignored.cx
+        && cell.building?.anchorZ === ignored.cz;
+      if (cell.building && !isIgnoredBuilding) return 'blocked';
       if (cell.terrain === 'water') return 'water';
       if (cell.terrain === 'road') return 'road';
       if (cell.terrain === 'path' && !allowPath) return 'road';

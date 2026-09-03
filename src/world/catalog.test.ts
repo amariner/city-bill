@@ -21,7 +21,7 @@ const serviceBuildings = [
   ['playground', 'park', 2, 2, 1],
 ] as const;
 
-assert(CATALOG_DATA.length === 22, 'el catálogo data-driven contiene 22 ítems');
+assert(CATALOG_DATA.length === 24, 'el catálogo data-driven contiene 24 ítems');
 assert(CATALOG_ITEMS.length === CATALOG_DATA.length, 'cada dato se funde en un ítem renderizable');
 assert(CATALOG_ITEMS.every((item) => item.build().type === 'Group'), 'cada ítem tiene un builder de malla con Group');
 
@@ -36,6 +36,8 @@ for (const [id, kind, w, d, tier] of serviceBuildings) {
 
 assert(catalogData('school')?.service?.kind === 'education', 'la escuela expone cobertura educativa');
 assert(catalogData('clinic')?.service?.kind === 'health', 'el consultorio expone cobertura sanitaria');
+assert(catalogData('town-house')?.capacity === 3 && catalogData('town-house')?.tier === 2, 'la casa con jardín es el escalón T2 de densificación');
+assert(catalogData('low-block')?.capacity === 8 && catalogData('low-block')?.tier === 3, 'el bloque bajo es el escalón T3 de densificación');
 assert(catalogData('tree-blob')?.amenity === 1 && catalogData('tree-cypress')?.amenity === 1, 'los árboles declaran amenity 1');
 assert(catalogData('tree-blob')?.service === undefined, 'los árboles ya no usan happiness muerto');
 
