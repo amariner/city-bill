@@ -70,6 +70,10 @@ function trafficGrid(): Grid {
 
   sim.traffic.set(cellKey(0, 0), ruralCapacity);
   check('HUD: publica saturación media de la red', sim.cityStats().congestion > 0 && sim.cityStats().congestion <= 1);
+  sim.traffic.set(cellKey(2, 0), 0.4);
+  const packet = sim.trafficSnapshot();
+  check('canal: empaqueta solo celdas con carga positiva', packet.length === 4 && packet[1] === ruralCapacity && packet[3] === 1);
+  check('canal: ordena las claves para un replay estable', packet[0] < packet[2]);
   const saved = JSON.parse(JSON.stringify(sim.serialize()));
   const restored = new Simulation(Grid.deserialize(saved.gridJson), 5101, saved);
   check('save: conserva la carga residual de tráfico', restored.traffic.get(cellKey(0, 0)) === ruralCapacity);

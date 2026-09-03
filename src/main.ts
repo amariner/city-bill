@@ -436,6 +436,7 @@ loop.onUpdate((dt) => {
     const n = simClient.view(agentViews);
     citizenView.update(agentViews, n, dt);
     overlayLayer?.refreshFromStats(simClient.buildingStats);
+    overlayLayer?.refreshFromTraffic(simClient.traffic);
     alertsLayer?.refreshFromStats(simClient.buildingStats);
     alertsLayer?.update(dt);
     if (inspector) {

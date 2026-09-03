@@ -57,6 +57,8 @@ export class SimClient {
   city: CityStats | null = null;
   /** Último buffer espacial recibido (~1 Hz); el render lo consume sin copiarlo. */
   buildingStats: Float32Array | null = null;
+  /** Último buffer de carga de calzadas (~0,5 Hz); zero-copy para el overlay. */
+  traffic: Uint32Array | null = null;
   onCitizenInfo: ((info: CitizenInfoMsg) => void) | null = null;
   /** Eventos de sim (cityGrew, citizenBorn…) para que el main reaccione. */
   onEvent: ((name: string, data?: Record<string, unknown>) => void) | null = null;
@@ -126,6 +128,9 @@ export class SimClient {
       }
       case 'buildingStats':
         this.buildingStats = msg.data;
+        break;
+      case 'traffic':
+        this.traffic = msg.cells;
         break;
       case 'citizenInfo':
         this.onCitizenInfo?.(msg);

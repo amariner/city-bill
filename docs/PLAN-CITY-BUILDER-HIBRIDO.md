@@ -154,8 +154,8 @@ export const BUILDING_STRIDE = 8; // [ax, az, happiness, landValue, coverageMask
 export const enum CoverageBit { Education = 1, Health = 2, Police = 4, Fire = 8, Park = 16, RoadAccess = 32, Transit = 64 }
 export const enum AlertBit { NoRoad = 1, NoJob = 2, Unhappy = 4, Abandoned = 8, NoService = 16, Congested = 32 }
 export interface BuildingStatsMsg { type: 'buildingStats'; count: number; data: Float32Array }
-// H5 — carga por celda de vía
-export interface TrafficMsg { type: 'traffic'; cells: Int32Array } // pares [cellKey, load 0..255]
+// H5 — carga por celda de vía (Uint32: cellKey usa coordenadas unsigned)
+export interface TrafficMsg { type: 'traffic'; cells: Uint32Array } // pares [cellKey, load 1..255]
 ```
 
 `CityStats` gana (añadir, nunca renombrar): H2 `demand{R,C,I}`, `growthPolicy`, `noAccess`,
@@ -398,7 +398,7 @@ trampas**. Los tests nuevos se añaden al script `"test"` de `package.json`.
 - Tests: factor decrece y nunca < 0.35; carga y decaimiento deterministas; la velocidad queda limitada; el save conserva carga residual; la suite completa sigue verde.
 
 **H5.2 `TrafficMsg` y overlay**
-- Archivos: M `worker.ts` (cada 8 snapshots, pares `load > 0`), M `client.ts`, M `overlay.ts` (modo `traffic`).
+- **✅ implementado** — Archivos: M `worker.ts` (cada 8 snapshots, pares `load > 0`), M `client.ts`, M `overlay.ts` (malla de calzadas por chunk y modo `traffic`), M `main.ts`; buffer `Uint32Array` transferido sin copia.
 
 **H5.3 Líneas de bus (lógica)**
 - Archivos: C `src/sim/transit.ts` (`BusLine`, `Bus`, `stepBuses()` con `PathQueue`; velocidad `CAR_CELLS_PER_TICK_ROAD × 0.8 × congestión`; 1 bus por 12 celdas, mínimo 2), M `simulation.ts` (`vehicles`; `TravelMode 'bus'` en `planTrip` si hay parada a ≤6 celdas de origen y destino en la misma línea: caminar a parada, esperar = `doing` con condición de salida, a bordo = `moving` con `mode:'bus'` y posición del bus), M `actions.ts` (`busLine`: paradas en `road`), M `protocol.ts`.

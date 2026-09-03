@@ -303,6 +303,13 @@ export interface BuildingStatsMsg {
   data: Float32Array;
 }
 
+/** Canal de tráfico (~0,5 Hz): pares [cellKey unsigned, carga cuantizada]. */
+export interface TrafficMsg {
+  type: 'traffic';
+  /** Pares [cellKey, load 1..255]. TRANSFERIDO (zero-copy). */
+  cells: Uint32Array;
+}
+
 /** Estado agregado de la ciudad que la sim ya conoce por dentro y el HUD saca
  * a la superficie: tesoro, paro, estación/cosecha, epidemia, riqueza media.
  * Puros números derivados del estado real de la sim (nada de THREE). */
@@ -459,4 +466,4 @@ export interface GrowProgressMsg {
   total: number;
 }
 
-export type WorkerToMain = SnapshotMsg | BuildingStatsMsg | SimEventMsg | CitizenInfoMsg | GrowProgressMsg | GridPatchMsg | WorldReadyMsg | ActionAppliedMsg | ActionRejectedMsg | SaveReadyMsg;
+export type WorkerToMain = SnapshotMsg | BuildingStatsMsg | TrafficMsg | SimEventMsg | CitizenInfoMsg | GrowProgressMsg | GridPatchMsg | WorldReadyMsg | ActionAppliedMsg | ActionRejectedMsg | SaveReadyMsg;

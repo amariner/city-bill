@@ -1,9 +1,10 @@
 /** Pruebas sin WebGL de la capa de overlays por chunk (H4.6). */
 import * as THREE from 'three';
 import { BUILDING_STRIDE } from '../../sim/protocol';
-import { Grid } from '../grid';
+import { cellKey, Grid } from '../grid';
 import { coverageFraction, heatColor, OverlayLayer } from './overlay';
 import { COVERAGE_BITS } from '../../sim/coverage';
+import { ROAD_SPECS } from '../roads';
 
 let passed = 0;
 let failed = 0;
@@ -47,6 +48,22 @@ check(heatColor(5).equals(hot) && heatColor(-2).equals(cold), 'overlay: calor se
   check(layer.root.visible, 'overlay: modo zonas hace visible la capa');
   layer.setMode('none');
   check(!layer.root.visible, 'overlay: none oculta la capa');
+}
+
+{
+  const grid = new Grid();
+  grid.fillTerrain(-2, -2, 2, 2, 'field');
+  grid.setRoad(0, 0, 'rural');
+  const layer = new OverlayLayer(grid);
+  const roadMesh = layer.root.children.find((child) => child.name.startsWith('traffic_overlay_')) as THREE.Mesh;
+  const colors = roadMesh.geometry.getAttribute('color') as THREE.BufferAttribute;
+  const cold = colors.getX(0);
+  layer.setMode('traffic');
+  layer.refreshFromTraffic(new Uint32Array([cellKey(0, 0), ROAD_SPECS.rural.capacity]));
+  check(layer.root.visible && roadMesh.visible, 'overlay: tráfico muestra la malla de calzadas');
+  check(colors.getX(0) !== cold, 'overlay: TrafficMsg cambia el color de la calzada');
+  layer.setMode('none');
+  check(!roadMesh.visible, 'overlay: tráfico se oculta al volver a sin overlay');
 }
 
 console.log(`\noverlay.test: ${passed} passed, ${failed} failed`);

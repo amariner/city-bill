@@ -1,5 +1,5 @@
 /**
- * Overlay espacial de edificios (H4.6). Una malla de huellas por chunk añade
+ * Overlay espacial de edificios (H4.6) y calzadas (H5.2). Una malla de huellas por chunk añade
  * como máximo un draw call visible por chunk y el canal lento del worker solo
  * reescribe el atributo `color`: la geometría no se reconstruye al cambiar
  * felicidad, suelo, cobertura o tráfico.
@@ -10,6 +10,7 @@ import { COVERAGE_BITS } from '../../sim/coverage';
 import { BUILDING_STRIDE } from '../../sim/protocol';
 import { catalogData } from '../catalogData';
 import { CHUNK, CELL_SIZE, Cell, Chunk, Grid, cellFromKey, rotatedFootprint } from '../grid';
+import { ROAD_SPECS } from '../roads';
 
 export const OVERLAY_MODES = ['none', 'happiness', 'landValue', 'coverage', 'zones', 'traffic'] as const;
 export type OverlayMode = (typeof OVERLAY_MODES)[number];
@@ -64,6 +65,11 @@ interface ChunkVisual {
   buildingKeys: string[];
 }
 
+interface TrafficChunkVisual {
+  mesh: THREE.Mesh;
+  roadKeys: number[];
+}
+
 function statKey(ax: number, az: number): string {
   return `${ax},${az}`;
 }
@@ -74,7 +80,9 @@ function heatValue(mode: OverlayMode, stat: BuildingOverlayStat | undefined): nu
     case 'happiness': return stat.happiness >= 0 ? stat.happiness : null;
     case 'landValue': return stat.landValue;
     case 'coverage': return coverageFraction(stat.coverageMask);
-    case 'traffic': return stat.load;
+    // El tráfico ya no procede de BuildingStats (su `load` es ocupación del
+    // edificio); lo pinta la malla de calzadas alimentada por TrafficMsg.
+    case 'traffic': return null;
     default: return null;
   }
 }
@@ -82,8 +90,11 @@ function heatValue(mode: OverlayMode, stat: BuildingOverlayStat | undefined): nu
 export class OverlayLayer {
   readonly root = new THREE.Group();
   private readonly byChunk = new Map<string, ChunkVisual>();
+  private readonly trafficByChunk = new Map<string, TrafficChunkVisual>();
   private readonly stats = new Map<string, BuildingOverlayStat>();
   private lastStatsBuffer: Float32Array | null = null;
+  private readonly traffic = new Map<number, number>();
+  private lastTrafficBuffer: Uint32Array | null = null;
   private mode: OverlayMode = 'none';
   private readonly material = new THREE.MeshBasicMaterial({
     vertexColors: true,
@@ -108,6 +119,7 @@ export class OverlayLayer {
     this.mode = mode;
     this.root.visible = mode !== 'none';
     this.refreshColors();
+    this.refreshTrafficColors();
   }
 
   /**
@@ -130,6 +142,19 @@ export class OverlayLayer {
     }
     // Solo cambia BufferAttribute.color; la malla por chunk queda intacta.
     this.refreshColors();
+  }
+
+  /** Consume el canal de calzadas sin reconstruir geometría ni copiar el
+   * buffer transferido por el worker. La geometría solo cambia con GridPatch. */
+  refreshFromTraffic(buffer: Uint32Array | null): void {
+    if (!buffer || buffer === this.lastTrafficBuffer) return;
+    this.lastTrafficBuffer = buffer;
+    this.traffic.clear();
+    for (let offset = 0; offset + 1 < buffer.length; offset += 2) {
+      const load = buffer[offset + 1];
+      if (load > 0) this.traffic.set(buffer[offset], load);
+    }
+    this.refreshTrafficColors();
   }
 
   refreshCells(cells: Array<[number, number, Cell]>): void {
@@ -176,12 +201,27 @@ export class OverlayLayer {
       old.mesh.geometry.dispose();
       this.byChunk.delete(key);
     }
+    const oldTraffic = this.trafficByChunk.get(key);
+    if (oldTraffic) {
+      this.root.remove(oldTraffic.mesh);
+      oldTraffic.mesh.geometry.dispose();
+      this.trafficByChunk.delete(key);
+    }
     const visual = buildChunkMesh(chunk, this.material);
-    if (!visual) return;
-    visual.mesh.name = `building_overlay_${key}`;
-    this.byChunk.set(key, visual);
-    this.root.add(visual.mesh);
-    this.refreshColorsFor(visual);
+    if (visual) {
+      visual.mesh.name = `building_overlay_${key}`;
+      this.byChunk.set(key, visual);
+      this.root.add(visual.mesh);
+      this.refreshColorsFor(visual);
+    }
+    const trafficVisual = buildTrafficChunkMesh(chunk, this.material);
+    if (trafficVisual) {
+      trafficVisual.mesh.name = `traffic_overlay_${key}`;
+      trafficVisual.mesh.visible = this.mode === 'traffic';
+      this.trafficByChunk.set(key, trafficVisual);
+      this.root.add(trafficVisual.mesh);
+      this.refreshTrafficColorsFor(trafficVisual);
+    }
   }
 
   private refreshColorsFor(visual: ChunkVisual): void {
@@ -197,6 +237,30 @@ export class OverlayLayer {
         if (value === null) color.copy(NEUTRAL);
         else heatColor(value, color);
       }
+      for (let vertex = 0; vertex < 6; vertex++) colors.setXYZ(i * 6 + vertex, color.r, color.g, color.b);
+    }
+    colors.needsUpdate = true;
+  }
+
+  private refreshTrafficColors(): void {
+    for (const visual of this.trafficByChunk.values()) {
+      visual.mesh.visible = this.mode === 'traffic';
+      this.refreshTrafficColorsFor(visual);
+    }
+  }
+
+  private refreshTrafficColorsFor(visual: TrafficChunkVisual): void {
+    const colors = visual.mesh.geometry.getAttribute('color') as THREE.BufferAttribute | undefined;
+    if (!colors) return;
+    const color = new THREE.Color();
+    for (let i = 0; i < visual.roadKeys.length; i++) {
+      const key = visual.roadKeys[i];
+      const [cx, cz] = cellFromKey(key);
+      const cell = this.grid.get(cx, cz);
+      const kind = cell?.roadKind ?? 'rural';
+      const capacity = ROAD_SPECS[kind].capacity;
+      const load = this.traffic.get(key) ?? 0;
+      heatColor(Math.min(1, load / capacity), color);
       for (let vertex = 0; vertex < 6; vertex++) colors.setXYZ(i * 6 + vertex, color.r, color.g, color.b);
     }
     colors.needsUpdate = true;
@@ -240,6 +304,37 @@ function buildChunkMesh(chunk: Chunk, material: THREE.Material): ChunkVisual | n
   const mesh = new THREE.Mesh(geometry, material);
   mesh.renderOrder = 3;
   return { mesh, buildingKeys };
+}
+
+/** Una segunda malla por chunk para no mezclar carga de vías con stats de
+ * edificios. Son quads de celda: el canal solo cambia colores, no posiciones. */
+function buildTrafficChunkMesh(chunk: Chunk, material: THREE.Material): TrafficChunkVisual | null {
+  const positions: number[] = [];
+  const colors: number[] = [];
+  const roadKeys: number[] = [];
+  const neutral = new THREE.Color(PALETTE.groundBase);
+
+  chunk.cells.forEach((cell, packed) => {
+    if (cell.terrain !== 'road') return;
+    const [cx, cz] = cellFromKey(packed);
+    const x0 = cx * CELL_SIZE;
+    const x1 = (cx + 1) * CELL_SIZE;
+    const z0 = cz * CELL_SIZE;
+    const z1 = (cz + 1) * CELL_SIZE;
+    const y = 0.19;
+    positions.push(x0, y, z0, x1, y, z1, x1, y, z0, x0, y, z0, x0, y, z1, x1, y, z1);
+    for (let vertex = 0; vertex < 6; vertex++) colors.push(neutral.r, neutral.g, neutral.b);
+    roadKeys.push(packed);
+  });
+
+  if (positions.length === 0) return null;
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  geometry.computeBoundingSphere();
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.renderOrder = 4;
+  return { mesh, roadKeys };
 }
 
 /** Dimensiones de huella sin cargar builders ni introducir THREE en la sim. */

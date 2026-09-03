@@ -65,7 +65,9 @@ function sendSnapshot(): void {
     });
   }
   const agents = sim.snapshot();
-  const includeBuildingStats = snapshotSerial++ % 4 === 0;
+  const serial = snapshotSerial++;
+  const includeBuildingStats = serial % 4 === 0;
+  const includeTraffic = serial % 8 === 0;
   const msg: SnapshotMsg = {
     type: 'snapshot',
     time: sim.clock.time,
@@ -80,6 +82,10 @@ function sendSnapshot(): void {
   if (includeBuildingStats) {
     const data = sim.buildingStats();
     post({ type: 'buildingStats', count: sim.index.buildings.length, data }, [data.buffer]);
+  }
+  if (includeTraffic) {
+    const cells = sim.trafficSnapshot();
+    post({ type: 'traffic', cells }, [cells.buffer]);
   }
   for (const e of sim.takeEvents()) post({ type: 'event', name: e.name, data: e.data });
 }

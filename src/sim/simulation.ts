@@ -1953,6 +1953,25 @@ export class Simulation {
     return arr;
   }
 
+  /** Snapshot compacto de carga por calzada para el overlay H5.2. El key va
+   * unsigned: `cellKey` usa los 32 bits completos para coordenadas positivas. */
+  trafficSnapshot(): Uint32Array {
+    const cells: Array<[number, number]> = [];
+    for (const [key, load] of this.traffic) {
+      const quantized = Math.min(255, Math.max(1, Math.round(load)));
+      if (Number.isFinite(key) && Number.isFinite(load) && quantized > 0) {
+        cells.push([key >>> 0, quantized]);
+      }
+    }
+    cells.sort(([a], [b]) => a - b);
+    const data = new Uint32Array(cells.length * 2);
+    for (let i = 0; i < cells.length; i++) {
+      data[i * 2] = cells[i][0];
+      data[i * 2 + 1] = cells[i][1];
+    }
+    return data;
+  }
+
   /** Congestión media normalizada de la red [0,1]. Solo cuenta la saturación
    * observada frente a la capacidad de cada tipo de vía, no el tráfico vacío. */
   private averageCongestion(): number {
