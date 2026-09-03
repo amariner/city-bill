@@ -420,6 +420,39 @@ export function extendRoad(
   return laid;
 }
 
+/**
+ * Pinta un jardín de hierba bajo un edificio y en su retranqueo de una celda.
+ * Es una operación visual: el llamador debe usarla sobre el `Grid` del main,
+ * después de recibir/aplicar un patch, nunca sobre el grid vivo del worker.
+ * Respeta vías, agua y huellas vecinas, y devuelve las celdas que cambiaron
+ * para que el render pueda refrescar solo los chunks afectados.
+ * `fw`/`fd` son las dimensiones de la huella ya rotada.
+ */
+export function paintYard(
+  grid: Grid,
+  anchorX: number,
+  anchorZ: number,
+  fw: number,
+  fd: number,
+): Array<[number, number]> {
+  const painted: Array<[number, number]> = [];
+  for (let x = anchorX - 1; x <= anchorX + fw; x++) {
+    for (let z = anchorZ - 1; z <= anchorZ + fd; z++) {
+      const cell = grid.get(x, z);
+      if (!cell) continue;
+      if (cell.terrain === 'road' || cell.terrain === 'path' || cell.terrain === 'water') continue;
+      const inFootprint = x >= anchorX && x < anchorX + fw && z >= anchorZ && z < anchorZ + fd;
+      // El anillo pertenece al edificio vecino si ya hay una huella allí.
+      if (cell.building && !inFootprint) continue;
+      if (cell.terrain !== 'grass') {
+        grid.setTerrain(x, z, 'grass');
+        painted.push([x, z]);
+      }
+    }
+  }
+  return painted;
+}
+
 /** canPlace + margen de respeto: 1 celda libre alrededor (retranqueo/paso). */
 function clearForGrowth(grid: Grid, w: number, d: number, ax: number, az: number, rot: Rot): boolean {
   return placementCheck(grid, w, d, ax, az, rot, { margin: 1, allowPath: true }) === null;

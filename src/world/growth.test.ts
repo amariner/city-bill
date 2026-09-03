@@ -2,7 +2,7 @@
 import { Grid, rotatedFootprint } from './grid';
 import { createRng } from '../rng';
 import { catalogData } from './catalogData';
-import { demandLevels, findParcel, growthCenter, itemForDemand, residentialChoices, zoneForRole } from './growth';
+import { demandLevels, findParcel, growthCenter, itemForDemand, paintYard, residentialChoices, zoneForRole } from './growth';
 
 let passed = 0;
 let failed = 0;
@@ -118,6 +118,20 @@ function footprintIsZone(grid: Grid, id: string, p: { cx: number; cz: number; ro
     carryingCapacity: 10,
   });
   assert([extreme.R, extreme.C, extreme.I].every((value) => value >= 0 && value <= 1), 'las tres demandas siempre están acotadas en [0,1]');
+}
+
+// --- Jardín render-only -----------------------------------------------------
+{
+  const grid = new Grid();
+  grid.fillTerrain(0, 0, 8, 8, 'field');
+  grid.setRoad(3, 4, 'rural');
+  grid.setTerrain(7, 3, 'water');
+  grid.placeBuilding('cottage', 3, 3, 4, 4, 0);
+  const painted = paintYard(grid, 4, 4, 3, 3);
+  assert(painted.length > 0, 'jardín: pinta suelo alrededor de la huella');
+  assert(grid.get(4, 4)?.terrain === 'grass' && grid.get(6, 6)?.terrain === 'grass', 'jardín: cubre huella y retranqueo');
+  assert(grid.get(3, 4)?.terrain === 'road', 'jardín: respeta la vía');
+  assert(grid.get(7, 3)?.terrain === 'water', 'jardín: respeta el agua');
 }
 
 console.log(`\ngrowth.test: ${passed} passed, ${failed} failed`);

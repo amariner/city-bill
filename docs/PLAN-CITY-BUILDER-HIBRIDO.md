@@ -312,8 +312,8 @@ trampas**. Los tests nuevos se añaden al script `"test"` de `package.json`.
 - Visual: casita gris tras demoler su calle.
 - Trampas: el abandonado ocupa huella; si recupera acceso, `abandoned=false` y `freeHousing` lo cuenta.
 
-**H2.7 Jardín de hierba bajo edificios (render-only)**
-- Archivos: M `growth.ts` (`paintYard` de `3f731a2`, SOLO render grid), M `main.ts` (en `built` del patch y en `worldReady`), M `construction.ts`.
+**H2.7 Jardín de hierba bajo edificios (render-only)** — ✅ implementado
+- Archivos: M `growth.ts` (`paintYard`), M `main.ts` (en `built` del patch y en `worldReady`). `ConstructionSites` mantiene el grid fuera de la animación; el jardín se deriva en main tras `applyPatch` y antes de `refreshCells`.
 - Trampas: nunca en `sim.grid` (cambia `walkCost` grass 1.6 vs field 2.4). Aplicar tras `applyPatch` y antes de `refreshCells`.
 
 **H2.8 Playtest y gate H2**: 30 min ×8 `zonesOnly` (sandbox) + 30 min `free` (`?scene=farm`); capturas d0/d30/d80; F3 con overlay de zonas.

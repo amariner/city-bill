@@ -25,6 +25,8 @@ import { seasonalWarmth, weatherAt } from './sim/weather';
 import { isFestivalDay } from './sim/citizens/activities';
 import { updateTerrainSeason } from './world/render/terrain';
 import { Speed } from './sim/protocol';
+import { catalogData } from './world/catalogData';
+import { paintYard } from './world/growth';
 import { CitizenInspector } from './ui/inspector';
 import { Chronicle } from './ui/chronicle';
 import { CityHud } from './ui/cityHud';
@@ -32,7 +34,7 @@ import { Toasts } from './ui/toasts';
 import { DevPanel } from './ui/devPanel';
 import { ControlBar } from './ui/controlBar';
 import { Toolbar } from './ui/toolbar';
-import { Grid, cellToWorld } from './world/grid';
+import { Grid, cellFromKey, cellToWorld, rotatedFootprint } from './world/grid';
 import { clearSave, loadSave, writeSave } from './save/save';
 
 const sceneName = new URLSearchParams(window.location.search).get('scene');
@@ -82,6 +84,37 @@ let hoverCell: [number, number] = [0, 0];
  * del bucle de render). La fija `buildRenderAndUi`. */
 let activeSeed = 0;
 
+type BuiltPatch = { id: string; cx: number; cz: number; rot: 0 | 1 | 2 | 3 };
+
+/** Jardines cosméticos del grid de RENDER. La sim ya se aisló en el worker:
+ * pintar hierba aquí no cambia walkCost ni puede alterar una trayectoria. */
+function paintRenderYards(grid: Grid, buildings?: BuiltPatch[]): Array<[number, number]> {
+  const seen = new Set<string>();
+  const painted: Array<[number, number]> = [];
+  const paint = (building: BuiltPatch): void => {
+    const key = `${building.cx},${building.cz}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    const item = catalogData(building.id);
+    if (!item || item.role === 'nature') return;
+    const [fw, fd] = rotatedFootprint(item.w, item.d, building.rot);
+    painted.push(...paintYard(grid, building.cx, building.cz, fw, fd));
+  };
+
+  if (buildings) {
+    for (const building of buildings) paint(building);
+  } else {
+    // worldReady/pre-grow entrega un grid completo y no un historial de obras.
+    grid.forEachChunk((chunk) => chunk.cells.forEach((cell, key) => {
+      if (!cell.building) return;
+      const [cx, cz] = cellFromKey(key);
+      if (cell.building.anchorX !== cx || cell.building.anchorZ !== cz) return;
+      paint({ id: cell.building.id, cx, cz, rot: cell.building.rot });
+    }));
+  }
+  return painted;
+}
+
 /** Monta el RENDER + UI a partir de un grid ya poblado, sobre el `simClient` ya
  * creado. En el juego normal el grid es el sembrado; en el banco de pruebas
  * (?scene=test-dev) es el grid MADURO que el worker devuelve tras pre-crecer su
@@ -90,6 +123,9 @@ let activeSeed = 0;
 function buildRenderAndUi(grid: Grid, worldSeed: number): void {
   const sim = simClient!;
   activeSeed = worldSeed;
+  // El pre-crecimiento/worldReady no trae el historial de obras; los jardines
+  // se derivan post-hoc sobre este grid de render, nunca sobre sim.grid.
+  paintRenderYards(grid);
   worldView = new WorldView(grid);
   stage.scene.add(worldView.root);
   // Atmósfera del anochecer (T5.4): luces de ventana, humo y bandada. Escanea el
@@ -124,7 +160,14 @@ function buildRenderAndUi(grid: Grid, worldSeed: number): void {
   // resultado y se ocupa de sus efectos visuales (chunk y construcción).
   sim.onGridPatch = (patch) => {
     grid.applyPatch(patch.cells);
-    worldView?.refreshCells(patch.cells);
+    // El patch ya está aplicado en el render; ahora el jardín puede derivarse
+    // antes de refrescar los chunks y sin tocar el grid lógico del worker.
+    const painted = paintRenderYards(grid, patch.built);
+    const refreshed = [
+      ...patch.cells,
+      ...painted.map(([cx, cz]) => [cx, cz, grid.get(cx, cz)!] as [number, number, typeof patch.cells[number][2]]),
+    ];
+    worldView?.refreshCells(refreshed);
     zonesLayer?.refreshCells(patch.cells);
     for (const built of patch.built) {
       const started = construction?.start(built.id, built.cx, built.cz, built.rot, () => atmosphere?.invalidate());
