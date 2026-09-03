@@ -49,6 +49,7 @@ export const enum TravelModeCode {
 export type RoadKind = 'path' | 'rural' | 'street' | 'avenue';
 export type ZoneKind = 'R' | 'C' | 'I' | 'A' | 'P';
 export type GrowthPolicy = 'free' | 'preferZones' | 'zonesOnly';
+export type PublicAutobuildPolicy = 'off' | 'paid';
 export type TaxSector = 'R' | 'C' | 'I';
 export interface TaxRates {
   R: number;
@@ -101,7 +102,7 @@ export type PlayerAction =
   | { kind: 'road'; road: RoadKind; from: [number, number]; to: [number, number] }
   | { kind: 'zone'; zone: ZoneKind | null; x0: number; z0: number; x1: number; z1: number }
   | { kind: 'setPolicy'; policy: 'growth'; value: GrowthPolicy }
-  | { kind: 'setPolicy'; policy: 'publicAutobuild'; value: 'off' | 'paid' }
+  | { kind: 'setPolicy'; policy: 'publicAutobuild'; value: PublicAutobuildPolicy }
   | { kind: 'setTax'; sector: TaxSector; rate: number }
   | { kind: 'loan'; tier: 0 | 1 | 2 }
   | { kind: 'repayLoan'; id: number }
@@ -325,6 +326,8 @@ export interface CityStats {
   tier: number;
   /** Política con la que la ciudad decide dónde crecer junto a sus vías. */
   growthPolicy: GrowthPolicy;
+  /** Decide si la ciudad paga y levanta servicios públicos autónomos. */
+  publicAutobuild: PublicAutobuildPolicy;
   /** Presión latente por sector, para las barras R/C/I de la toolbar. */
   demand: { R: number; C: number; I: number };
   /** Proporción de viviendas activas cubierta por cada servicio [0,1]. */
@@ -380,6 +383,7 @@ export interface SimEventMsg {
     | 'roadExtended'
     | 'roadBuilt'
     | 'buildingAbandoned'
+    | 'serviceNeeded'
     | 'epidemic'
     // Jubilación (ciclo 12, local): un ciudadano deja el empleo al llegar a la edad.
     | 'citizenRetired'

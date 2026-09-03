@@ -58,6 +58,8 @@ function styleFor(name: string, data?: Record<string, unknown>): Style | null {
       return { accent: MILESTONE, mark: '═' };
     case 'buildingAbandoned':
       return { accent: ALERT, mark: '!' };
+    case 'serviceNeeded':
+      return { accent: ALERT, mark: '!' };
     case 'settlementRose':
       // Mayoría de edad (ciclo 47): el lugar asciende de categoría — un gran hito.
       return { accent: GOLDEN, mark: '✦' };

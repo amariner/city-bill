@@ -54,6 +54,7 @@ export const LOGICS: LogicEntry[] = [
   { id: 'retirement', name: 'jubilación (deja el empleo, pensión, propósito propio)', level: 2, files: ['sim/lifecycle.ts', 'sim/simulation.ts', 'sim/economy.ts'], couples: ['life', 'jobs', 'government', 'needs'] },
   { id: 'building-heatmaps', name: 'heatmaps de edificios (ánimo, suelo, cobertura, zonas, tráfico)', level: 4, files: ['sim/protocol.ts', 'sim/simulation.ts', 'sim/worker.ts', 'sim/client.ts', 'world/render/overlay.ts'], couples: ['growth', 'government', 'vehicles'] },
   { id: 'building-alerts', name: 'alertas de edificios (vía, empleo, ánimo, servicios y abandono)', level: 4, files: ['sim/protocol.ts', 'sim/simulation.ts', 'world/render/alerts.ts'], couples: ['building-heatmaps', 'growth', 'government'] },
+  { id: 'public-autobuild', name: 'servicios públicos autónomos (coste y política manual/pagados)', level: 2, files: ['world/growth.ts', 'sim/actions.ts', 'sim/simulation.ts', 'sim/economy.ts', 'sim/protocol.ts', 'ui/budgetPanel.ts', 'ui/chronicle.ts'], couples: ['government', 'growth', 'happiness'] },
 ];
 
 /** Para la Crónica: nombres ordenados por nivel (básico → superior). */

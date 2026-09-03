@@ -125,9 +125,15 @@ export function applyPlayerAction(sim: Simulation, action: PlayerAction): Action
       return { ok: true, cost: paid };
     }
     case 'setPolicy':
-      if (action.policy !== 'growth') return { ok: false, reason: 'invalid', detail: 'política aún no disponible' };
-      sim.growthPolicy = action.value;
-      return { ok: true, cost: 0 };
+      if (action.policy === 'growth') {
+        sim.growthPolicy = action.value;
+        return { ok: true, cost: 0 };
+      }
+      if (action.policy === 'publicAutobuild') {
+        sim.publicAutobuild = action.value;
+        return { ok: true, cost: 0 };
+      }
+      return { ok: false, reason: 'invalid', detail: 'política aún no disponible' };
     default:
       return { ok: false, reason: 'invalid', detail: `acción no disponible: ${action.kind}` };
   }

@@ -3,7 +3,7 @@
 import { PALETTE } from '../palette';
 import { LOAN_TIERS } from '../sim/economy';
 import { SimClient } from '../sim/client';
-import { CityStats, TaxSector } from '../sim/protocol';
+import { CityStats, PublicAutobuildPolicy, TaxSector } from '../sim/protocol';
 import { css, INK, PANEL_BG, PANEL_BORDER, PANEL_SHADOW, rgba } from './theme';
 
 const ALERT = css(PALETTE.signRed);
@@ -48,6 +48,7 @@ export class BudgetPanel {
   private taxValues = new Map<TaxSector, HTMLSpanElement>();
   private editing = new Set<TaxSector>();
   private loanButtons = new Map<0 | 1 | 2, HTMLButtonElement>();
+  private autobuildButtons = new Map<PublicAutobuildPolicy, HTMLButtonElement>();
   private open = false;
   private last = '';
 
@@ -123,6 +124,25 @@ export class BudgetPanel {
       this.taxValues.set(sector, value);
     }
 
+    this.section('servicios autónomos');
+    const autobuildOptions = document.createElement('div');
+    autobuildOptions.className = 'cb-budget-policy-options';
+    const policies: Array<[PublicAutobuildPolicy, string, string]> = [
+      ['off', 'manual', 'La ciudad avisa de las necesidades, pero no construye servicios por su cuenta'],
+      ['paid', 'pagados', 'La ciudad construye servicios cuando el tesoro puede pagar la obra'],
+    ];
+    for (const [policy, label, title] of policies) {
+      const button = document.createElement('button');
+      button.className = 'cb-budget-loan';
+      button.textContent = label;
+      button.title = title;
+      button.setAttribute('aria-pressed', 'false');
+      button.addEventListener('click', () => this.sim.act({ kind: 'setPolicy', policy: 'publicAutobuild', value: policy }));
+      autobuildOptions.appendChild(button);
+      this.autobuildButtons.set(policy, button);
+    }
+    this.panel.appendChild(autobuildOptions);
+
     this.section('préstamos');
     const loanOptions = document.createElement('div');
     loanOptions.className = 'cb-budget-loan-options';
@@ -187,6 +207,7 @@ export class BudgetPanel {
       budget.history.length,
       budget.loans.map((loan) => `${loan.id}:${Math.round(loan.balance)}`).join(','),
       ...TAXES.map(({ sector }) => city.taxRates[sector]),
+      city.publicAutobuild,
       ...BREAKDOWN.map(([key]) => Math.round(budget.breakdown[key])),
     ].join('|');
     if (sig === this.last) return;
@@ -205,6 +226,11 @@ export class BudgetPanel {
       const rate = Math.round(city.taxRates[sector] * 100);
       input.value = String(rate);
       this.taxValues.get(sector)!.textContent = `${rate}%`;
+    }
+    for (const [policy, button] of this.autobuildButtons) {
+      const active = city.publicAutobuild === policy;
+      button.classList.toggle('cb-budget-loan-active', active);
+      button.setAttribute('aria-pressed', String(active));
     }
     for (const [key, value] of this.breakdown) value.textContent = money(budget.breakdown[key]);
 
@@ -283,6 +309,7 @@ export class BudgetPanel {
 .cb-budget-tax{display:grid;grid-template-columns:82px 1fr 34px;align-items:center;gap:7px;height:24px}
 .cb-budget-tax input{width:100%;accent-color:${css(PALETTE.grass)};cursor:pointer}.cb-budget-tax-value{text-align:right;font-weight:700}
 .cb-budget-loan-options{display:flex;gap:5px}.cb-budget-loan{flex:1;cursor:pointer;padding:5px 2px;color:${INK};font:10px ui-monospace,monospace;background:transparent;border:1px solid ${rgba(PALETTE.treeBlob,.18)};border-radius:6px}
+.cb-budget-policy-options{display:flex;gap:5px}.cb-budget-policy-options .cb-budget-loan{text-transform:uppercase}
 .cb-budget-loan:hover:not(:disabled){background:${rgba(PALETTE.grass,.16)}}.cb-budget-loan:disabled{cursor:default;opacity:.42}.cb-budget-loan-active{border-color:${WARN}}
 .cb-budget-loans{display:grid;gap:3px;margin-top:5px}.cb-budget-loan-row{display:flex;align-items:center;justify-content:space-between;gap:5px;font-size:10px}
 .cb-budget-loan-row button{cursor:pointer;padding:2px 5px;color:${INK};font:9px ui-monospace,monospace;background:transparent;border:1px solid ${rgba(PALETTE.treeBlob,.17)};border-radius:5px}.cb-budget-loan-row button:disabled{opacity:.4;cursor:default}

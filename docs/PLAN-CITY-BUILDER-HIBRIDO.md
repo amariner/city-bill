@@ -324,7 +324,7 @@ trampas**. Los tests nuevos se añaden al script `"test"` de `package.json`.
 - Archivos: M `catalogData.ts` (`cost?`, `upkeepPerDay?`, `playerPlaceable?`), M `roads.ts` (`costPerCell`, `upkeepPerCell`), M `economy.ts` (`ledger`, `spendPublic(amount, category)`, `chargeUpkeep(index, roadCells)`), M `actions.ts` (`noMoney`, débito), M `simulation.ts` (pipeline: `economy.endOfDay()` → **`chargeUpkeep`** → `chargeRent` …), M `sim.test.ts`, C `scripts/economyProbe.ts`.
 - Valores iniciales (calibrar con la sonda; a pop 100 el tesoro ingresa ~5 k/día): path 3/celda, rural 8, street 14, avenue 24; school 1500 (upkeep 60), clinic 800 (40), civic 3000 (80), police 1200 (50), fire 1200 (50), park 400 (8), plaza 600 (10). Privados `playerPlaceable:true` con `cost` = 3× cívico equivalente por celda; el crecimiento autónomo privado no cuesta.
 - Tests: tras `place(school)`, `treasury` baja exactamente `cost` y `ledger.build` sube igual; `treasury < cost` ⇒ `noMoney` sin cambios; `chargeUpkeep` cobra Σ una vez/día; save incluye ledger.
-- Trampas: el orden del cierre del día es load-bearing; cívicos autónomos gratis hasta H4.8.
+- Trampas: el orden del cierre del día es load-bearing; desde H4.8 los cívicos autónomos descuentan obra y luego generan mantenimiento.
 
 **H3.2 Impuestos por sector** — ✅ implementado
 - Archivos: M `economy.ts` (`taxRates {R:0.2, C:0.15, I:0.1}` sustituyen constantes en `payWage`/`settleShops`; `activityLevy` en `payWage` para `work/agriculture`: `gross · taxRates.I` acuñado → `ledger.taxI`), M `growth.ts` (`townAttractiveness` con `taxBurden` = media ponderada − 0.2, ×(1 − 0.6·max(0, burden))), M `actions.ts` (`setTax` clamp [0, 0.5]), M `protocol.ts`, M `sim.test.ts`.
@@ -386,8 +386,8 @@ trampas**. Los tests nuevos se añaden al script `"test"` de `package.json`.
 - Archivos: C `src/world/render/alerts.ts` (`InstancedMesh` pin cono+esfera, color por `AlertBit`; orientado al azimut; MAX 2000), M `main.ts`.
 - Visual: pins sobre casas sin acceso, tienda sin empleados; bobbing cosmético.
 
-**H4.8 Servicios autónomos con coste y `publicAutobuild`**
-- Archivos: M `simulation.ts` (`maybeGrow` construye school/clinic/police/fire/park solo si `publicAutobuild === 'paid'` y `treasury ≥ cost`; si `'off'`, evento `serviceNeeded{kind}`), M `growth.ts` (`computeDemand` gana `police` (pop ≥ 60 sin cobertura ≥ 50 %), `fire`, `park` (felicidad < 0.5 sin parque)), M `budgetPanel.ts` (toggle), M `sim.test.ts`.
+**H4.8 Servicios autónomos con coste y `publicAutobuild`** — ✅ implementado
+- Archivos: M `simulation.ts` (`maybeGrow` construye school/clinic/police/fire/park solo si `publicAutobuild === 'paid'` y `treasury ≥ cost`; si `'off'`, evento `serviceNeeded` deduplicado), M `growth.ts` (`computeDemand` gana `police` (pop ≥ 60 sin cobertura ≥ 50 %), `fire`, `park` (felicidad < 0.5 sin parque y asentamiento ≥ 40 hab.)), M `economy.ts` (débito en `ledger.build` + mantenimiento normal), M `budgetPanel.ts` (toggle manual/pagados), M `chronicle.ts`/`toasts.ts` (necesidad visible), C `publicAutobuild.test.ts`.
 
 **Gate H4:** 3 heatmaps, un upgrade in situ con obra, parque en showcase, tests, F3 con overlay.
 

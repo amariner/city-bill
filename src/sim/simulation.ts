@@ -25,7 +25,7 @@ import { decayNeeds, restore, NEED_KEYS } from './citizens/needs';
 import { chooseActivity } from './citizens/brain';
 import { ACTIVITY_BY_KIND, SimContext, activityLabel, EDU_PER_HOUR, CLINIC_FEE, isFestivalDay } from './citizens/activities';
 import { SocialSystem, SocialSaveState } from './citizens/social';
-import { AgentState, ActivityKind, activityId, AGENT_STRIDE, AlertBit, BUILDING_STRIDE, TravelModeCode, CityStats, CitizenInfoMsg, settlementLevel, SETTLEMENT_CLASSES, PlayerAction, RecordedAction, GrowthPolicy, BudgetHistoryPoint } from './protocol';
+import { AgentState, ActivityKind, activityId, AGENT_STRIDE, AlertBit, BUILDING_STRIDE, TravelModeCode, CityStats, CitizenInfoMsg, settlementLevel, SETTLEMENT_CLASSES, PlayerAction, RecordedAction, GrowthPolicy, PublicAutobuildPolicy, BudgetHistoryPoint } from './protocol';
 import {
   computeDemand, demandLevels, itemForDemand, findParcel, townCenter, townAttractiveness,
   householdHardship, updateEmigrationPressure, EMIGRATE_POP_FLOOR, EMIGRATE_PRESSURE_LIMIT,
@@ -106,7 +106,7 @@ const VOCATION_QUIT_CHANCE = 0.05;
 const DYNASTY_THRESHOLD = 8;
 
 export interface SimEvent {
-  name: 'citizenBorn' | 'citizenLeft' | 'jobTaken' | 'chatStarted' | 'cityGrew' | 'buildingRazed' | 'buildingUpgraded' | 'buildingAbandoned' | 'tierUnlocked' | 'coupleFormed' | 'festivalDay' | 'roadExtended' | 'roadBuilt' | 'epidemic' | 'citizenRetired' | 'homePrestige' | 'cultivationChanged' | 'vocationFound' | 'dynastyRose' | 'dynastyFell' | 'firstBuilding' | 'settlementRose' | 'familyArrived' | 'townFounded';
+  name: 'citizenBorn' | 'citizenLeft' | 'jobTaken' | 'chatStarted' | 'cityGrew' | 'buildingRazed' | 'buildingUpgraded' | 'buildingAbandoned' | 'serviceNeeded' | 'tierUnlocked' | 'coupleFormed' | 'festivalDay' | 'roadExtended' | 'roadBuilt' | 'epidemic' | 'citizenRetired' | 'homePrestige' | 'cultivationChanged' | 'vocationFound' | 'dynastyRose' | 'dynastyFell' | 'firstBuilding' | 'settlementRose' | 'familyArrived' | 'townFounded';
   data: Record<string, unknown>;
 }
 
@@ -144,6 +144,10 @@ export interface SimSaveState {
   landValue?: Array<[string, number]>;
   /** Último día con intento de densificación; evita dos upgrades en un día. */
   lastUpgradeDay?: number;
+  /** Política de obras públicas autónomas; opcional para compatibilidad con saves H4.7. */
+  publicAutobuild?: PublicAutobuildPolicy;
+  /** Necesidades de servicio ya notificadas, para no repetir avisos cada tick. */
+  serviceNeedsReported?: string[];
   noAccessSince: Array<[string, number]>;
   /** Edificios que ya estuvieron conectados; evita castigar una semilla antigua
    * hasta que realmente pierda su acceso. */
@@ -232,6 +236,8 @@ export class Simulation {
   /** Política espacial del crecimiento: las zonas orientan, no sustituyen la
    * demanda. Se guarda para que una partida continúe con la misma intención. */
   growthPolicy: GrowthPolicy = 'free';
+  /** Política pública: por defecto el pueblo levanta servicios si puede pagarlos. */
+  publicAutobuild: PublicAutobuildPolicy = 'paid';
   /** Sanidad activa (ciclo 15): si es false, la clínica no cura — permite medir
    * cuánta vida SALVA la sanidad (escenario "sin sistema de salud"). */
   clinicHealing = true;
@@ -272,6 +278,8 @@ export class Simulation {
   private happiness = new Map<string, number>();
   /** Valor del suelo por edificio; solo se recalcula en el cierre del día. */
   private landValue = new Map<string, number>();
+  /** Avisos de servicio pendientes ya emitidos; se limpian al construirlo. */
+  private readonly serviceNeedsReported = new Set<string>();
   /** Día en que cada edificio activo perdió acceso a la red vial. */
   private noAccessSince = new Map<string, number>();
   /** Accesos conocidos para detectar cortes, no solo edificios nacidos lejos. */
@@ -336,6 +344,9 @@ export class Simulation {
     this.lastDay = state.lastDay;
     this.lastRoadDay = state.lastRoadDay;
     this.lastUpgradeDay = state.lastUpgradeDay ?? -10;
+    this.publicAutobuild = state.publicAutobuild ?? 'paid';
+    this.serviceNeedsReported.clear();
+    for (const id of state.serviceNeedsReported ?? []) this.serviceNeedsReported.add(id);
     this.roadsExtended = state.roadsExtended;
     this.carTrips = state.carTrips;
     this.emigrations = state.emigrations;
@@ -418,6 +429,8 @@ export class Simulation {
         vocationalMobility: this.vocationalMobility,
       },
       growthPolicy: this.growthPolicy,
+      publicAutobuild: this.publicAutobuild,
+      serviceNeedsReported: [...this.serviceNeedsReported].sort(),
       actions: this.actions.map((a) => ({ ...a, action: { ...a.action } as PlayerAction })),
       budgetHistory: this.budgetHistory.map((point) => ({ ...point })),
       rngState: this.rng.state,
@@ -1251,6 +1264,7 @@ export class Simulation {
   private maybeGrow(): void {
     const stats = this.economy.stats(this.citizens);
     const shops = this.economy.workplaces.filter((w) => w.building.data.role === 'commerce');
+    const coverage = coverageRates(this.index);
     let avgProsperity = 0;
     for (const s of shops) avgProsperity += this.economy.prosperity.get(`${s.building.ax},${s.building.az}`) ?? 0.5;
     avgProsperity = shops.length > 0 ? avgProsperity / shops.length : 0;
@@ -1267,15 +1281,29 @@ export class Simulation {
       children: [...this.citizens.values()].filter((c) => c.age >= 6 && c.age < 18).length,
       studentSlots: this.index.buildings.reduce((n, b) => n + (b.data.students ?? 0), 0),
       avgHealth: this.avgHealth(),
-      hasClinic: this.index.buildings.some((b) => b.id === 'clinic'),
+      hasClinic: this.index.buildings.some((b) => b.id === 'clinic' && !b.abandoned),
       totalPopulation: this.citizens.size,
       carryingCapacity: CARRYING_CAPACITY,
+      policeCoverage: coverage.police,
+      fireCoverage: coverage.fire,
+      parkCoverage: coverage.park,
+      avgHappiness: this.averageHappiness(),
     });
     if (!demand) return;
 
     const id = itemForDemand(demand, this.tier);
     const it = catalogData(id);
     if (!it) return;
+    const publicService = demand === 'school' || demand === 'clinic' || demand === 'police' || demand === 'fire' || demand === 'park';
+    const cost = publicService ? it.cost ?? 0 : 0;
+    if (publicService && this.publicAutobuild === 'off') {
+      this.reportServiceNeeded(id, it.name, cost, 'disabled');
+      return;
+    }
+    if (publicService && cost > this.economy.treasury) {
+      this.reportServiceNeeded(id, it.name, cost, 'noMoney');
+      return;
+    }
     const center = growthCenter(this.grid,
       this.index.buildings.filter((b) => isUrban(b.data.role)).map((b) => [b.ax, b.az]),
     );
@@ -1287,7 +1315,21 @@ export class Simulation {
       if (this.growthPolicy !== 'zonesOnly') this.maybeExtendRoad(center);
       return;
     }
-    this.applyGrowth(p);
+    if (!this.applyGrowth(p)) return;
+    if (publicService) {
+      if (cost > 0 && !this.economy.spendPublic(cost, 'build')) throw new Error('tesoro incoherente al cobrar un servicio autónomo');
+      this.serviceNeedsReported.delete(id);
+    }
+  }
+
+  /** Emite una sola señal por tipo de servicio hasta que la necesidad se resuelva. */
+  private reportServiceNeeded(id: string, label: string, cost: number, reason: 'disabled' | 'noMoney'): void {
+    if (this.serviceNeedsReported.has(id)) return;
+    this.serviceNeedsReported.add(id);
+    this.events.push({
+      name: 'serviceNeeded',
+      data: { kind: id, id, label, cost, reason, treasury: this.economy.treasury },
+    });
   }
 
   private isRoad(cx: number, cz: number): boolean {
@@ -1364,9 +1406,9 @@ export class Simulation {
 
   /** Coloca el edificio, reindexa y aloja/contrata. Emite `cityGrew` para que
    * el main replique la colocación en el grid de render. */
-  private applyGrowth(p: GrowthPlacement): void {
+  private applyGrowth(p: GrowthPlacement): boolean {
     const it = catalogData(p.id);
-    if (!it || !this.grid.placeBuilding(p.id, it.w, it.d, p.cx, p.cz, p.rot)) return;
+    if (!it || !this.grid.placeBuilding(p.id, it.w, it.d, p.cx, p.cz, p.rot)) return false;
     this.pendingBuilt.push({ id: p.id, cx: p.cx, cz: p.cz, rot: p.rot });
     this.index.rebuild();
     this.economy.rebuild(this.index, this.citizens);
@@ -1400,6 +1442,7 @@ export class Simulation {
       this.firstBuildingSeen.add(p.id);
       this.events.push({ name: 'firstBuilding', data: { id: p.id, name: it.name } });
     }
+    return true;
   }
 
   /** Colocación aceptada por una acción del jugador. La mutación ocurre en el
@@ -1424,6 +1467,7 @@ export class Simulation {
       this.fillHome(cx, cz, id, Math.max(1, Math.round((it.capacity ?? 1) * attractiveness)), true);
     }
     this.hireAndAcquaint();
+    if (it.service) this.serviceNeedsReported.delete(id);
     this.events.push({ name: 'cityGrew', data: { id, cx, cz, rot, label: it.name, byPlayer: true } });
     return true;
   }
@@ -1912,6 +1956,7 @@ export class Simulation {
       sick,
       tier: this.tier,
       growthPolicy: this.growthPolicy,
+      publicAutobuild: this.publicAutobuild,
       demand,
       coverage: coverageRates(this.index),
       happiness: this.averageHappiness(),

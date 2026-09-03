@@ -51,6 +51,12 @@ export interface DemandInput {
    * crecimiento vegetativo sigue hasta que la natalidad se satura). */
   totalPopulation: number;
   carryingCapacity: number;
+  /** Cobertura pública para activar demandas de policía/bomberos/parques. */
+  policeCoverage?: number;
+  fireCoverage?: number;
+  parkCoverage?: number;
+  /** Felicidad media diaria, para descubrir la falta de parques. */
+  avgHappiness?: number;
 }
 
 /** Demanda continua que alimenta la lectura RCI de la interfaz. Los tres
@@ -114,7 +120,7 @@ export function demandLevels(d: DemandLevelsInput): DemandLevels {
   return { R, C, I };
 }
 
-export type DemandKind = 'residential' | 'commerce' | 'work' | 'school' | 'clinic' | null;
+export type DemandKind = 'residential' | 'commerce' | 'work' | 'school' | 'clinic' | 'police' | 'fire' | 'park' | null;
 
 /** Zona natural de cada rol de catálogo. Las zonas solo orientan el crecimiento;
  * el jugador sigue pudiendo colocar manualmente cualquier edificio válido. */
@@ -145,6 +151,14 @@ export function computeDemand(d: DemandInput): DemandKind {
   // crece también se dota de sanidad de forma PROACTIVA (infraestructura
   // pública) — la clínica existe justamente para PREVENIR esas muertes.
   if (!d.hasClinic && d.population >= 10 && (d.avgHealth < 0.88 || d.population >= 20)) return 'clinic';
+  // La infraestructura pública escala con la ciudad. Se mira la cobertura,
+  // no solo la existencia nominal: una comisaría aislada no resuelve el mapa.
+  if (d.tier >= 2 && d.totalPopulation >= 60 && (d.policeCoverage ?? 1) < 0.5) return 'police';
+  if (d.tier >= 2 && d.totalPopulation >= 80 && (d.fireCoverage ?? 1) < 0.5) return 'fire';
+  // El parque aparece cuando ya hay un barrio que mantener: así una aldea no
+  // gasta su primera caja en dos amenidades antes de poder sostener vivienda,
+  // empleo y sanidad. La felicidad sigue siendo el disparador, no un guion.
+  if (d.tier >= 1 && d.totalPopulation >= 40 && d.avgHappiness !== undefined && d.avgHappiness < 0.5 && (d.parkCoverage ?? 1) < 0.5) return 'park';
   // Paro alto, o parados sin ninguna vacante → un lugar de trabajo.
   if (unemployment > 0.35 || (openJobs <= 0 && unemployment >= 0.15)) return 'work';
   // Gente queriendo venir (hay trabajo, o la ciudad va bien) y sin casas → vivienda.
@@ -168,11 +182,20 @@ export function itemForDemand(kind: Exclude<DemandKind, null>, tier: Tier): stri
     case 'commerce':
       return byRole(['commerce']).sort((a, b) => b.tier - a.tier)[0]?.id ?? 'shop';
     case 'work':
-      return byRole(['commerce', 'work', 'civic']).filter((it) => !it.students && it.id !== 'clinic').sort((a, b) => b.tier - a.tier)[0]?.id ?? 'shop';
+      // Los cívicos con `service` se reservan para sus demandas públicas:
+      // cuando faltan puestos no debe aparecer una comisaría como fábrica
+      // accidental solo porque comparte el rol `civic`.
+      return byRole(['commerce', 'work', 'civic']).filter((it) => !it.students && !it.service).sort((a, b) => b.tier - a.tier)[0]?.id ?? 'shop';
     case 'school':
       return 'school';
     case 'clinic':
       return 'clinic';
+    case 'police':
+      return 'police';
+    case 'fire':
+      return 'fire-station';
+    case 'park':
+      return 'park';
   }
 }
 

@@ -166,6 +166,12 @@ export function chronicleText(name: string, data?: Record<string, unknown>): str
       const label = typeof data?.label === 'string' ? data.label : (data?.id ?? 'un edificio');
       return `se cierra: ${label} — no tiene acceso a una vía`;
     }
+    case 'serviceNeeded': {
+      const label = typeof data?.label === 'string' ? data.label : (data?.id ?? 'un servicio');
+      return data?.reason === 'disabled'
+        ? `hace falta un servicio: ${label}`
+        : `el tesoro no alcanza para ${label}`;
+    }
     case 'roadBuilt': {
       const labels: Record<string, string> = { path: 'sendero', rural: 'vía rural', street: 'calle', avenue: 'avenida' };
       const road = typeof data?.road === 'string' ? labels[data.road] ?? data.road : 'vía';

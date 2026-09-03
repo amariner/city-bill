@@ -37,8 +37,7 @@ export interface CatalogItemData {
   service?: { kind: ServiceKind; radius: number };
   /** Amenity natural simple; H4.2 lo incorpora a la cobertura de ocio. */
   amenity?: number;
-  /** Precio que paga el jugador al colocar el edificio. El crecimiento autónomo
-   * no usa este campo: las obras de la ciudad nacen sin débito hasta H4.8. */
+  /** Precio que paga el jugador o la ciudad autónoma al colocar el edificio. */
   cost?: number;
   /** Mantenimiento diario que exige el edificio al tesoro. */
   upkeepPerDay?: number;
