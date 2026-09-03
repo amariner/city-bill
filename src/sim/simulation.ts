@@ -1182,6 +1182,7 @@ export class Simulation {
         avgHealth: this.avgHealth(),
         avgFood: this.avgFood(),
         avgPrestige: this.avgPrestige(),
+        taxBurden: this.economy.taxBurden(),
       });
       const cap = it.capacity ?? 1;
       const families = Math.max(1, Math.round(cap * attractiveness));
@@ -1215,6 +1216,7 @@ export class Simulation {
         avgHealth: this.avgHealth(),
         avgFood: this.avgFood(),
         avgPrestige: this.avgPrestige(),
+        taxBurden: this.economy.taxBurden(),
       });
       this.fillHome(cx, cz, id, Math.max(1, Math.round((it.capacity ?? 1) * attractiveness)), true);
     }
@@ -1593,6 +1595,7 @@ export class Simulation {
         avgHealth: this.avgHealth(),
         avgFood: this.avgFood(),
         avgPrestige: this.avgPrestige(),
+        taxBurden: this.economy.taxBurden(),
       }),
       totalPopulation: this.citizens.size,
       carryingCapacity: CARRYING_CAPACITY,
@@ -1620,6 +1623,7 @@ export class Simulation {
       tier: this.tier,
       growthPolicy: this.growthPolicy,
       demand,
+      taxRates: { ...this.economy.taxRates },
       abandoned: this.index.buildings.filter((b) => b.abandoned).length,
       children,
       adults: s.adults,

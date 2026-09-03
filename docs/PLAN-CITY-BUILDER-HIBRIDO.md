@@ -326,7 +326,7 @@ trampas**. Los tests nuevos se añaden al script `"test"` de `package.json`.
 - Tests: tras `place(school)`, `treasury` baja exactamente `cost` y `ledger.build` sube igual; `treasury < cost` ⇒ `noMoney` sin cambios; `chargeUpkeep` cobra Σ una vez/día; save incluye ledger.
 - Trampas: el orden del cierre del día es load-bearing; cívicos autónomos gratis hasta H4.8.
 
-**H3.2 Impuestos por sector**
+**H3.2 Impuestos por sector** — ✅ implementado
 - Archivos: M `economy.ts` (`taxRates {R:0.2, C:0.15, I:0.1}` sustituyen constantes en `payWage`/`settleShops`; `activityLevy` en `payWage` para `work/agriculture`: `gross · taxRates.I` acuñado → `ledger.taxI`), M `growth.ts` (`townAttractiveness` con `taxBurden` = media ponderada − 0.2, ×(1 − 0.6·max(0, burden))), M `actions.ts` (`setTax` clamp [0, 0.5]), M `protocol.ts`, M `sim.test.ts`.
 - Tests: `payWage` con R=0.3 deja neto 0.7·bruto; atractividad decrece con la carga; fuera de rango ⇒ `invalid`; replay reproduce tasas.
 - Trampas: mantener `TAX_RATE`/`CORP_TAX_RATE` exportadas como defaults.

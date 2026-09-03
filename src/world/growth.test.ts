@@ -2,7 +2,7 @@
 import { Grid, rotatedFootprint } from './grid';
 import { createRng } from '../rng';
 import { catalogData } from './catalogData';
-import { demandLevels, findParcel, growthCenter, itemForDemand, paintYard, residentialChoices, zoneForRole } from './growth';
+import { demandLevels, findParcel, growthCenter, itemForDemand, paintYard, residentialChoices, townAttractiveness, zoneForRole } from './growth';
 
 let passed = 0;
 let failed = 0;
@@ -132,6 +132,15 @@ function footprintIsZone(grid: Grid, id: string, p: { cx: number; cz: number; ro
   assert(grid.get(4, 4)?.terrain === 'grass' && grid.get(6, 6)?.terrain === 'grass', 'jardín: cubre huella y retranqueo');
   assert(grid.get(3, 4)?.terrain === 'road', 'jardín: respeta la vía');
   assert(grid.get(7, 3)?.terrain === 'water', 'jardín: respeta el agua');
+}
+
+// --- Carga fiscal y atractividad (H3.2) -------------------------------------
+{
+  const input = { employment: 1, avgHealth: 0.95, avgFood: 0.9, avgPrestige: 0.7 };
+  const normal = townAttractiveness({ ...input, taxBurden: 0.2 });
+  const heavy = townAttractiveness({ ...input, taxBurden: 0.5 });
+  assert(heavy < normal, 'impuestos: una carga por encima del 20% reduce la atractividad');
+  assert(townAttractiveness(input) === normal, 'impuestos: el tipo neutral no cambia la atractividad');
 }
 
 console.log(`\ngrowth.test: ${passed} passed, ${failed} failed`);

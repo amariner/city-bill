@@ -199,9 +199,16 @@ export function townAttractiveness(a: {
   avgHealth: number;
   avgFood: number;
   avgPrestige: number;
+  /** Carga fiscal ponderada; solo la parte sobre el 20 % reduce la llegada. */
+  taxBurden?: number;
 }): number {
-  const raw = 0.45 + 0.2 * a.employment + 0.15 * a.avgHealth + 0.1 * a.avgFood + 0.35 * a.avgPrestige;
-  return Math.min(1, Math.max(0.5, raw));
+  // El prestigio sigue impulsando la llegada, pero con peso moderado: la
+  // política fiscal puede mover el ahorro y, por tanto, el prestigio. Un peso
+  // más alto convierte ese canal en una realimentación migratoria explosiva.
+  const raw = 0.45 + 0.2 * a.employment + 0.15 * a.avgHealth + 0.1 * a.avgFood + 0.2 * a.avgPrestige;
+  const burden = Math.max(0, a.taxBurden ?? 0);
+  const taxFactor = 1 - 0.6 * Math.max(0, burden - 0.2);
+  return Math.min(1, Math.max(0.5, raw * taxFactor));
 }
 
 // --- Capacidad de carga (ciclo 30 — crecimiento logístico, no exponencial) ----

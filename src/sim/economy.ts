@@ -13,6 +13,7 @@ import { manhattan } from './geometry';
 import { ADULT_AGE, RETIREMENT_AGE } from './lifecycle';
 import { ROAD_SPECS } from '../world/roads';
 import type { RoadKind } from '../world/grid';
+import type { TaxRates } from './protocol';
 
 export interface Workplace {
   building: SimBuilding;
@@ -105,6 +106,9 @@ export interface EconomyLedger {
   build: number;
   road: number;
   upkeep: number;
+  taxR: number;
+  taxC: number;
+  taxI: number;
 }
 
 // --- Lógica de gobierno (ciclo 3): impuestos y pensiones ----------------------
@@ -128,6 +132,8 @@ export const PRESTIGE_STEP = 0.15;
 export const WHOLESALE_FOOD_PRICE = FOOD_PRICE * 0.4;
 /** Del margen de la tienda, la parte que tributa como impuesto de sociedades. */
 export const CORP_TAX_RATE = 0.15;
+/** Defaults de H3.2: se conservan las constantes históricas como referencia. */
+export const DEFAULT_TAX_RATES: TaxRates = { R: TAX_RATE, C: CORP_TAX_RATE, I: 0.1 };
 
 /** Guardado (T2.6): todo lo acumulado por la economía salvo `workplaces`
  * (derivado de `citizens[].work` + el índice — se reconstruye con `rebuild`,
@@ -158,6 +164,7 @@ export interface EconomySaveState {
   prosperity: [string, number][];
   cultivation: number;
   ledger?: EconomyLedger;
+  taxRates?: TaxRates;
 }
 
 export class Economy {
@@ -203,7 +210,10 @@ export class Economy {
   /** Nómina pública pagada del tesoro, no acuñada (ciclo 37bis — cierre parcial). */
   wagesFromTreasury = 0;
   /** Gasto público acumulado por categoría; sobrevive al guardado. */
-  ledger: EconomyLedger = { build: 0, road: 0, upkeep: 0 };
+  ledger: EconomyLedger = { build: 0, road: 0, upkeep: 0, taxR: 0, taxC: 0, taxI: 0 };
+  /** Tipos efectivos R/C/I del alcalde. El default conserva el comportamiento
+   * anterior y se serializa para que un save siga la misma política. */
+  taxRates: TaxRates = { ...DEFAULT_TAX_RATES };
 
   /** Comprueba y debita una partida pública completa. Nunca deja el tesoro en
    * negativo: si no alcanza, no muta nada y el caller devuelve `noMoney`. */
@@ -232,6 +242,12 @@ export class Economy {
     return paid;
   }
 
+  /** Carga fiscal ponderada que ve la atractividad. R pesa un poco más porque
+   * afecta a cada hogar, mientras C e I representan la actividad económica. */
+  taxBurden(): number {
+    return this.taxRates.R * 0.4 + this.taxRates.C * 0.3 + this.taxRates.I * 0.3;
+  }
+
   /** Nómina: el trabajo mete dinero en el hogar del trabajador, menos la
    * parte que va al tesoro municipal (impuesto sobre la renta, lógica de
    * gobierno). El tesoro es lo que luego paga pensiones.
@@ -246,7 +262,11 @@ export class Economy {
   payWage(homeKey: string, hours: number, employerTier: number, skill = 0, employerRole?: string): void {
     const skillMult = 1 + WAGE_SKILL_BONUS * Math.min(1, Math.max(0, skill));
     const gross = (WAGE_PER_HOUR + WAGE_TIER_BONUS * employerTier) * skillMult * hours;
-    const tax = gross * TAX_RATE;
+    const incomeTax = gross * this.taxRates.R;
+    const activityLevy = employerRole === 'work' || employerRole === 'agriculture'
+      ? gross * this.taxRates.I
+      : 0;
+    const tax = incomeTax + activityLevy;
     const net = gross - tax;
     if (employerRole === 'civic') {
       const fromTreasury = Math.min(Math.max(0, this.treasury), gross);
@@ -257,6 +277,8 @@ export class Economy {
     this.wagesPaid += net;
     this.treasury += tax;
     this.taxesCollected += tax;
+    this.ledger.taxR += incomeTax;
+    this.ledger.taxI += activityLevy;
   }
 
   /** Pensión diaria a hogares sin ningún ingreso propio (ni salario del día,
@@ -535,10 +557,11 @@ export class Economy {
       // Impuesto de sociedades sobre el margen del día (ventas - mayorista).
       const revenue = unitsSold * FOOD_PRICE;
       const margin = Math.max(0, revenue - wholesaleCost);
-      const corpTax = Math.min(this.tillOf(shopKey), margin * CORP_TAX_RATE);
+      const corpTax = Math.min(this.tillOf(shopKey), margin * this.taxRates.C);
       this.tills.set(shopKey, this.tillOf(shopKey) - corpTax);
       this.treasury += corpTax;
       this.corpTaxCollected += corpTax;
+      this.ledger.taxC += corpTax;
     }
     for (const [homeKey, bonus] of farmPool) {
       this.wallets.set(homeKey, (this.wallets.get(homeKey) ?? 0) + bonus);
@@ -595,6 +618,7 @@ export class Economy {
       prosperity: [...this.prosperity],
       cultivation: this.cultivation,
       ledger: { ...this.ledger },
+      taxRates: { ...this.taxRates },
     };
   }
 
@@ -625,7 +649,8 @@ export class Economy {
     this.visitsToday = new Map(s.visitsToday);
     this.prosperity = new Map(s.prosperity);
     this.cultivation = s.cultivation;
-    this.ledger = { build: 0, road: 0, upkeep: 0, ...(s.ledger ?? {}) };
+    this.ledger = { build: 0, road: 0, upkeep: 0, taxR: 0, taxC: 0, taxI: 0, ...(s.ledger ?? {}) };
+    this.taxRates = { ...DEFAULT_TAX_RATES, ...(s.taxRates ?? {}) };
   }
 
   /** Datos agregados para growth (Fase 4) y HUD. */

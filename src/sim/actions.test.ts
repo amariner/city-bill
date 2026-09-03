@@ -4,6 +4,7 @@ import { Simulation } from './simulation';
 import { replayActions } from './actions';
 import type { PlayerAction } from './protocol';
 import { ROAD_SPECS } from '../world/roads';
+import { Economy } from './economy';
 
 let passed = 0;
 let failed = 0;
@@ -117,6 +118,30 @@ check('place residencial: llega al menos una persona', rejected.citizens.size >=
   const saved = JSON.parse(JSON.stringify(sim.serialize()));
   const restored = new Simulation(Grid.deserialize(saved.gridJson), 5150, saved);
   check('presupuesto: el guardado conserva el ledger', restored.economy.ledger.build === schoolCost && restored.economy.ledger.upkeep === 61.5);
+
+  const taxAction = sim.applyAction({ kind: 'setTax', sector: 'R', rate: 0.35 }, 101);
+  check('impuestos: setTax cambia el tipo residencial', taxAction.ok && sim.economy.taxRates.R === 0.35);
+  const clampedTax = sim.applyAction({ kind: 'setTax', sector: 'C', rate: 2 }, 102);
+  check('impuestos: setTax acota el máximo al 50%', clampedTax.ok && sim.economy.taxRates.C === 0.5);
+  const invalidTax = sim.applyAction({ kind: 'setTax', sector: 'I', rate: Number.NaN }, 103);
+  check('impuestos: un tipo no numérico devuelve invalid', !invalidTax.ok && invalidTax.reason === 'invalid');
+  check('impuestos: el HUD recibe los tipos efectivos', sim.cityStats().taxRates.R === 0.35 && sim.cityStats().taxRates.C === 0.5);
+  const fiscalSave = JSON.parse(JSON.stringify(sim.serialize()));
+  const fiscalRestore = new Simulation(Grid.deserialize(fiscalSave.gridJson), 5150, fiscalSave);
+  check('impuestos: el guardado conserva las tasas', JSON.stringify(fiscalRestore.economy.taxRates) === JSON.stringify(sim.economy.taxRates));
+  const fiscalReplayGrid = new Grid();
+  fiscalReplayGrid.fillTerrain(-20, -20, 20, 20, 'field');
+  const fiscalReplay = new Simulation(fiscalReplayGrid, 5150);
+  fiscalReplay.autonomousGrowth = false;
+  fiscalReplay.economy.treasury = schoolCost + 500;
+  replayActions(fiscalReplay, sim.actions, sim.clock.tick);
+  check('impuestos: el replay conserva las tasas', JSON.stringify(fiscalReplay.economy.taxRates) === JSON.stringify(sim.economy.taxRates));
+
+  const taxes = new Economy();
+  taxes.payWage('industry', 1, 0, 0, 'work');
+  taxes.payWage('commerce', 1, 0, 0, 'commerce');
+  check('impuestos: trabajo/agro suma renta y activity levy', taxes.walletOf('industry') === 7 && taxes.ledger.taxR === 4 && taxes.ledger.taxI === 1);
+  check('impuestos: la nómina comercial usa renta, no sociedades', taxes.walletOf('commerce') === 8 && taxes.ledger.taxR === 4 && taxes.ledger.taxC === 0);
 }
 
 // --- Zonas del jugador ------------------------------------------------------

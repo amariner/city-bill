@@ -11,9 +11,8 @@ export type ActionResult =
 
 const ROAD_TIERS: Record<RoadKind, number> = { path: 0, rural: 1, street: 2, avenue: 3 };
 
-/** Aplica únicamente el subconjunto de acciones disponible en H1.2. Las
- * acciones de calles, zonas, presupuesto y transporte se habilitan en sus
- * respectivos hitos y se rechazan de forma explícita mientras tanto. */
+/** Aplica las acciones disponibles al alcalde. Cada acción aceptada es
+ * determinista y queda registrada para replay en el llamador. */
 export function applyPlayerAction(sim: Simulation, action: PlayerAction): ActionResult {
   switch (action.kind) {
     case 'place': {
@@ -96,6 +95,12 @@ export function applyPlayerAction(sim: Simulation, action: PlayerAction): Action
       // ninguna celda en ese momento.
       sim.index.rebuild();
       sim.economy.rebuild(sim.index, sim.citizens);
+      return { ok: true, cost: 0 };
+    }
+    case 'setTax': {
+      if (!['R', 'C', 'I'].includes(action.sector)) return { ok: false, reason: 'invalid', detail: 'sector fiscal desconocido' };
+      if (!Number.isFinite(action.rate)) return { ok: false, reason: 'invalid', detail: 'tipo fiscal no numérico' };
+      sim.economy.taxRates[action.sector] = Math.max(0, Math.min(0.5, action.rate));
       return { ok: true, cost: 0 };
     }
     case 'setPolicy':

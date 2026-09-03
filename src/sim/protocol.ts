@@ -34,6 +34,11 @@ export type RoadKind = 'path' | 'rural' | 'street' | 'avenue';
 export type ZoneKind = 'R' | 'C' | 'I' | 'A' | 'P';
 export type GrowthPolicy = 'free' | 'preferZones' | 'zonesOnly';
 export type TaxSector = 'R' | 'C' | 'I';
+export interface TaxRates {
+  R: number;
+  C: number;
+  I: number;
+}
 
 export type PlayerAction =
   | { kind: 'place'; id: string; cx: number; cz: number; rot: Rot }
@@ -259,6 +264,8 @@ export interface CityStats {
   growthPolicy: GrowthPolicy;
   /** Presión latente por sector, para las barras R/C/I de la toolbar. */
   demand: { R: number; C: number; I: number };
+  /** Tipos efectivos de los tres sectores, para el presupuesto del alcalde. */
+  taxRates: TaxRates;
   /** Edificios sin acceso a una vía y actualmente fuera de servicio. */
   abandoned: number;
   /** Reparto por edad (banco de pruebas): niños/adultos/mayores. */
