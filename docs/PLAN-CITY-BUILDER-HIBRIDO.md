@@ -346,9 +346,9 @@ trampas**. Los tests nuevos se añaden al script `"test"` de `package.json`.
 - `Economy.moneySupply()` y `Economy.moneyFlow()` son la fuente única de la sonda: las escrituras internas al tesoro pasan por `changeTreasury()`, los pagos de cartera por `collectWalletPayment()` y los gastos externos por métodos explícitos. El replay verifica snapshot, grid, masa monetaria, flujo auditado y save restaurado.
 - Trampas resueltas: no dejar pagos directos a `treasury` en la simulación; una cartera que emigra se retira de `wallets` y se contabiliza como salida externa; el mayorista solo cuenta como fuga en la parte que no vuelve a una cartera granjera.
 
-**H3.6 Menú de partida**
-- Archivos: C `src/ui/startMenu.ts` (continuar (día N) / nueva partida con semilla / sandbox), M `main.ts`, M `save/save.ts`.
-- Aceptación: sin save ⇒ nueva directa; con save ⇒ menú; `?seed=N` fuerza.
+**H3.6 Menú de partida** — ✅ implementado
+- Archivos: C `src/ui/startMenu.ts` (continuar (día N) / nueva partida con semilla / sandbox), C `src/ui/startMenu.test.ts`, M `main.ts`.
+- Aceptación: sin save ⇒ nueva directa; con save ⇒ overlay pausado con día/semilla y tres salidas; `?seed=N` fuerza un arranque reproducible sin restaurar el slot.
 
 **Gate H3:** tabla de la sonda a 3 poblaciones, captura del panel, tests conservación/replay/save.
 

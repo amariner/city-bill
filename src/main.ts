@@ -37,12 +37,17 @@ import { BudgetPanel } from './ui/budgetPanel';
 import { Toolbar } from './ui/toolbar';
 import { Grid, cellFromKey, cellToWorld, rotatedFootprint } from './world/grid';
 import { clearSave, loadSave, writeSave } from './save/save';
+import { StartMenu } from './ui/startMenu';
 
 const sceneName = new URLSearchParams(window.location.search).get('scene');
 const query = new URLSearchParams(window.location.search);
 const saveEnabled = sceneName === null;
 if (saveEnabled && query.get('new') === '1') clearSave();
-const initialSave = saveEnabled && query.get('new') !== '1' ? loadSave() : null;
+// Una semilla explícita es una orden de arranque reproducible: no debe quedar
+// atrapada detrás del menú ni restaurar accidentalmente un slot anterior.
+const forcedSeed = query.get('seed');
+const hasForcedSeed = forcedSeed !== null && Number.isFinite(Number(forcedSeed));
+const initialSave = saveEnabled && query.get('new') !== '1' && !hasForcedSeed ? loadSave() : null;
 
 /** Semilla del mundo: la guardada, o una nueva aleatoria que se persiste. Así el
  * pueblo es único por jugador y sobrevive a las recargas. `?seed=N` la fuerza
@@ -50,7 +55,11 @@ const initialSave = saveEnabled && query.get('new') !== '1' ? loadSave() : null;
 function pickWorldSeed(): number {
   const KEY = 'city-bill:worldSeed';
   const forced = new URLSearchParams(window.location.search).get('seed');
-  if (forced !== null && Number.isFinite(Number(forced))) return Number(forced) >>> 0;
+  if (forced !== null && Number.isFinite(Number(forced))) {
+    const seed = Number(forced) >>> 0;
+    try { localStorage.setItem(KEY, String(seed)); } catch { /* almacenamiento opcional */ }
+    return seed;
+  }
   if (initialSave && Number.isFinite(initialSave.seed)) return initialSave.seed >>> 0;
   const stored = localStorage.getItem(KEY);
   if (stored !== null && Number.isFinite(Number(stored))) return Number(stored) >>> 0;
@@ -77,6 +86,8 @@ let cityHud: CityHud | null = null;
 let devPanel: DevPanel | null = null;
 let controlBar: ControlBar | null = null;
 let budgetPanel: BudgetPanel | null = null;
+let startMenu: StartMenu | null = null;
+let skipUnloadSave = false;
 let toolbar: Toolbar | null = null;
 let toolState: ToolState | null = null;
 let ghost: Ghost | null = null;
@@ -210,6 +221,7 @@ function buildRenderAndUi(grid: Grid, worldSeed: number): void {
   controlBar = new ControlBar((s) => sim.setSpeed(s), saveEnabled ? {
     seed: worldSeed,
     onNewGame: () => {
+      skipUnloadSave = true;
       clearSave();
       window.location.reload();
     },
@@ -280,9 +292,37 @@ if (sceneName === 'buildings') {
   if (saveEnabled) {
     simClient.onSaveReady = (msg) => writeSave({ seed: worldSeed, saveBlob: msg.saveBlob });
     window.setInterval(() => simClient?.save('auto'), 10_000);
-    window.addEventListener('beforeunload', () => simClient?.save('unload'));
+    window.addEventListener('beforeunload', () => {
+      if (!skipUnloadSave) simClient?.save('unload');
+    });
   }
   buildRenderAndUi(grid, worldSeed);
+  if (initialSave && initialSave.seed === worldSeed) {
+    // La partida restaurada queda pausada hasta que el jugador elija continuar.
+    simClient.setSpeed(0);
+    startMenu = new StartMenu({
+      seed: worldSeed,
+      saveBlob: initialSave.saveBlob,
+      onContinue: () => simClient?.setSpeed(1),
+      onNewGame: (seed) => {
+        skipUnloadSave = true;
+        clearSave();
+        const url = new URL(window.location.href);
+        url.searchParams.delete('scene');
+        url.searchParams.set('new', '1');
+        url.searchParams.set('seed', String(seed));
+        window.location.assign(url.toString());
+      },
+      onSandbox: (seed) => {
+        skipUnloadSave = true;
+        const url = new URL(window.location.href);
+        url.searchParams.set('scene', 'sandbox');
+        url.searchParams.set('seed', String(seed));
+        url.searchParams.delete('new');
+        window.location.assign(url.toString());
+      },
+    });
+  }
 }
 camera.apply();
 
