@@ -77,8 +77,9 @@ function sendSnapshot(): void {
     buildings: sim.index.buildings.length,
     city: sim.cityStats(),
     agents,
+    vehicles: sim.vehiclesSnapshot(),
   };
-  post(msg, [agents.buffer]);
+  post(msg, [agents.buffer, msg.vehicles.buffer]);
   if (includeBuildingStats) {
     const data = sim.buildingStats();
     post({ type: 'buildingStats', count: sim.index.buildings.length, data }, [data.buffer]);

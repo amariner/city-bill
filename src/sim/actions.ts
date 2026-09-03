@@ -4,6 +4,7 @@ import type { PlayerAction, RejectReason, RecordedAction, RoadKind } from './pro
 import { catalogData } from '../world/catalogData';
 import { placementCheck } from '../world/placement';
 import { paintRoadPlan, planRoad, previewRoad, ROAD_SPECS } from '../world/roads';
+import { buildBusLine } from './transit';
 
 export type ActionResult =
   | { ok: true; cost: number }
@@ -134,6 +135,34 @@ export function applyPlayerAction(sim: Simulation, action: PlayerAction): Action
         return { ok: true, cost: 0 };
       }
       return { ok: false, reason: 'invalid', detail: 'política aún no disponible' };
+    case 'busLine': {
+      if (action.op === 'create') {
+        const stops = action.stops ?? [];
+        const keys = new Set(stops.map(([cx, cz]) => `${cx},${cz}`));
+        if (stops.length < 2 || stops.length > 12 || keys.size !== stops.length) {
+          return { ok: false, reason: 'invalid', detail: 'una línea necesita entre 2 y 12 paradas distintas' };
+        }
+        const previewLine = buildBusLine(0, stops);
+        if (!previewLine) return { ok: false, reason: 'invalid', detail: 'línea de bus inválida' };
+        for (const [cx, cz] of stops) {
+          const cell = sim.grid.get(cx, cz);
+          if (!cell || cell.terrain !== 'road') {
+            return { ok: false, reason: 'blocked', detail: 'cada parada debe estar sobre una calzada' };
+          }
+        }
+        if (previewLine.route.some(([cx, cz]) => sim.grid.get(cx, cz)?.terrain !== 'road')) {
+          return { ok: false, reason: 'blocked', detail: 'la ruta completa debe seguir una calzada' };
+        }
+        const id = sim.createBusLine(stops);
+        return id === null
+          ? { ok: false, reason: 'invalid', detail: 'no se pudo construir la línea' }
+          : { ok: true, cost: 0 };
+      }
+      if (action.lineId === undefined || !sim.deleteBusLine(action.lineId)) {
+        return { ok: false, reason: 'notFound', detail: 'línea de bus desconocida' };
+      }
+      return { ok: true, cost: 0 };
+    }
     default:
       return { ok: false, reason: 'invalid', detail: `acción no disponible: ${action.kind}` };
   }

@@ -20,12 +20,12 @@ import { coverageRates } from './coverage';
 import { householdHappiness } from './happiness';
 import { computeLandValue } from './landValue';
 import { Economy, EconomySaveState } from './economy';
-import { Citizen, CitizenPhase, citizenName, PlannedActivity, TravelMode, jobFitsVocation, vocationOf, VOCATION_PURPOSE_BONUS, surnameOf } from './citizens/citizen';
+import { Citizen, CitizenPhase, citizenName, PlannedActivity, TravelMode, BusPlan, BusRide, BusWait, jobFitsVocation, vocationOf, VOCATION_PURPOSE_BONUS, surnameOf } from './citizens/citizen';
 import { decayNeeds, restore, NEED_KEYS } from './citizens/needs';
 import { chooseActivity } from './citizens/brain';
 import { ACTIVITY_BY_KIND, SimContext, activityLabel, EDU_PER_HOUR, CLINIC_FEE, isFestivalDay } from './citizens/activities';
 import { SocialSystem, SocialSaveState } from './citizens/social';
-import { AgentState, ActivityKind, activityId, AGENT_STRIDE, AlertBit, BUILDING_STRIDE, TravelModeCode, CityStats, CitizenInfoMsg, settlementLevel, SETTLEMENT_CLASSES, PlayerAction, RecordedAction, GrowthPolicy, PublicAutobuildPolicy, BudgetHistoryPoint, RoadKind } from './protocol';
+import { AgentState, ActivityKind, activityId, AGENT_STRIDE, AlertBit, BUILDING_STRIDE, VEHICLE_STRIDE, TravelModeCode, VehicleKindCode, CityStats, CitizenInfoMsg, settlementLevel, SETTLEMENT_CLASSES, PlayerAction, RecordedAction, GrowthPolicy, PublicAutobuildPolicy, BudgetHistoryPoint, RoadKind } from './protocol';
 import {
   computeDemand, demandLevels, itemForDemand, findParcel, townCenter, townAttractiveness,
   householdHardship, updateEmigrationPressure, EMIGRATE_POP_FLOOR, EMIGRATE_PRESSURE_LIMIT,
@@ -42,6 +42,7 @@ import { weatherAt, seasonalFestivalName, seasonalWarmth, Weather } from './weat
 import { applyPlayerAction, ActionResult } from './actions';
 import { ROAD_SPECS } from '../world/roads';
 import { congestionFactor, decayTraffic } from './traffic';
+import { BUS_SPEED_FACTOR, Bus, BusLine, buildBusLine, createBuses, stepBuses } from './transit';
 
 /** Velocidad al caminar, en celdas por tick (0.25 s reales a vel. 1). */
 const WALK_CELLS_PER_TICK = 0.9; // ≈ 7 km/h de juego a escala urbana
@@ -166,6 +167,12 @@ export interface SimSaveState {
   carTrips: number;
   /** Carga residual por celda de vía; opcional para saves anteriores a H5.1. */
   traffic?: Array<[number, number]>;
+  /** Líneas y vehículos de transporte; opcionales para saves anteriores a H5.3. */
+  busLines?: Array<{ id: number; stops: CellXZ[] }>;
+  buses?: Bus[];
+  busTrips?: number;
+  nextBusLineId?: number;
+  nextBusId?: number;
   emigrations: number;
   vaccinationsGiven: number;
   firstBuildingSeen: string[];
@@ -273,6 +280,13 @@ export class Simulation {
   carTrips = 0;
   /** Carga de tráfico por celda de vía; decae por hora y se guarda para replay. */
   readonly traffic = new Map<number, number>();
+  /** Líneas de bus activas y sus vehículos físicos (H5.3). */
+  readonly busLines = new Map<number, BusLine>();
+  readonly buses: Bus[] = [];
+  /** Embarques completados; sirve para medir si el transporte público se usa. */
+  busTrips = 0;
+  private nextBusLineId = 1;
+  private nextBusId = 1;
   /** Emigraciones acumuladas (ciclo 14 — métrica de tests/Crónica). */
   emigrations = 0;
   /** Tramos de vía trazados por la ciudad sola (T4.4 — métrica de tests). */
@@ -362,6 +376,25 @@ export class Simulation {
     for (const [key, load] of state.traffic ?? []) {
       if (Number.isFinite(key) && Number.isFinite(load) && load > 0) this.traffic.set(key, load);
     }
+    this.busLines.clear();
+    this.buses.length = 0;
+    for (const raw of state.busLines ?? []) {
+      const line = buildBusLine(raw.id, raw.stops);
+      if (line) this.busLines.set(line.id, line);
+    }
+    for (const raw of state.buses ?? []) {
+      if (this.busLines.has(raw.lineId) && Number.isFinite(raw.x) && Number.isFinite(raw.z)) this.buses.push({ ...raw });
+    }
+    this.nextBusLineId = state.nextBusLineId ?? (Math.max(0, ...this.busLines.keys()) + 1);
+    this.nextBusId = state.nextBusId ?? (Math.max(0, ...this.buses.map((bus) => bus.id)) + 1);
+    this.busTrips = state.busTrips ?? 0;
+    if (this.busLines.size > 0 && this.buses.length === 0) {
+      for (const line of this.busLines.values()) {
+        const created = createBuses(line, this.nextBusId);
+        this.nextBusId += created.length;
+        this.buses.push(...created);
+      }
+    }
     this.emigrations = state.emigrations;
     this.vaccinationsGiven = state.vaccinationsGiven;
     this.firstBuildingSeen.clear();
@@ -426,6 +459,13 @@ export class Simulation {
       roadsExtended: this.roadsExtended,
       carTrips: this.carTrips,
       traffic: [...this.traffic].filter(([, load]) => load > 0).sort(([a], [b]) => a - b),
+      busLines: [...this.busLines.values()]
+        .sort((a, b) => a.id - b.id)
+        .map((line) => ({ id: line.id, stops: line.stops.map(([x, z]) => [x, z] as CellXZ) })),
+      buses: this.buses.map((bus) => ({ ...bus })).sort((a, b) => a.id - b.id),
+      busTrips: this.busTrips,
+      nextBusLineId: this.nextBusLineId,
+      nextBusId: this.nextBusId,
       emigrations: this.emigrations,
       vaccinationsGiven: this.vaccinationsGiven,
       firstBuildingSeen: [...this.firstBuildingSeen].sort(),
@@ -852,6 +892,7 @@ export class Simulation {
     this.clock.advance();
     const hours = TICK_GAME_S / 3600;
     decayTraffic(this.traffic, hours);
+    stepBuses(this.busLines, this.buses, (x, z) => this.speedAt(x, z, 'bus'));
     const ctx = this.context();
 
     this.paths.process();
@@ -886,7 +927,8 @@ export class Simulation {
       }
       this.stepCitizen(c, ctx);
       // Candidatos a saludo: cualquiera al aire libre (andando o parado).
-      if (!c.inside && (c.phase.kind === 'moving' || c.phase.kind === 'doing')) walkers.push(c);
+      if (!c.inside && ((c.phase.kind === 'moving' && c.phase.mode !== 'bus')
+        || (c.phase.kind === 'doing' && !c.phase.busWait))) walkers.push(c);
     }
 
     // Encuentros emergentes entre caminantes.
@@ -1628,6 +1670,153 @@ export class Simulation {
     return this.razeBuilding(building.anchorX, building.anchorZ, true);
   }
 
+  /** Crea una línea circular y sus buses físicos. La acción ya ha validado que
+   * las paradas están en calzada; aquí se conserva el estado determinista que
+   * necesitan el replay y los saves. */
+  createBusLine(stops: readonly CellXZ[]): number | null {
+    const line = buildBusLine(this.nextBusLineId, stops);
+    if (!line) return null;
+    this.nextBusLineId++;
+    this.busLines.set(line.id, line);
+    const buses = createBuses(line, this.nextBusId);
+    this.nextBusId += buses.length;
+    this.buses.push(...buses);
+    return line.id;
+  }
+
+  /** Elimina una línea y devuelve a decidir a quienes dependían de ella. */
+  deleteBusLine(id: number): boolean {
+    if (!this.busLines.delete(id)) return false;
+    for (let i = this.buses.length - 1; i >= 0; i--) {
+      if (this.buses[i].lineId === id) this.buses.splice(i, 1);
+    }
+    for (const citizen of this.citizens.values()) {
+      const phase = citizen.phase;
+      const dependsOnLine = (phase.kind === 'moving' && phase.busRide?.lineId === id)
+        || (phase.kind === 'doing' && phase.busWait?.lineId === id);
+      if (dependsOnLine) {
+        citizen.phase = { kind: 'deciding' };
+        citizen.activity = 'none';
+        citizen.inside = false;
+      }
+    }
+    return true;
+  }
+
+  /** Elige la combinación de parada de subida/bajada más cercana. El coste es
+   * solo geométrico y estable: la utilidad de la actividad sigue decidiendo
+   * adónde quiere ir la persona, el bus únicamente sustituye el tramo largo. */
+  private busPlanFor(from: CellXZ, to: CellXZ): BusPlan | undefined {
+    if (manhattan(from, to) <= 12) return undefined;
+    let best: { score: number; plan: BusPlan } | undefined;
+    const lines = [...this.busLines.values()].sort((a, b) => a.id - b.id);
+    for (const line of lines) {
+      for (let boardStopIndex = 0; boardStopIndex < line.stops.length; boardStopIndex++) {
+        const boardDistance = manhattan(from, line.stops[boardStopIndex]);
+        if (boardDistance > 6) continue;
+        for (let alightStopIndex = 0; alightStopIndex < line.stops.length; alightStopIndex++) {
+          if (alightStopIndex === boardStopIndex) continue;
+          const alightDistance = manhattan(to, line.stops[alightStopIndex]);
+          if (alightDistance > 6) continue;
+          const boardRouteIndex = line.stopRouteIndices[boardStopIndex];
+          const alightRouteIndex = line.stopRouteIndices[alightStopIndex];
+          const routeDistance = (alightRouteIndex - boardRouteIndex + line.route.length) % line.route.length;
+          const score = boardDistance + routeDistance + alightDistance;
+          const candidate = { score, plan: { lineId: line.id, boardStopIndex, alightStopIndex } };
+          if (!best || score < best.score
+            || (score === best.score && (line.id < best.plan.lineId
+              || (line.id === best.plan.lineId && (boardStopIndex < best.plan.boardStopIndex
+                || (boardStopIndex === best.plan.boardStopIndex && alightStopIndex < best.plan.alightStopIndex)))))) {
+            best = candidate;
+          }
+        }
+      }
+    }
+    return best?.plan;
+  }
+
+  private beginBusWait(c: Citizen, planned: PlannedActivity): void {
+    const bus = planned.bus;
+    if (!bus || !this.busLines.has(bus.lineId)) {
+      c.phase = { kind: 'deciding' };
+      c.activity = 'none';
+      c.inside = false;
+      return;
+    }
+    const stop = this.busLines.get(bus.lineId)!.stops[bus.boardStopIndex];
+    c.x = stop[0] + 0.5;
+    c.z = stop[1] + 0.5;
+    c.activity = planned.activity;
+    c.inside = false;
+    c.phase = {
+      kind: 'doing',
+      until: this.clock.time + TICK_GAME_S * 12,
+      busWait: { ...bus, next: planned },
+    };
+  }
+
+  private stepBusWait(c: Citizen, wait: BusWait): void {
+    const line = this.busLines.get(wait.lineId);
+    if (!line) {
+      c.phase = { kind: 'deciding' };
+      c.activity = 'none';
+      return;
+    }
+    const stopRouteIndex = line.stopRouteIndices[wait.boardStopIndex];
+    const bus = this.buses.find((candidate) => candidate.lineId === wait.lineId
+      && candidate.routeIndex === stopRouteIndex);
+    if (bus) {
+      c.x = bus.x;
+      c.z = bus.z;
+      c.heading = bus.heading;
+      c.phase = {
+        kind: 'moving',
+        path: [],
+        segment: 0,
+        t: 0,
+        next: wait.next,
+        mode: 'bus',
+        busRide: { ...wait, busId: bus.id, boardedAtTick: this.clock.tick },
+      };
+      this.busTrips++;
+      return;
+    }
+    const until = c.phase.kind === 'doing' ? c.phase.until : 0;
+    if (this.clock.time >= until) {
+      c.phase = { kind: 'deciding' };
+      c.activity = 'none';
+    }
+  }
+
+  private stepBusRide(c: Citizen): void {
+    if (c.phase.kind !== 'moving' || c.phase.mode !== 'bus' || !c.phase.busRide) return;
+    const ride = c.phase.busRide;
+    const line = this.busLines.get(ride.lineId);
+    const bus = this.buses.find((candidate) => candidate.id === ride.busId);
+    if (!line || !bus || this.clock.tick <= ride.boardedAtTick) {
+      if (!line || !bus) {
+        c.phase = { kind: 'deciding' };
+        c.activity = 'none';
+      }
+      return;
+    }
+    c.x = bus.x;
+    c.z = bus.z;
+    c.heading = bus.heading;
+    const alightRouteIndex = line.stopRouteIndices[ride.alightStopIndex];
+    if (bus.routeIndex !== alightRouteIndex) return;
+
+    const destination: PlannedActivity = { ...ride.next, bus: undefined };
+    const from: CellXZ = [Math.round(bus.x - 0.5), Math.round(bus.z - 0.5)];
+    if (manhattan(from, destination.cell) <= 1) {
+      this.beginDoing(c, destination);
+      return;
+    }
+    const ticket = this.paths.request(from, destination.cell);
+    c.phase = { kind: 'waitingPath', ticket, next: destination };
+    c.activity = destination.activity;
+  }
+
   /** Toma los cambios espaciales desde el último envío al hilo principal. */
   takeGridChanges(): { cells: Array<[number, number, Cell]>; built: BuiltChange[]; razed: RazedChange[] } {
     const changes = {
@@ -1662,13 +1851,17 @@ export class Simulation {
         const next = chooseActivity(c, ctx);
         if (!next) return; // apatía: idle donde está
         const from: CellXZ = [Math.round(c.x - 0.5), Math.round(c.z - 0.5)];
-        if (manhattan(from, next.cell) <= 1) {
-          this.beginDoing(c, next);
+        const bus = next.activity === 'none' ? undefined : this.busPlanFor(from, next.cell);
+        const planned = bus
+          ? { ...next, cell: this.busLines.get(bus.lineId)!.stops[bus.boardStopIndex], bus }
+          : next;
+        if (manhattan(from, planned.cell) <= 1) {
+          planned.bus ? this.beginBusWait(c, planned) : this.beginDoing(c, planned);
           return;
         }
-        const ticket = this.paths.request(from, next.cell);
-        c.phase = { kind: 'waitingPath', ticket, next };
-        c.activity = next.activity;
+        const ticket = this.paths.request(from, planned.cell);
+        c.phase = { kind: 'waitingPath', ticket, next: planned };
+        c.activity = planned.activity;
         return;
       }
       case 'waitingPath': {
@@ -1691,7 +1884,7 @@ export class Simulation {
         // con nadie más: cada cual decide con lo suyo, como el resto del motor.
         const homeKey = `${c.home.ax},${c.home.az}`;
         let mode: TravelMode = 'foot';
-        if (pathLength(res.path) > CAR_TRIP_THRESHOLD && this.economy.walletOf(homeKey) >= CAR_TRIP_COST) {
+        if (!c.phase.next.bus && pathLength(res.path) > CAR_TRIP_THRESHOLD && this.economy.walletOf(homeKey) >= CAR_TRIP_COST) {
           this.economy.spendExternal(homeKey, CAR_TRIP_COST, 'transport');
           mode = 'car';
           this.carTrips++;
@@ -1700,10 +1893,15 @@ export class Simulation {
         return;
       }
       case 'moving': {
-        this.stepWalk(c);
+        if (c.phase.mode === 'bus') this.stepBusRide(c);
+        else this.stepWalk(c);
         return;
       }
       case 'doing': {
+        if (c.phase.busWait) {
+          this.stepBusWait(c, c.phase.busWait);
+          return;
+        }
         const def = ACTIVITY_BY_KIND.get(c.activity);
         if (def) {
           const hours = TICK_GAME_S / 3600;
@@ -1815,9 +2013,10 @@ export class Simulation {
 
   /** Celdas/tick en (cx,cz): a pie siempre igual; en coche depende del
    * terreno y de la carga que comparte la vía (H5.1). */
-  private speedAt(cx: number, cz: number, mode: 'foot' | 'car'): number {
+  private speedAt(cx: number, cz: number, mode: TravelMode): number {
     if (mode === 'foot') return WALK_CELLS_PER_TICK;
     const onRoad = this.roadKindAt(cx, cz) !== null;
+    if (mode === 'bus') return onRoad ? CAR_CELLS_PER_TICK_ROAD * BUS_SPEED_FACTOR * this.congestionAt(cx, cz) : CAR_CELLS_PER_TICK_OFFROAD;
     return onRoad ? CAR_CELLS_PER_TICK_ROAD * this.congestionAt(cx, cz) : CAR_CELLS_PER_TICK_OFFROAD;
   }
 
@@ -1845,7 +2044,8 @@ export class Simulation {
           c.phase = { kind: 'deciding' };
           return;
         }
-        this.beginDoing(c, ph.next);
+        if (ph.next.bus) this.beginBusWait(c, ph.next);
+        else this.beginDoing(c, ph.next);
         return;
       }
       // Una ocupación cuenta una vez por coche y sub-tick, en la primera celda
@@ -1898,8 +2098,28 @@ export class Simulation {
       arr[i++] = c.heading;
       arr[i++] = state;
       arr[i++] = activityId(c.activity);
-      arr[i++] = c.phase.kind === 'moving' && c.phase.mode === 'car' ? TravelModeCode.Car : TravelModeCode.Foot;
+      arr[i++] = c.phase.kind === 'moving' && c.phase.mode === 'bus'
+        ? TravelModeCode.Bus
+        : c.phase.kind === 'moving' && c.phase.mode === 'car'
+          ? TravelModeCode.Car
+          : TravelModeCode.Foot;
       arr[i++] = c.grief; // 8ª columna (AGENT_STRIDE=8): el render apaga la ropa del doliente
+    }
+    return arr;
+  }
+
+  /** Estado plano de buses: [id, x, z, heading, kind, lineId]. */
+  vehiclesSnapshot(): Float32Array {
+    const buses = [...this.buses].sort((a, b) => a.id - b.id);
+    const arr = new Float32Array(buses.length * VEHICLE_STRIDE);
+    let i = 0;
+    for (const bus of buses) {
+      arr[i++] = bus.id;
+      arr[i++] = bus.x;
+      arr[i++] = bus.z;
+      arr[i++] = bus.heading;
+      arr[i++] = VehicleKindCode.Bus;
+      arr[i++] = bus.lineId;
     }
     return arr;
   }
@@ -2040,6 +2260,9 @@ export class Simulation {
       growthPolicy: this.growthPolicy,
       publicAutobuild: this.publicAutobuild,
       congestion: this.averageCongestion(),
+      busLines: this.busLines.size,
+      busTrips: this.busTrips,
+      trainActive: false,
       demand,
       coverage: coverageRates(this.index),
       happiness: this.averageHappiness(),

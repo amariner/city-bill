@@ -56,13 +56,31 @@ export interface PlaceRef {
 
 /** Modo de trayecto (ciclo 8 — vehículos). A pie por defecto; en coche solo
  * para trayectos largos y si el hogar puede pagar el trayecto. */
-export type TravelMode = 'foot' | 'car';
+export type TravelMode = 'foot' | 'car' | 'bus';
+
+export interface BusPlan {
+  lineId: number;
+  boardStopIndex: number;
+  alightStopIndex: number;
+}
+
+export interface BusWait {
+  lineId: number;
+  boardStopIndex: number;
+  alightStopIndex: number;
+  next: PlannedActivity;
+}
+
+export interface BusRide extends BusWait {
+  busId: number;
+  boardedAtTick: number;
+}
 
 export type CitizenPhase =
   | { kind: 'deciding' }
   | { kind: 'waitingPath'; ticket: number; next: PlannedActivity }
-  | { kind: 'moving'; path: CellXZ[]; segment: number; t: number; next: PlannedActivity; mode: TravelMode }
-  | { kind: 'doing'; until: number };
+  | { kind: 'moving'; path: CellXZ[]; segment: number; t: number; next: PlannedActivity; mode: TravelMode; busRide?: BusRide }
+  | { kind: 'doing'; until: number; busWait?: BusWait };
 
 export interface PlannedActivity {
   activity: ActivityKind;
@@ -74,6 +92,8 @@ export interface PlannedActivity {
   duration: number;
   /** Con quién (visitas/charlas). */
   withId?: number;
+  /** Plan de transporte público; la parada de subida sustituye temporalmente a `cell`. */
+  bus?: BusPlan;
 }
 
 export interface Citizen {

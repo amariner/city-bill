@@ -44,6 +44,16 @@ export const enum AlertBit {
 export const enum TravelModeCode {
   Foot = 0,
   Car = 1,
+  Bus = 2,
+}
+
+export const VEHICLE_STRIDE = 6;
+
+/** Tipo de vehículo en el buffer `SnapshotMsg.vehicles`. */
+export const enum VehicleKindCode {
+  Bus = 0,
+  Locomotive = 1,
+  Wagon = 2,
 }
 
 export type RoadKind = 'path' | 'rural' | 'street' | 'avenue';
@@ -293,6 +303,8 @@ export interface SnapshotMsg {
   city: CityStats;
   /** count * AGENT_STRIDE floats. TRANSFERIDO (zero-copy). */
   agents: Float32Array;
+  /** count * VEHICLE_STRIDE floats: [id, x, z, heading, kind, lineId]. */
+  vehicles: Float32Array;
 }
 
 /** Canal lento de overlays (~1 Hz), independiente del buffer de agentes. */
@@ -337,6 +349,12 @@ export interface CityStats {
   publicAutobuild: PublicAutobuildPolicy;
   /** Saturación media normalizada de las celdas de vía [0,1] (H5.1). */
   congestion: number;
+  /** Número de líneas de bus activas (H5.3). */
+  busLines: number;
+  /** Viajes de pasajeros acumulados desde el inicio de la partida (H5.3). */
+  busTrips: number;
+  /** Reservado para H5.6; false hasta que exista infraestructura ferroviaria. */
+  trainActive: boolean;
   /** Presión latente por sector, para las barras R/C/I de la toolbar. */
   demand: { R: number; C: number; I: number };
   /** Proporción de viviendas activas cubierta por cada servicio [0,1]. */

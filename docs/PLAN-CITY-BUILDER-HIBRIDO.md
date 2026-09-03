@@ -400,10 +400,10 @@ trampas**. Los tests nuevos se añaden al script `"test"` de `package.json`.
 **H5.2 `TrafficMsg` y overlay**
 - **✅ implementado** — Archivos: M `worker.ts` (cada 8 snapshots, pares `load > 0`), M `client.ts`, M `overlay.ts` (malla de calzadas por chunk y modo `traffic`), M `main.ts`; buffer `Uint32Array` transferido sin copia.
 
-**H5.3 Líneas de bus (lógica)**
-- Archivos: C `src/sim/transit.ts` (`BusLine`, `Bus`, `stepBuses()` con `PathQueue`; velocidad `CAR_CELLS_PER_TICK_ROAD × 0.8 × congestión`; 1 bus por 12 celdas, mínimo 2), M `simulation.ts` (`vehicles`; `TravelMode 'bus'` en `planTrip` si hay parada a ≤6 celdas de origen y destino en la misma línea: caminar a parada, esperar = `doing` con condición de salida, a bordo = `moving` con `mode:'bus'` y posición del bus), M `actions.ts` (`busLine`: paradas en `road`), M `protocol.ts`.
-- Tests: loop de 3 paradas se recorre; un ciudadano cerca de paradas elige `bus`; replay reproduce la línea.
-- Trampas: sin fase nueva en el autómata; contador `busTrips`.
+**H5.3 Líneas de bus (lógica)** — ✅ implementado
+- Archivos: C `src/sim/transit.ts` (`BusLine`, `Bus`, `stepBuses()`; velocidad `CAR_CELLS_PER_TICK_ROAD × 0.8 × congestión`; 1 bus por 12 celdas, mínimo 2), M `simulation.ts` (`vehicles`; `TravelMode 'bus'` en el plan si hay parada a ≤6 celdas de origen y destino en la misma línea: caminar a parada, esperar = `doing` con condición de salida, a bordo = `moving` con `mode:'bus'` y posición del bus), M `actions.ts` (`busLine`: paradas y ruta sobre `road`), M `protocol.ts`.
+- Tests: loop de 3 paradas, ciudadano cerca de paradas, save/replay de la línea y contador `busTrips`.
+- Trampa resuelta: no se crea fase nueva en el autómata; el viaje conserva la actividad original y continúa a pie desde la parada de bajada.
 
 **H5.4 Bus y paradas: render y herramienta**
 - Archivos: C `render/vehicles.ts` (bus `PALETTE.busBody` + cristal; paradas instanciadas), M `tools.ts` (clic en paradas, Enter cierra), M `toolbar.ts`.
