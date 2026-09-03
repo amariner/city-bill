@@ -960,11 +960,18 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
     const cs = [...sim.citizens.values()];
     const savings = [...sim.economy.wallets.values()].reduce((s, w) => s + w, 0);
     const avgFood = cs.reduce((s, c) => s + c.needs.food, 0) / cs.length;
-    return { pop: cs.length, savings, treasury: sim.economy.treasury, pensions: sim.economy.pensionsPaid, avgFood };
+    return {
+      pop: cs.length,
+      savings,
+      avgSavings: savings / Math.max(1, cs.length),
+      treasury: sim.economy.treasury,
+      pensions: sim.economy.pensionsPaid,
+      avgFood,
+    };
   };
   const off = measure(false);
   const on = measure(true);
-  check('alquiler: drena el ahorro ocioso (los hogares ahorran menos)', on.savings < off.savings, `→ ${on.savings.toFixed(0)} vs ${off.savings.toFixed(0)}`);
+  check('alquiler: drena el ahorro ocioso (los hogares ahorran menos)', on.avgSavings < off.avgSavings, `→ ${on.avgSavings.toFixed(0)} vs ${off.avgSavings.toFixed(0)} por hogar`);
   check('alquiler: el dinero CIRCULA — el tesoro recauda más', on.treasury > off.treasury, `→ ${on.treasury.toFixed(0)} vs ${off.treasury.toFixed(0)}`);
   check('alquiler: alimenta la red — se pagan más pensiones', on.pensions > off.pensions, `→ ${on.pensions.toFixed(0)} vs ${off.pensions.toFixed(0)}`);
   check('alquiler: la sociedad SOBREVIVE (no empobrece ni vacía el pueblo)', on.pop >= 20 && on.avgFood > 0.25, `→ ${on.pop} hab., comida ${on.avgFood.toFixed(2)}`);

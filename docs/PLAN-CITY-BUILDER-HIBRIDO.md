@@ -394,8 +394,8 @@ trampas**. Los tests nuevos se añaden al script `"test"` de `package.json`.
 #### H5 — Tráfico y transporte
 
 **H5.1 Carga de vía y congestión**
-- Archivos: M `simulation.ts` (`traffic: Map<cellKey, load>`; en `stepWalk` por coche `+1`/tick; decaimiento ×0.9/hora; `speedAt` × `congestionFactor = max(0.35, 1 − load/capacity)`), M `roads.ts` (`capacity`), M `sim.test.ts`.
-- Tests: factor decrece y nunca < 0.35; con 200 coches por un tramo el tiempo medio sube (dos configuraciones sintéticas).
+- **✅ implementado** — Archivos: M `simulation.ts` (`traffic: Map<cellKey, load>`; en `stepWalk` por coche `+1`/tick; decaimiento ×0.9/hora; `speedAt` × `congestionFactor = max(0.35, 1 − load/capacity)`), M `roads.ts` (`capacity`), C `sim/traffic.ts`, C `sim/traffic.test.ts`, M `protocol.ts`/`cityHud.ts` (`CityStats.congestion`), save v2.
+- Tests: factor decrece y nunca < 0.35; carga y decaimiento deterministas; la velocidad queda limitada; el save conserva carga residual; la suite completa sigue verde.
 
 **H5.2 `TrafficMsg` y overlay**
 - Archivos: M `worker.ts` (cada 8 snapshots, pares `load > 0`), M `client.ts`, M `overlay.ts` (modo `traffic`).

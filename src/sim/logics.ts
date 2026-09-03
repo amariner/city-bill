@@ -44,6 +44,7 @@ export const LOGICS: LogicEntry[] = [
   { id: 'seasonal-harvest', name: 'cosecha estacional + granero-colchón (superávit en verano, reserva para el invierno)', level: 1, files: ['economy.ts', 'sim/simulation.ts'], couples: ['food', 'weather'] },
   { id: 'third-place', name: 'vecindario y pandillas (tercer lugar)', level: 3, files: ['citizens/activities.ts'], couples: ['social'] },
   { id: 'vehicles', name: 'vehículos (coche para trayectos largos)', level: 0, files: ['sim/simulation.ts', 'sim/protocol.ts'], couples: ['space', 'money', 'weather'] },
+  { id: 'traffic', name: 'tráfico (carga por vía, velocidad y congestión)', level: 0, files: ['sim/traffic.ts', 'sim/simulation.ts', 'world/roads.ts', 'sim/protocol.ts', 'ui/cityHud.ts'], couples: ['vehicles', 'space', 'money'] },
   { id: 'status', name: 'estatus y propiedad (mejoras del hogar)', level: 4, files: ['economy.ts', 'sim/simulation.ts'], couples: ['money', 'needs', 'growth'] },
   { id: 'festival', name: 'fiestas de barrio (calendario emergente)', level: 5, files: ['citizens/activities.ts'], couples: ['social', 'weather'] },
   { id: 'town-milestones', name: 'hitos del pueblo (estrena su primer edificio de cada tipo: escuela, tienda, fábrica…)', level: 5, files: ['sim/simulation.ts', 'ui/chronicle.ts'], couples: ['growth'] },

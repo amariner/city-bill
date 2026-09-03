@@ -328,6 +328,8 @@ export interface CityStats {
   growthPolicy: GrowthPolicy;
   /** Decide si la ciudad paga y levanta servicios públicos autónomos. */
   publicAutobuild: PublicAutobuildPolicy;
+  /** Saturación media normalizada de las celdas de vía [0,1] (H5.1). */
+  congestion: number;
   /** Presión latente por sector, para las barras R/C/I de la toolbar. */
   demand: { R: number; C: number; I: number };
   /** Proporción de viviendas activas cubierta por cada servicio [0,1]. */

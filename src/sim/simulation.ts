@@ -9,7 +9,7 @@
  * Con una excepción emergente: si al caminar se cruza con un conocido y ambos
  * van faltos de social, la charla INTERRUMPE el plan (social.ts).
  */
-import { Cell, Grid } from '../world/grid';
+import { Cell, Grid, cellKey } from '../world/grid';
 import { createRng, Rng } from '../rng';
 import { GameClock, TICK_GAME_S, DAY_GAME_SECONDS } from './clock';
 import { PathQueue, pathLength } from './pathfinding';
@@ -25,7 +25,7 @@ import { decayNeeds, restore, NEED_KEYS } from './citizens/needs';
 import { chooseActivity } from './citizens/brain';
 import { ACTIVITY_BY_KIND, SimContext, activityLabel, EDU_PER_HOUR, CLINIC_FEE, isFestivalDay } from './citizens/activities';
 import { SocialSystem, SocialSaveState } from './citizens/social';
-import { AgentState, ActivityKind, activityId, AGENT_STRIDE, AlertBit, BUILDING_STRIDE, TravelModeCode, CityStats, CitizenInfoMsg, settlementLevel, SETTLEMENT_CLASSES, PlayerAction, RecordedAction, GrowthPolicy, PublicAutobuildPolicy, BudgetHistoryPoint } from './protocol';
+import { AgentState, ActivityKind, activityId, AGENT_STRIDE, AlertBit, BUILDING_STRIDE, TravelModeCode, CityStats, CitizenInfoMsg, settlementLevel, SETTLEMENT_CLASSES, PlayerAction, RecordedAction, GrowthPolicy, PublicAutobuildPolicy, BudgetHistoryPoint, RoadKind } from './protocol';
 import {
   computeDemand, demandLevels, itemForDemand, findParcel, townCenter, townAttractiveness,
   householdHardship, updateEmigrationPressure, EMIGRATE_POP_FLOOR, EMIGRATE_PRESSURE_LIMIT,
@@ -40,6 +40,8 @@ import { griefTick, consoleGrief, bereave, GRIEF_PARTNER, GRIEF_FRIEND, GRIEF_FR
 import { sickenTick, treatSick, SICK_ONSET, VACCINE_IMMUNITY } from './contagion';
 import { weatherAt, seasonalFestivalName, seasonalWarmth, Weather } from './weather';
 import { applyPlayerAction, ActionResult } from './actions';
+import { ROAD_SPECS } from '../world/roads';
+import { congestionFactor, decayTraffic } from './traffic';
 
 /** Velocidad al caminar, en celdas por tick (0.25 s reales a vel. 1). */
 const WALK_CELLS_PER_TICK = 0.9; // ≈ 7 km/h de juego a escala urbana
@@ -56,6 +58,9 @@ const CAR_CELLS_PER_TICK_ROAD = 3.6;
 /** Fuera de vía (aparcando, accediendo a la puerta) el coche va despacio —
  * similar al peatón, no vuela por el campo. */
 const CAR_CELLS_PER_TICK_OFFROAD = WALK_CELLS_PER_TICK;
+/** Un atasco aislado se enseña en el overlay, pero no frena todo el pueblo.
+ * El freno físico entra cuando la saturación media de la red ya es visible. */
+const MIN_NETWORK_CONGESTION_TO_SLOW = 0.02;
 
 function clamp01(value: number): number {
   return Math.max(0, Math.min(1, value));
@@ -159,6 +164,8 @@ export interface SimSaveState {
   lastRoadDay: number;
   roadsExtended: number;
   carTrips: number;
+  /** Carga residual por celda de vía; opcional para saves anteriores a H5.1. */
+  traffic?: Array<[number, number]>;
   emigrations: number;
   vaccinationsGiven: number;
   firstBuildingSeen: string[];
@@ -264,6 +271,8 @@ export class Simulation {
   readonly pantry = new Map<string, number>();
   /** Trayectos en coche acumulados (ciclo 8 — métrica de tests/Crónica). */
   carTrips = 0;
+  /** Carga de tráfico por celda de vía; decae por hora y se guarda para replay. */
+  readonly traffic = new Map<number, number>();
   /** Emigraciones acumuladas (ciclo 14 — métrica de tests/Crónica). */
   emigrations = 0;
   /** Tramos de vía trazados por la ciudad sola (T4.4 — métrica de tests). */
@@ -349,6 +358,10 @@ export class Simulation {
     for (const id of state.serviceNeedsReported ?? []) this.serviceNeedsReported.add(id);
     this.roadsExtended = state.roadsExtended;
     this.carTrips = state.carTrips;
+    this.traffic.clear();
+    for (const [key, load] of state.traffic ?? []) {
+      if (Number.isFinite(key) && Number.isFinite(load) && load > 0) this.traffic.set(key, load);
+    }
     this.emigrations = state.emigrations;
     this.vaccinationsGiven = state.vaccinationsGiven;
     this.firstBuildingSeen.clear();
@@ -412,6 +425,7 @@ export class Simulation {
       lastUpgradeDay: this.lastUpgradeDay,
       roadsExtended: this.roadsExtended,
       carTrips: this.carTrips,
+      traffic: [...this.traffic].filter(([, load]) => load > 0).sort(([a], [b]) => a - b),
       emigrations: this.emigrations,
       vaccinationsGiven: this.vaccinationsGiven,
       firstBuildingSeen: [...this.firstBuildingSeen].sort(),
@@ -837,6 +851,7 @@ export class Simulation {
   step(): void {
     this.clock.advance();
     const hours = TICK_GAME_S / 3600;
+    decayTraffic(this.traffic, hours);
     const ctx = this.context();
 
     this.paths.process();
@@ -1783,12 +1798,27 @@ export class Simulation {
     c.z = planned.cell[1] + 0.5;
   }
 
+  /** Tipo de calzada en una coordenada. Los senderos son peatonales: no
+   * cuentan como vía de coches ni contaminan la capacidad de tráfico. */
+  private roadKindAt(cx: number, cz: number): RoadKind | null {
+    const cell = this.grid.get(Math.round(cx), Math.round(cz));
+    if (!cell || cell.terrain !== 'road') return null;
+    return cell.roadKind ?? 'rural';
+  }
+
+  private congestionAt(cx: number, cz: number): number {
+    const kind = this.roadKindAt(cx, cz);
+    if (!kind) return 1;
+    if (this.averageCongestion() < MIN_NETWORK_CONGESTION_TO_SLOW) return 1;
+    return congestionFactor(this.traffic.get(cellKey(Math.round(cx), Math.round(cz))) ?? 0, ROAD_SPECS[kind].capacity);
+  }
+
   /** Celdas/tick en (cx,cz): a pie siempre igual; en coche depende del
-   * terreno (rápido en 'road', al ritmo de un peatón fuera de vía). */
+   * terreno y de la carga que comparte la vía (H5.1). */
   private speedAt(cx: number, cz: number, mode: 'foot' | 'car'): number {
     if (mode === 'foot') return WALK_CELLS_PER_TICK;
-    const onRoad = this.grid.get(Math.round(cx), Math.round(cz))?.terrain === 'road';
-    return onRoad ? CAR_CELLS_PER_TICK_ROAD : CAR_CELLS_PER_TICK_OFFROAD;
+    const onRoad = this.roadKindAt(cx, cz) !== null;
+    return onRoad ? CAR_CELLS_PER_TICK_ROAD * this.congestionAt(cx, cz) : CAR_CELLS_PER_TICK_OFFROAD;
   }
 
   private stepWalk(c: Citizen): void {
@@ -1798,6 +1828,7 @@ export class Simulation {
     // cruza de asfalto a fuera de vía a media tick, la velocidad se
     // recalcula en el momento justo del cambio, no de golpe al principio.
     let tickBudget = 1;
+    let trafficCounted = false;
     while (tickBudget > 0) {
       const a = ph.path[ph.segment];
       const b = ph.path[ph.segment + 1];
@@ -1807,8 +1838,25 @@ export class Simulation {
           this.departed.push(c);
           return;
         }
+        // Un trayecto puede cruzar medianoche. Una fiesta es una fecha, no un
+        // destino que pueda empezar al día siguiente por llegar tarde.
+        if (ph.next.activity === 'festival' && !isFestivalDay(this.clock.day)) {
+          c.activity = 'none';
+          c.phase = { kind: 'deciding' };
+          return;
+        }
         this.beginDoing(c, ph.next);
         return;
+      }
+      // Una ocupación cuenta una vez por coche y sub-tick, en la primera celda
+      // de calzada que pisa. Un coche rápido puede cruzar varios segmentos en
+      // el mismo sub-tick: no debe aparentar ser varios coches.
+      // El decaimiento se ejecuta aparte en horas, así la carga no depende de
+      // que el reloj tenga 36 s/tick o cambie su cadencia interna.
+      if (!trafficCounted && ph.mode === 'car' && this.roadKindAt(a[0], a[1]) !== null) {
+        const key = cellKey(Math.round(a[0]), Math.round(a[1]));
+        this.traffic.set(key, (this.traffic.get(key) ?? 0) + 1);
+        trafficCounted = true;
       }
       const speed = this.speedAt(a[0], a[1], ph.mode);
       const segLen = manhattan(a, b);
@@ -1905,6 +1953,21 @@ export class Simulation {
     return arr;
   }
 
+  /** Congestión media normalizada de la red [0,1]. Solo cuenta la saturación
+   * observada frente a la capacidad de cada tipo de vía, no el tráfico vacío. */
+  private averageCongestion(): number {
+    if (this.index.roadCells.length === 0) return 0;
+    let total = 0;
+    for (const [cx, cz] of this.index.roadCells) {
+      const kind = this.roadKindAt(cx, cz);
+      if (!kind) continue;
+      const capacity = ROAD_SPECS[kind].capacity;
+      const load = this.traffic.get(cellKey(cx, cz)) ?? 0;
+      total += Math.min(1, Math.max(0, load) / capacity);
+    }
+    return total / this.index.roadCells.length;
+  }
+
   /** Estado agregado de la ciudad (surfacing en el HUD): datos que la sim ya
    * lleva por dentro y que hasta ahora no salían a la superficie. Puro read. */
   cityStats(): CityStats {
@@ -1957,6 +2020,7 @@ export class Simulation {
       tier: this.tier,
       growthPolicy: this.growthPolicy,
       publicAutobuild: this.publicAutobuild,
+      congestion: this.averageCongestion(),
       demand,
       coverage: coverageRates(this.index),
       happiness: this.averageHappiness(),
