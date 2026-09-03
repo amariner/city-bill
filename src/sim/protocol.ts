@@ -30,6 +30,16 @@ export const AGENT_STRIDE = 8;
  * alertMask, occupancy, load]. */
 export const BUILDING_STRIDE = 8;
 
+/** Bits de alerta que viajan en la sexta columna de BuildingStatsMsg. */
+export const enum AlertBit {
+  NoRoad = 1,
+  NoJob = 2,
+  Unhappy = 4,
+  Abandoned = 8,
+  NoService = 16,
+  Congested = 32,
+}
+
 /** Modo de trayecto (columna `mode` del snapshot) — ciclo 8, vehículos. */
 export const enum TravelModeCode {
   Foot = 0,

@@ -1,5 +1,5 @@
 /** Contrato del canal espacial lento de overlays (H4.6). */
-import { BUILDING_STRIDE } from './protocol';
+import { AlertBit, BUILDING_STRIDE } from './protocol';
 import { Simulation } from './simulation';
 import { Grid } from '../world/grid';
 
@@ -57,6 +57,10 @@ function at(stats: Float32Array, index: number, field: number): number {
   const overridden = sim.buildingStats();
   check(Math.abs(at(overridden, 0, 2) - 0.73) < 1e-6, 'stats: felicidad refleja la muestra del hogar');
   check(Math.abs(at(overridden, 0, 3) - 0.81) < 1e-6, 'stats: suelo refleja el snapshot diario');
+  state.happiness.set('0,0', 0.1);
+  const alerted = sim.buildingStats();
+  check((at(alerted, 0, 5) & AlertBit.Unhappy) !== 0, 'stats: ánimo bajo enciende la alerta correspondiente');
+  check((at(alerted, 0, 5) & AlertBit.NoService) !== 0, 'stats: hogar sin servicios enciende alerta de cobertura');
 }
 
 console.log(`\nbuildingStats.test: ${passed} passed, ${failed} failed`);

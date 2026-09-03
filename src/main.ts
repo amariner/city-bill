@@ -20,6 +20,7 @@ import { ConstructionSites } from './world/render/construction';
 import { Ghost } from './world/render/ghost';
 import { ZonesLayer } from './world/render/zones';
 import { OVERLAY_LABELS, OVERLAY_MODES, OverlayLayer } from './world/render/overlay';
+import { AlertsLayer } from './world/render/alerts';
 import { Atmosphere, lampFactor } from './world/render/atmosphere';
 import { DAY_GAME_SECONDS } from './sim/clock';
 import { seasonalWarmth, weatherAt } from './sim/weather';
@@ -94,6 +95,7 @@ let toolState: ToolState | null = null;
 let ghost: Ghost | null = null;
 let zonesLayer: ZonesLayer | null = null;
 let overlayLayer: OverlayLayer | null = null;
+let alertsLayer: AlertsLayer | null = null;
 let overlayIndex = 0;
 let hoverCell: [number, number] = [0, 0];
 /** Semilla realmente en juego: la del pueblo montado (fija la estación/fiestas
@@ -162,6 +164,8 @@ function buildRenderAndUi(grid: Grid, worldSeed: number): void {
   stage.scene.add(zonesLayer.root);
   overlayLayer = new OverlayLayer(grid);
   stage.scene.add(overlayLayer.root);
+  alertsLayer = new AlertsLayer(grid);
+  stage.scene.add(alertsLayer.root);
   // La máquina de herramientas se registra antes que el inspector para que Esc
   // cancele primero la herramienta activa y solo después pueda cerrar la ficha.
   toolState = new ToolState(sim);
@@ -432,6 +436,8 @@ loop.onUpdate((dt) => {
     const n = simClient.view(agentViews);
     citizenView.update(agentViews, n, dt);
     overlayLayer?.refreshFromStats(simClient.buildingStats);
+    alertsLayer?.refreshFromStats(simClient.buildingStats);
+    alertsLayer?.update(dt);
     if (inspector) {
       inspector.setAgents(agentViews, n);
       inspector.update(agentViews, n);

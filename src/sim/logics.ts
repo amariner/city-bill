@@ -53,6 +53,7 @@ export const LOGICS: LogicEntry[] = [
   { id: 'vocation', name: 'vocación (trabajar en lo que uno ama colma el propósito; y se busca: quien es infeliz en su oficio lo deja por su llamada)', level: 5, files: ['sim/citizens/citizen.ts', 'sim/economy.ts', 'sim/simulation.ts', 'ui/chronicle.ts'], couples: ['jobs', 'needs'] },
   { id: 'retirement', name: 'jubilación (deja el empleo, pensión, propósito propio)', level: 2, files: ['sim/lifecycle.ts', 'sim/simulation.ts', 'sim/economy.ts'], couples: ['life', 'jobs', 'government', 'needs'] },
   { id: 'building-heatmaps', name: 'heatmaps de edificios (ánimo, suelo, cobertura, zonas, tráfico)', level: 4, files: ['sim/protocol.ts', 'sim/simulation.ts', 'sim/worker.ts', 'sim/client.ts', 'world/render/overlay.ts'], couples: ['growth', 'government', 'vehicles'] },
+  { id: 'building-alerts', name: 'alertas de edificios (vía, empleo, ánimo, servicios y abandono)', level: 4, files: ['sim/protocol.ts', 'sim/simulation.ts', 'world/render/alerts.ts'], couples: ['building-heatmaps', 'growth', 'government'] },
 ];
 
 /** Para la Crónica: nombres ordenados por nivel (básico → superior). */

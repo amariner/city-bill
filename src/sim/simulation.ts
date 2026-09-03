@@ -25,7 +25,7 @@ import { decayNeeds, restore, NEED_KEYS } from './citizens/needs';
 import { chooseActivity } from './citizens/brain';
 import { ACTIVITY_BY_KIND, SimContext, activityLabel, EDU_PER_HOUR, CLINIC_FEE, isFestivalDay } from './citizens/activities';
 import { SocialSystem, SocialSaveState } from './citizens/social';
-import { AgentState, ActivityKind, activityId, AGENT_STRIDE, BUILDING_STRIDE, TravelModeCode, CityStats, CitizenInfoMsg, settlementLevel, SETTLEMENT_CLASSES, PlayerAction, RecordedAction, GrowthPolicy, BudgetHistoryPoint } from './protocol';
+import { AgentState, ActivityKind, activityId, AGENT_STRIDE, AlertBit, BUILDING_STRIDE, TravelModeCode, CityStats, CitizenInfoMsg, settlementLevel, SETTLEMENT_CLASSES, PlayerAction, RecordedAction, GrowthPolicy, BudgetHistoryPoint } from './protocol';
 import {
   computeDemand, demandLevels, itemForDemand, findParcel, townCenter, townAttractiveness,
   householdHardship, updateEmigrationPressure, EMIGRATE_POP_FLOOR, EMIGRATE_PRESSURE_LIMIT,
@@ -1836,10 +1836,14 @@ export class Simulation {
       const occupancy = residential
         ? capacity > 0 ? households / capacity : 0
         : jobs > 0 ? workers / jobs : 0;
-      // bit 0: edificio aislado o abandonado; bit 1: comercio sin personal.
-      const alertMask = (!building.roadAccess || building.abandoned ? 1 : 0)
-        | (building.data.role === 'commerce' && workers === 0 ? 2 : 0);
       const visits = this.economy.visitsToday.get(key) ?? 0;
+      let alertMask = 0;
+      if (!building.roadAccess) alertMask |= AlertBit.NoRoad;
+      if (building.data.role === 'commerce' && workers === 0) alertMask |= AlertBit.NoJob;
+      if (residential && this.happiness.get(key) !== undefined && (this.happiness.get(key) ?? 1) < 0.25) alertMask |= AlertBit.Unhappy;
+      if (building.abandoned) alertMask |= AlertBit.Abandoned;
+      if (residential && building.coverage === 0) alertMask |= AlertBit.NoService;
+      if (visits >= 6) alertMask |= AlertBit.Congested;
 
       arr[offset++] = building.ax;
       arr[offset++] = building.az;

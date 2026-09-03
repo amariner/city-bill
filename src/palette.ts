@@ -32,6 +32,14 @@ export const PALETTE = {
   heatMid: 0xe0c58e,
   heatHigh: 0xc25e54,
 
+  // Pins de alertas por edificio (H4.7).
+  alertNoRoad: 0xb77d78,
+  alertNoJob: 0xd4ae4b,
+  alertUnhappy: 0xc25e54,
+  alertAbandoned: 0x827d76,
+  alertNoService: 0x9b8eaf,
+  alertCongested: 0xc07a52,
+
   // Hierba de las parcelas habitadas
   grass: 0xa9c286,
   grassPatches: [0x9fb97c, 0xb1c88e, 0x97b174, 0xa4bd80] as const,

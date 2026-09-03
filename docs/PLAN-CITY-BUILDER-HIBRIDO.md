@@ -382,7 +382,7 @@ trampas**. Los tests nuevos se añaden al script `"test"` de `package.json`.
 - Visual: cada heatmap sobre `?scene=test-dev`; F3 +1 draw call por chunk visible.
 - Trampas: buffer transferido; `Map` `[ax,az]`→índice de quad por chunk.
 
-**H4.7 Alertas sobre edificios**
+**H4.7 Alertas sobre edificios** — ✅ implementado
 - Archivos: C `src/world/render/alerts.ts` (`InstancedMesh` pin cono+esfera, color por `AlertBit`; orientado al azimut; MAX 2000), M `main.ts`.
 - Visual: pins sobre casas sin acceso, tienda sin empleados; bobbing cosmético.
 
