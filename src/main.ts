@@ -17,6 +17,7 @@ import { SimClient, AgentView } from './sim/client';
 import { CitizenView } from './world/render/citizens';
 import { SelectionMarker } from './world/render/selectionMarker';
 import { ConstructionSites } from './world/render/construction';
+import { Ghost } from './world/render/ghost';
 import { Atmosphere, lampFactor } from './world/render/atmosphere';
 import { DAY_GAME_SECONDS } from './sim/clock';
 import { seasonalWarmth, weatherAt } from './sim/weather';
@@ -65,6 +66,8 @@ let cityHud: CityHud | null = null;
 let devPanel: DevPanel | null = null;
 let controlBar: ControlBar | null = null;
 let toolState: ToolState | null = null;
+let ghost: Ghost | null = null;
+let hoverCell: [number, number] = [0, 0];
 /** Semilla realmente en juego: la del pueblo montado (fija la estación/fiestas
  * del bucle de render). La fija `buildRenderAndUi`. */
 let activeSeed = 0;
@@ -91,9 +94,12 @@ function buildRenderAndUi(grid: Grid, worldSeed: number): void {
   // que el edificio aparezca de golpe.
   construction = new ConstructionSites(worldView);
   stage.scene.add(construction.root);
+  ghost = new Ghost(grid);
+  stage.scene.add(ghost.root);
   // La máquina de herramientas se registra antes que el inspector para que Esc
   // cancele primero la herramienta activa y solo después pueda cerrar la ficha.
   toolState = new ToolState(sim);
+  toolState.onChange = (tool) => ghost?.update(tool, hoverCell);
   chronicle = new Chronicle(worldSeed);
   toasts = new Toasts(); // avisos efímeros de los eventos memorables (surfacing)
   // Toda mutación espacial llega del worker como diff. El render solo aplica el
@@ -109,6 +115,11 @@ function buildRenderAndUi(grid: Grid, worldSeed: number): void {
       }
     }
     if (patch.razed.length > 0) atmosphere?.invalidate();
+  };
+  sim.onActionApplied = () => ghost?.resolve(true);
+  sim.onActionRejected = (msg) => {
+    ghost?.resolve(false);
+    toasts?.onActionRejected(msg.reason);
   };
   sim.onEvent = (name, data) => {
     chronicle?.onEvent(name, data);
@@ -192,10 +203,17 @@ const input = new Input(stage.renderer.domElement);
 const controller = new CameraController(camera, input);
 const hud = new DebugHud(stage.renderer, camera);
 const pointer = new Pointer(stage.renderer.domElement, camera);
-pointer.onHover = (cell) => hud.setHoverCell(cell);
+pointer.onHover = (cell) => {
+  hoverCell = cell;
+  hud.setHoverCell(cell);
+  ghost?.update(toolState?.active ?? { kind: 'none' }, cell);
+};
 pointer.onClick = (cell, button) => {
   if (button !== 'left') return;
-  if (toolState?.isActive) toolState.handleClick(cell, button);
+  if (toolState?.isActive) {
+    const seq = toolState.handleClick(cell, button);
+    if (seq !== null) ghost?.markPending();
+  }
   else inspector?.pickCell(cell);
 };
 pointer.onDrag = (dx, dy, cell, button) => {
@@ -256,6 +274,7 @@ const agentViews: AgentView[] = [];
 const loop = new GameLoop(() => stage.renderer.render(stage.scene, camera.cam));
 loop.onUpdate((dt) => {
   controller.update(dt);
+  ghost?.update(toolState?.active ?? { kind: 'none' }, hoverCell);
   construction?.update(dt); // FX de construcción en curso (T4.2)
   if (worldView) hud.setStats({ chunks: worldView.countVisibleChunks(camera.cam) });
   if (simClient && citizenView) {

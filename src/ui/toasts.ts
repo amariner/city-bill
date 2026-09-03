@@ -98,6 +98,20 @@ export class Toasts {
     this.push(text, style);
   }
 
+  onActionRejected(reason: string): void {
+    const labels: Record<string, string> = {
+      outOfWorld: 'fuera del terreno conocido',
+      blocked: 'la parcela está ocupada',
+      water: 'no se puede construir sobre agua',
+      road: 'no se puede construir sobre una vía',
+      tierLocked: 'edificio aún no desbloqueado',
+      notFound: 'no hay nada que demoler aquí',
+      notPlayerPlaceable: 'ese elemento no se coloca a mano',
+      invalid: 'acción no disponible',
+    };
+    this.push(labels[reason] ?? 'acción rechazada', { accent: ALERT, mark: '!' });
+  }
+
   private push(text: string, style: Style): void {
     const card = document.createElement('div');
     card.style.cssText = [

@@ -98,6 +98,9 @@ export const PALETTE = {
 
   // UI diegética
   selectRing: 0xd8b25a, // anillo bajo el ciudadano seleccionado en el inspector
+  ghostOk: 0x91b38d, // fantasma válido de construcción
+  ghostBad: 0xb77d78, // fantasma inválido / rechazo
+  ghostPending: 0x9b9d94, // acción enviada, esperando eco del worker
 
   // Construcción (T4.2): andamio de madera al levantar un edificio — postes y
   // travesaños de timber pálido, luego se retira con un "pop" del edificio.
