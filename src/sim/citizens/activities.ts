@@ -333,7 +333,7 @@ export const ACTIVITIES: ActivityDef[] = [
       return Math.max(0.2, 1 - ctx.darkness * 0.9) * sickStayIn(ctx, c); // un enfermo no va de fiesta
     },
     findTarget: (ctx, c) => {
-      const plaza = nearestOfRole(ctx, c, 'civic');
+      const plaza = nearestOfRole(ctx, c, 'park') ?? nearestOfRole(ctx, c, 'civic');
       return plaza ? entranceTarget(plaza) : null;
     },
     personality: (c) => 0.7 + 0.8 * c.personality.sociable,

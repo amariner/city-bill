@@ -354,7 +354,7 @@ trampas**. Los tests nuevos se añaden al script `"test"` de `package.json`.
 
 #### H4 — Servicios, felicidad y valor del suelo
 
-**H4.1 Catálogo de servicios y sus mallas**
+**H4.1 Catálogo de servicios y sus mallas** — ✅ implementado
 - Archivos: M `catalogData.ts` (`service?: {kind: 'education'|'health'|'police'|'fire'|'park'; radius}` sustituye `happiness`; nuevos `police` 4×4 T2, `fire-station` 4×4 T2, `park` 4×4 T1 rol `park`, `plaza` 4×4 T2 rol `park`, `playground` 2×2 T1 rol `park`; `school`/`clinic` ganan `service`; árboles `amenity: 1`), M `props.ts` (5 builders), M `catalog.ts`, M `showcase.ts`, M `worldIndex.ts` (`SimRole` gana `'park'`; helper `isUrban(role)` sustituye `role !== 'nature'` en `simulation.ts:800,925` y `worker.ts:98`), M `CATALOG.md`.
 - Visual: `?scene=buildings` con los 5 nuevos (§4).
 - Trampas: convención `props.ts` (centrado XZ, y=0, frente +Z). Parques bloquean (son `building`); sus senderos entran como `strollSpots`.
@@ -466,12 +466,12 @@ trampas**. Los tests nuevos se añaden al script `"test"` de `package.json`.
 | El main re-ejecuta lógica de mundo | `main.ts:99-132` | H1.1 |
 | `rebuildAllChunks` por estación/fiesta/cultivo | `worldView.ts:100-125` | H6.3 (no añadir disparadores) |
 | Teclas 0-3 = velocidad | `main.ts:134` | H1.4 |
-| `happiness` muerto en catálogo | `catalogData.ts:34,58-59` | H4.1 |
+| `happiness` muerto en catálogo | `catalogData.ts:34,58-59` | ✅ H4.1 |
 | Tiers CATALOG.md ≠ código | `simulation.ts:545` | Arranque (CATALOG) y H6.5 |
 | `hireAndAcquaint` O(n²) | `simulation.ts:408-414` | H6.3 |
 | `Economy.serialize` huérfano; `social.serialize` perdido | `economy.ts:525`; `social.ts` | H1.8 |
 | Escrituras directas a `treasury` | 11 sitios (Parte A) | H3.5 |
-| Filtros `role !== 'nature'` repetidos | `simulation.ts:800,925`, `worker.ts:98` | H4.1 |
+| Filtros `role !== 'nature'` repetidos | `simulation.ts:800,925`, `worker.ts:98` | ✅ H4.1 |
 | `ActionMsg.terrain` sin uso | `protocol.ts:112` | H1.2 |
 | Toasts y toolbar compiten abajo-centro | `toasts.ts:79-80` | H1.6 |
 | SIMULATION.md dice `AGENT_STRIDE = 6` (es 8) | `SIMULATION.md` §3.5 | H6.5 |

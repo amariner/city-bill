@@ -487,6 +487,160 @@ export function clinic(): THREE.Group {
   return g;
 }
 
+/** Comisaría: edificio público compacto con franja azul fría y marquesina de
+ * entrada. La silueta sigue siendo baja para que se lea como pieza de barrio. */
+export function policeStation(): THREE.Group {
+  const g = new THREE.Group();
+  const w = 7.5;
+  const d = 7.2;
+  const wallH = 2.9;
+  const body = solid(new THREE.BoxGeometry(w, wallH, d), PALETTE.concrete);
+  body.position.y = wallH / 2;
+  g.add(body);
+  const roof = solid(new THREE.BoxGeometry(w + 0.3, 0.32, d + 0.3), PALETTE.flatRoof);
+  roof.position.y = wallH + 0.16;
+  g.add(roof);
+  const band = solid(new THREE.BoxGeometry(w + 0.04, 0.5, 0.12), PALETTE.glass);
+  band.position.set(0, 2.05, d / 2 + 0.07);
+  band.castShadow = false;
+  g.add(band);
+  const door = solid(new THREE.BoxGeometry(1.15, 1.9, 0.12), PALETTE.houseWallShade);
+  door.position.set(0, 0.95, d / 2 + 0.08);
+  g.add(door);
+  const sign = solid(new THREE.BoxGeometry(2.4, 0.45, 0.12), PALETTE.signYellow);
+  sign.position.set(0, 2.55, d / 2 + 0.08);
+  sign.castShadow = false;
+  g.add(sign);
+  for (const x of [-2.3, 2.3]) {
+    const window = solid(new THREE.BoxGeometry(1.3, 1.0, 0.1), PALETTE.windowCool);
+    window.position.set(x, 1.45, d / 2 + 0.06);
+    window.castShadow = false;
+    g.add(window);
+  }
+  return g;
+}
+
+/** Parque de bomberos: nave rojiza con dos portones altos y torre de secado. */
+export function fireStation(): THREE.Group {
+  const g = new THREE.Group();
+  const w = 7.5;
+  const d = 7.2;
+  const wallH = 3.1;
+  const body = solid(new THREE.BoxGeometry(w, wallH, d), PALETTE.barnWall);
+  body.position.y = wallH / 2;
+  g.add(body);
+  const roof = solid(new THREE.BoxGeometry(w + 0.3, 0.35, d + 0.3), PALETTE.barnRoof);
+  roof.position.y = wallH + 0.18;
+  g.add(roof);
+  for (const x of [-1.8, 1.8]) {
+    const door = solid(new THREE.BoxGeometry(2.1, 2.25, 0.12), PALETTE.houseWallShade);
+    door.position.set(x, 1.12, d / 2 + 0.08);
+    g.add(door);
+    const pane = solid(new THREE.BoxGeometry(1.6, 0.35, 0.06), PALETTE.glass);
+    pane.position.set(x, 2.15, d / 2 + 0.15);
+    pane.castShadow = false;
+    g.add(pane);
+  }
+  const tower = solid(new THREE.BoxGeometry(1.7, 4.4, 1.7), PALETTE.barnWallShade);
+  tower.position.set(w / 2 - 1.1, 2.2, -d / 2 + 1.1);
+  g.add(tower);
+  const towerRoof = solid(new THREE.ConeGeometry(1.15, 0.9, 4), PALETTE.roofTerracotta);
+  towerRoof.rotation.y = Math.PI / 4;
+  towerRoof.position.set(tower.position.x, 4.85, tower.position.z);
+  g.add(towerRoof);
+  return g;
+}
+
+/** Parque de barrio: pavimento de césped, cruz de senderos, dos árboles y
+ * bancos. Sus caminos exteriores también se indexan como destinos de paseo. */
+export function park(): THREE.Group {
+  const g = new THREE.Group();
+  const size = 7.8;
+  const lawn = solid(new THREE.BoxGeometry(size, 0.12, size), PALETTE.grass);
+  lawn.position.y = 0.06;
+  lawn.castShadow = false;
+  g.add(lawn);
+  const pathX = solid(new THREE.BoxGeometry(0.9, 0.06, size + 0.05), PALETTE.path);
+  pathX.position.y = 0.14;
+  pathX.castShadow = false;
+  const pathZ = solid(new THREE.BoxGeometry(size + 0.05, 0.06, 0.9), PALETTE.path);
+  pathZ.position.y = 0.145;
+  pathZ.castShadow = false;
+  g.add(pathX, pathZ);
+  for (const [x, z] of [[-2.5, -2.5], [2.5, 2.5]] as const) {
+    const tree = blobTree(0.55, x > 0);
+    tree.position.set(x, 0.12, z);
+    g.add(tree);
+  }
+  for (const [x, z, turned] of [[-2.2, 1.5, false], [2.2, -1.5, true]] as const) {
+    const seat = solid(new THREE.BoxGeometry(1.7, 0.22, 0.42), PALETTE.houseTrim);
+    seat.position.set(x, 0.55, z);
+    if (turned) seat.rotation.y = Math.PI / 2;
+    g.add(seat);
+    const legs = solid(new THREE.BoxGeometry(1.25, 0.55, 0.12), PALETTE.trunk);
+    legs.position.set(x, 0.3, z);
+    if (turned) legs.rotation.y = Math.PI / 2;
+    g.add(legs);
+  }
+  return g;
+}
+
+/** Plaza: pavimento claro, fuente central y bancos perimetrales; funciona como
+ * un punto social legible incluso cuando no hay ciudadanos cerca. */
+export function plaza(): THREE.Group {
+  const g = new THREE.Group();
+  const size = 7.8;
+  const floor = solid(new THREE.BoxGeometry(size, 0.16, size), PALETTE.road);
+  floor.position.y = 0.08;
+  g.add(floor);
+  const rim = solid(new THREE.CylinderGeometry(1.15, 1.3, 0.28, 10), PALETTE.concreteShade);
+  rim.position.y = 0.28;
+  g.add(rim);
+  const water = solid(new THREE.CylinderGeometry(0.86, 0.9, 0.12, 10), PALETTE.pond);
+  water.position.y = 0.48;
+  water.castShadow = false;
+  g.add(water);
+  const jet = solid(new THREE.ConeGeometry(0.18, 0.75, 8), PALETTE.glass);
+  jet.position.y = 0.86;
+  jet.castShadow = false;
+  g.add(jet);
+  for (const [x, z] of [[-2.4, -2.4], [2.4, -2.4], [-2.4, 2.4], [2.4, 2.4]] as const) {
+    const seat = solid(new THREE.BoxGeometry(1.5, 0.22, 0.4), PALETTE.houseTrim);
+    seat.position.set(x, 0.48, z);
+    seat.rotation.y = Math.atan2(-z, -x);
+    g.add(seat);
+  }
+  return g;
+}
+
+/** Zona de juegos: plataforma de arena, columpio y un tobogán facetado. */
+export function playground(): THREE.Group {
+  const g = new THREE.Group();
+  const ground = solid(new THREE.BoxGeometry(3.8, 0.12, 3.8), PALETTE.grass);
+  ground.position.y = 0.06;
+  ground.castShadow = false;
+  g.add(ground);
+  const sand = solid(new THREE.CylinderGeometry(1.35, 1.35, 0.08, 10), PALETTE.signYellow);
+  sand.position.y = 0.16;
+  sand.castShadow = false;
+  g.add(sand);
+  const post = solid(new THREE.BoxGeometry(0.14, 1.65, 0.14), PALETTE.trunk);
+  post.position.set(-1.15, 0.9, -1.05);
+  g.add(post);
+  const crossbar = solid(new THREE.BoxGeometry(2.1, 0.14, 0.14), PALETTE.trunk);
+  crossbar.position.set(0, 1.65, -1.05);
+  g.add(crossbar);
+  const slide = solid(new THREE.BoxGeometry(0.65, 0.12, 1.7), PALETTE.signRed);
+  slide.position.set(0.95, 0.75, 0.35);
+  slide.rotation.x = -0.28;
+  slide.castShadow = false;
+  g.add(slide);
+  const slideRail = solid(new THREE.BoxGeometry(0.1, 0.9, 0.1), PALETTE.trunk);
+  slideRail.position.set(0.95, 0.42, -0.25);
+  g.add(slideRail);
+  return g;
+}
+
 /** Escuela: aulas + patio cubierto con columnas + campanita sobre el tejado. */
 export function school(): THREE.Group {
   const g = new THREE.Group();

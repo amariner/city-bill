@@ -5,6 +5,7 @@
  */
 import { Grid } from '../world/grid';
 import { Simulation, SimSaveState } from './simulation';
+import { isUrban } from './worldIndex';
 import { TICK_REAL_S, TICK_GAME_S, DAY_GAME_SECONDS } from './clock';
 import { townCenter } from '../world/growth';
 import {
@@ -78,7 +79,7 @@ function sendSnapshot(): void {
 
 function townCenterFor(s: Simulation): [number, number] {
   const anchors = s.index.buildings
-    .filter((b) => b.data.role !== 'nature')
+    .filter((b) => isUrban(b.data.role))
     .map((b) => [b.ax, b.az] as [number, number]);
   return anchors.length > 0 ? townCenter(anchors) : [0, 0];
 }

@@ -241,7 +241,9 @@ function centerCameraOn(centerCell: [number, number]): void {
 
 if (sceneName === 'buildings') {
   stage.scene.add(buildShowcase());
-  camera.setTarget(0, 0);
+  // El catálogo ya ocupa cinco filas: un punto más abierto mantiene todos los
+  // servicios visibles en una sola lectura del expositor.
+  camera.setTarget(0, 0).setZoomIndex(2);
 } else if (sceneName === 'test-dev') {
   // BANCO DE PRUEBAS: una ciudad ya avanzada y VIVA de un vistazo. El worker
   // PRE-CRECE su propia sim (así conserva toda la vida: gente, edades, vínculos)

@@ -11,10 +11,13 @@ export type SimRole =
   | 'commerce'
   | 'civic'
   | 'agriculture'
+  | 'park'
   | 'nature'
   | 'infra';
 
 export type Tier = 0 | 1 | 2 | 3 | 4;
+
+export type ServiceKind = 'education' | 'health' | 'police' | 'fire' | 'park';
 
 export interface CatalogItemData {
   id: string;
@@ -30,8 +33,10 @@ export interface CatalogItemData {
   jobs?: number;
   /** Plazas de alumno (lógica de educación). */
   students?: number;
-  /** Bonus de felicidad para naturaleza/ocio. */
-  happiness?: { radius: number; amount: number };
+  /** Servicio que presta el edificio y radio que cubrirá H4.2. */
+  service?: { kind: ServiceKind; radius: number };
+  /** Amenity natural simple; H4.2 lo incorpora a la cobertura de ocio. */
+  amenity?: number;
   /** Precio que paga el jugador al colocar el edificio. El crecimiento autónomo
    * no usa este campo: las obras de la ciudad nacen sin débito hasta H4.8. */
   cost?: number;
@@ -56,14 +61,19 @@ export const CATALOG_DATA: CatalogItemData[] = [
   { id: 'supermarket', name: 'Supermercado', w: 9, d: 6, tier: 3, role: 'commerce', jobs: 12, cost: 12150, playerPlaceable: true },
   { id: 'parking', name: 'Parking en altura', w: 8, d: 5, tier: 3, role: 'infra', jobs: 2, playerPlaceable: false },
   { id: 'civic', name: 'Ayuntamiento', w: 8, d: 5, tier: 3, role: 'civic', jobs: 10, cost: 3000, upkeepPerDay: 80, playerPlaceable: true },
-  { id: 'school', name: 'Escuela', w: 6, d: 4, tier: 1, role: 'civic', jobs: 2, students: 24, cost: 1500, upkeepPerDay: 60, playerPlaceable: true },
-  { id: 'clinic', name: 'Consultorio', w: 4, d: 3, tier: 1, role: 'civic', jobs: 2, cost: 800, upkeepPerDay: 40, playerPlaceable: true },
+  { id: 'school', name: 'Escuela', w: 6, d: 4, tier: 1, role: 'civic', jobs: 2, students: 24, service: { kind: 'education', radius: 10 }, cost: 1500, upkeepPerDay: 60, playerPlaceable: true },
+  { id: 'clinic', name: 'Consultorio', w: 4, d: 3, tier: 1, role: 'civic', jobs: 2, service: { kind: 'health', radius: 8 }, cost: 800, upkeepPerDay: 40, playerPlaceable: true },
+  { id: 'police', name: 'Comisaría', w: 4, d: 4, tier: 2, role: 'civic', jobs: 2, service: { kind: 'police', radius: 12 }, cost: 1200, upkeepPerDay: 50, playerPlaceable: true },
+  { id: 'fire-station', name: 'Parque de bomberos', w: 4, d: 4, tier: 2, role: 'civic', jobs: 2, service: { kind: 'fire', radius: 12 }, cost: 1200, upkeepPerDay: 50, playerPlaceable: true },
+  { id: 'park', name: 'Parque', w: 4, d: 4, tier: 1, role: 'park', service: { kind: 'park', radius: 10 }, cost: 400, upkeepPerDay: 8, playerPlaceable: true },
+  { id: 'plaza', name: 'Plaza', w: 4, d: 4, tier: 2, role: 'park', service: { kind: 'park', radius: 12 }, cost: 600, upkeepPerDay: 10, playerPlaceable: true },
+  { id: 'playground', name: 'Zona de juegos', w: 2, d: 2, tier: 1, role: 'park', service: { kind: 'park', radius: 7 }, cost: 300, upkeepPerDay: 6, playerPlaceable: true },
   { id: 'office', name: 'Oficinas', w: 5, d: 5, tier: 4, role: 'work', jobs: 30, cost: 5625, playerPlaceable: true },
   { id: 'factory', name: 'Fábrica', w: 8, d: 6, tier: 4, role: 'work', jobs: 40, cost: 10800, playerPlaceable: true },
 
   // --- Naturaleza -----------------------------------------------------------
-  { id: 'tree-blob', name: 'Árbol', w: 1, d: 1, tier: 0, role: 'nature', happiness: { radius: 6, amount: 1 }, playerPlaceable: false },
-  { id: 'tree-cypress', name: 'Ciprés', w: 1, d: 1, tier: 0, role: 'nature', happiness: { radius: 4, amount: 1 }, playerPlaceable: false },
+  { id: 'tree-blob', name: 'Árbol', w: 1, d: 1, tier: 0, role: 'nature', amenity: 1, playerPlaceable: false },
+  { id: 'tree-cypress', name: 'Ciprés', w: 1, d: 1, tier: 0, role: 'nature', amenity: 1, playerPlaceable: false },
 ];
 
 export const CATALOG_BY_ID: Record<string, CatalogItemData> = Object.fromEntries(

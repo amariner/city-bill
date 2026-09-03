@@ -8,6 +8,13 @@ import { Grid } from '../world/grid';
 import { catalogData, CatalogItemData, SimRole } from '../world/catalogData';
 import { buildingEntrance, CellXZ, isWalkable, rotatedSize } from './geometry';
 
+/** Roles que forman parte del tejido urbano para centros, salidas y métricas.
+ * La naturaleza sigue siendo paisaje; la infraestructura viaria se consulta
+ * desde `roadCells`, no como edificio urbano. */
+export function isUrban(role: SimRole): boolean {
+  return role !== 'nature';
+}
+
 export interface SimBuilding {
   ax: number;
   az: number;
@@ -107,6 +114,22 @@ export class WorldIndex {
       const [tx, tz] = treeCells[i];
       if (isWalkable(this.grid, tx + 1, tz)) this.strollSpots.push([tx + 1, tz]);
     }
+    // Los parques son edificios (bloquean su huella), pero su borde y sus
+    // senderos sí son destinos públicos de paseo. Se calcula al reconstruir el
+    // índice, igual que el resto de puntos derivados del grid.
+    for (const b of this.buildings) {
+      if (b.abandoned || b.data.role !== 'park') continue;
+      const [fw, fd] = rotatedSize(b.data.w, b.data.d, this.grid.get(b.ax, b.az)?.building?.rot ?? 0);
+      for (let x = b.ax - 1; x <= b.ax + fw; x++) {
+        for (let z = b.az - 1; z <= b.az + fd; z++) {
+          if (x !== b.ax - 1 && x !== b.ax + fw && z !== b.az - 1 && z !== b.az + fd) continue;
+          if (isWalkable(this.grid, x, z)) this.strollSpots.push([x, z]);
+        }
+      }
+    }
+    const uniqueSpots = new Map<string, CellXZ>();
+    for (const spot of this.strollSpots) uniqueSpots.set(`${spot[0]},${spot[1]}`, spot);
+    this.strollSpots = [...uniqueSpots.values()];
     // Orden determinista (el muestreo de chunks de un Map ya es de inserción,
     // pero tras deserializar puede variar el orden: fijamos por coordenada).
     this.buildings.sort((a, b) => a.ax - b.ax || a.az - b.az);

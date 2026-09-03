@@ -124,6 +124,7 @@ export function zoneForRole(role: SimRole): ZoneKind | null {
     case 'work': return 'I';
     case 'agriculture': return 'A';
     case 'civic':
+    case 'park':
     case 'nature': return 'P';
     case 'infra': return 'I';
   }

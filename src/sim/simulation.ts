@@ -14,7 +14,7 @@ import { createRng, Rng } from '../rng';
 import { GameClock, TICK_GAME_S, DAY_GAME_SECONDS } from './clock';
 import { PathQueue, pathLength } from './pathfinding';
 import { CellXZ, manhattan } from './geometry';
-import { WorldIndex } from './worldIndex';
+import { WorldIndex, isUrban } from './worldIndex';
 import { Economy, EconomySaveState } from './economy';
 import { Citizen, CitizenPhase, citizenName, PlannedActivity, TravelMode, jobFitsVocation, vocationOf, VOCATION_PURPOSE_BONUS, surnameOf } from './citizens/citizen';
 import { decayNeeds, restore, NEED_KEYS } from './citizens/needs';
@@ -1097,7 +1097,7 @@ export class Simulation {
     const it = catalogData(id);
     if (!it) return;
     const center = growthCenter(this.grid,
-      this.index.buildings.filter((b) => b.data.role !== 'nature').map((b) => [b.ax, b.az]),
+      this.index.buildings.filter((b) => isUrban(b.data.role)).map((b) => [b.ax, b.az]),
     );
     const p = findParcel(this.grid, id, center, this.rng, this.growthPolicy);
     if (!p) {
@@ -1368,7 +1368,7 @@ export class Simulation {
     // Emigración (ciclo 14): quien decidió marcharse ignora toda otra actividad
     // y camina hacia la salida del pueblo. Al llegar (o si no hay ruta), se va.
     if (this.leaving.has(c.id) && c.phase.kind === 'deciding') {
-      const center = townCenter(this.index.buildings.filter((b) => b.data.role !== 'nature').map((b) => [b.ax, b.az]));
+      const center = townCenter(this.index.buildings.filter((b) => isUrban(b.data.role)).map((b) => [b.ax, b.az]));
       const exit = this.index.townExit(center);
       const from: CellXZ = [Math.round(c.x - 0.5), Math.round(c.z - 0.5)];
       if (!exit || manhattan(from, exit) <= 1) {

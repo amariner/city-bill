@@ -1,7 +1,7 @@
 /** Acceso vial y abandono reversible (H2.6). */
 import { DAY_GAME_SECONDS, TICK_GAME_S } from './clock';
 import { ABANDON_DAYS, Simulation } from './simulation';
-import { hasRoadAccess, WorldIndex } from './worldIndex';
+import { hasRoadAccess, isUrban, WorldIndex } from './worldIndex';
 import { Grid } from '../world/grid';
 
 let passed = 0;
@@ -53,6 +53,18 @@ function stabilizeHousehold(sim: Simulation): void {
 }
 
 const ticksPerDay = Math.round(DAY_GAME_SECONDS / TICK_GAME_S);
+
+// --- Servicios públicos y destinos de paseo (H4.1) -------------------------
+{
+  const grid = new Grid();
+  grid.fillTerrain(-8, -8, 12, 12, 'field');
+  check('parque: la huella se coloca como edificio', grid.placeBuilding('park', 4, 4, 2, 2, 0));
+  const index = new WorldIndex(grid);
+  check('parque: entra en el índice por su rol', index.ofRole('park').length === 1);
+  check('parque: conserva su servicio de ocio', index.at(2, 2)?.data.service?.kind === 'park');
+  check('parque: su borde transitable entra en strollSpots', index.strollSpots.some(([cx, cz]) => cx === 1 && cz === 3));
+  check('roles: un parque es urbano y un árbol sigue siendo paisaje', isUrban('park') && !isUrban('nature'));
+}
 
 // Diez cierres consecutivos cierran el edificio, pero no despawnean a sus vecinos.
 {

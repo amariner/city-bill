@@ -29,12 +29,13 @@ export function buildShowcase(): THREE.Group {
 
   const cols = 4;
   const spacingX = 36;
-  const spacingZ = 36;
+  const rows = Math.ceil(exhibits.length / cols);
+  const spacingZ = rows > 5 ? 31 : 36;
   exhibits.forEach((it, i) => {
     const col = i % cols;
     const row = Math.floor(i / cols);
     const x = (col - (cols - 1) / 2) * spacingX;
-    const z = (row - 1.5) * spacingZ;
+    const z = (row - (rows - 1) / 2) * spacingZ;
 
     // Parcela verde dimensionada al footprint del ítem.
     const p = pad(Math.max(it.w * CELL_SIZE + 8, 20), Math.max(it.d * CELL_SIZE + 8, 20), rng.pick(PALETTE.grassPatches));
