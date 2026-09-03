@@ -100,6 +100,8 @@ export class CityHud {
       city.epidemic ? 1 : 0,
       city.sick,
       city.avgWealth | 0,
+      city.debt | 0,
+      city.bankrupt ? 1 : 0,
       city.abandoned,
     ].join('|');
     if (sig === this.last) return;
@@ -117,7 +119,9 @@ export class CityHud {
     this.chips.pop.label.textContent = settlementClass(city.population);
     this.chips.pop.value.textContent = String(city.population);
 
-    this.chips.treasury.value.textContent = fmtMoney(city.treasury);
+    const treasury = this.chips.treasury.value;
+    treasury.textContent = fmtMoney(city.treasury);
+    treasury.style.color = city.bankrupt ? ALERT : city.debt > 0 ? WARN : '';
 
     const joblessPct = Math.round(city.unemployment * 100);
     const jv = this.chips.jobless.value;

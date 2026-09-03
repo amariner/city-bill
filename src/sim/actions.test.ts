@@ -180,6 +180,13 @@ check('place residencial: llega al menos una persona', rejected.citizens.size >=
   const bankruptSave = JSON.parse(JSON.stringify(bankrupt.serialize()));
   const bankruptRestore = new Simulation(Grid.deserialize(bankruptSave.gridJson), 5153, bankruptSave);
   check('quiebra: estado y deuda sobreviven al guardado', bankruptRestore.economy.bankrupt === bankrupt.economy.bankrupt && bankruptRestore.economy.debt === bankrupt.economy.debt);
+
+  const budgetSim = new Simulation(startingGrid(), 5154);
+  budgetSim.autonomousGrowth = false;
+  for (let tick = 0; tick < Math.round(86400 / 36); tick++) budgetSim.step();
+  const budget = budgetSim.cityStats().budget;
+  check('presupuesto: el histórico guarda un punto por cierre diario', budget.history.length === 1 && budget.history[0].day === 0);
+  check('presupuesto: expone flujo, desglose y préstamos', Number.isFinite(budget.incomeToday) && Number.isFinite(budget.expenseToday) && budget.breakdown.taxR >= 0 && Array.isArray(budget.loans));
 }
 
 // --- Zonas del jugador ------------------------------------------------------

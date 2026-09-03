@@ -194,6 +194,11 @@ export interface EconomySaveState {
   interestPaid?: number;
   loanPrincipalPaid?: number;
   bankrupt?: boolean;
+  rentCollected?: number;
+  goodsTaxCollected?: number;
+  incomeToday?: number;
+  expenseToday?: number;
+  upkeepDueToday?: number;
 }
 
 export class Economy {
@@ -250,6 +255,13 @@ export class Economy {
   loanPrincipalPaid = 0;
   /** Quiebra operativa: bloquea nuevas obras, pero no detiene la simulación. */
   bankrupt = false;
+  /** Recaudación desglosada para el panel de presupuesto. */
+  rentCollected = 0;
+  goodsTaxCollected = 0;
+  /** Flujo de caja del día en curso; se reinicia al cambiar de día. */
+  incomeToday = 0;
+  expenseToday = 0;
+  upkeepDueToday = 0;
 
   get debt(): number {
     return this.loans.reduce((sum, loan) => sum + loan.balance, 0);
@@ -261,6 +273,7 @@ export class Economy {
     if (!Number.isFinite(amount) || amount < 0 || amount > this.treasury) return false;
     this.treasury -= amount;
     this.ledger[category] += amount;
+    this.expenseToday += amount;
     return true;
   }
 
@@ -274,10 +287,12 @@ export class Economy {
       due += building.data.upkeepPerDay ?? 0;
     }
     for (const kind of roadCells) due += ROAD_SPECS[kind].upkeepPerCell;
+    this.upkeepDueToday = due;
     const paid = Math.min(Math.max(0, this.treasury), due);
     if (paid > 0) {
       this.treasury -= paid;
       this.ledger.upkeep += paid;
+      this.expenseToday += paid;
     }
     return paid;
   }
@@ -297,6 +312,7 @@ export class Economy {
     };
     this.loans.push(loan);
     this.treasury += loan.principal;
+    this.incomeToday += loan.principal;
     return loan;
   }
 
@@ -308,6 +324,7 @@ export class Economy {
     if (this.treasury < loan.balance) return 0;
     const paid = loan.balance;
     this.treasury -= paid;
+    this.expenseToday += paid;
     this.loanPrincipalPaid += paid;
     this.loans.splice(index, 1);
     return paid;
@@ -329,6 +346,7 @@ export class Economy {
       loan.balance = Math.max(0, loan.balance - principal);
       loan.daysRemaining = Math.max(0, loan.daysRemaining - 1);
       this.treasury -= interest + principal;
+      this.expenseToday += interest + principal;
       this.interestPaid += interest;
       this.loanPrincipalPaid += principal;
       this.ledger.interest += interest;
@@ -375,11 +393,13 @@ export class Economy {
       const fromTreasury = Math.min(Math.max(0, this.treasury), gross);
       this.treasury -= fromTreasury; // el erario paga a sus empleados (no se acuña)
       this.wagesFromTreasury += fromTreasury;
+      this.expenseToday += fromTreasury;
     }
     this.wallets.set(homeKey, (this.wallets.get(homeKey) ?? 0) + net);
     this.wagesPaid += net;
     this.treasury += tax;
     this.taxesCollected += tax;
+    this.incomeToday += tax;
     this.ledger.taxR += incomeTax;
     this.ledger.taxI += activityLevy;
   }
@@ -396,6 +416,7 @@ export class Economy {
       this.wallets.set(k, (this.wallets.get(k) ?? 0) + perHome);
       this.treasury -= perHome;
       this.pensionsPaid += perHome;
+      this.expenseToday += perHome;
     }
   }
 
@@ -406,6 +427,15 @@ export class Economy {
     this.wallets.set(homeKey, w - spent);
     this.moneySpent += spent;
     return spent;
+  }
+
+  /** Ingresa alquiler municipal y deja el importe visible en el presupuesto. */
+  collectRent(amount: number): number {
+    const collected = Math.max(0, Number.isFinite(amount) ? amount : 0);
+    this.treasury += collected;
+    this.rentCollected += collected;
+    this.incomeToday += collected;
+    return collected;
   }
 
   walletOf(homeKey: string): number {
@@ -590,6 +620,8 @@ export class Economy {
     const tax = spent * GOODS_SALES_TAX;
     this.treasury += tax;
     this.taxesCollected += tax;
+    this.goodsTaxCollected += tax;
+    this.incomeToday += tax;
     this.goodsImported += spent - tax; // sale del pueblo (importación) — sumidero
     this.goodsSold += spent;
     return spent;
@@ -609,6 +641,7 @@ export class Economy {
     const local = spent * LIFESTYLE_LOCAL_SHARE;
     this.treasury += local;
     this.taxesCollected += local;
+    this.incomeToday += local;
     this.lifestyleLeft += spent - local; // sale del pueblo — sumidero
     this.lifestyleSpent += spent;
     return spent;
@@ -628,6 +661,7 @@ export class Economy {
     for (const k of homeKeys) this.wallets.set(k, (this.wallets.get(k) ?? 0) + per);
     this.treasury -= shared;
     this.dividendPaid += shared;
+    this.expenseToday += shared;
     return shared;
   }
 
@@ -664,6 +698,7 @@ export class Economy {
       this.tills.set(shopKey, this.tillOf(shopKey) - corpTax);
       this.treasury += corpTax;
       this.corpTaxCollected += corpTax;
+      this.incomeToday += corpTax;
       this.ledger.taxC += corpTax;
     }
     for (const [homeKey, bonus] of farmPool) {
@@ -692,6 +727,14 @@ export class Economy {
     this.cultivation += (target - this.cultivation) * (farmedToday ? 0.35 : 0.12);
     this.cultivation = Math.max(0, Math.min(1, this.cultivation));
     this.settleShops();
+  }
+
+  /** Abre el siguiente período de caja después de que el caller haya guardado
+   * el punto histórico del tesoro. Los acumulados del ledger permanecen. */
+  rollBudgetDay(): void {
+    this.incomeToday = 0;
+    this.expenseToday = 0;
+    this.upkeepDueToday = 0;
   }
 
   serialize(): EconomySaveState {
@@ -727,6 +770,11 @@ export class Economy {
       interestPaid: this.interestPaid,
       loanPrincipalPaid: this.loanPrincipalPaid,
       bankrupt: this.bankrupt,
+      rentCollected: this.rentCollected,
+      goodsTaxCollected: this.goodsTaxCollected,
+      incomeToday: this.incomeToday,
+      expenseToday: this.expenseToday,
+      upkeepDueToday: this.upkeepDueToday,
     };
   }
 
@@ -764,6 +812,11 @@ export class Economy {
     this.interestPaid = s.interestPaid ?? 0;
     this.loanPrincipalPaid = s.loanPrincipalPaid ?? 0;
     this.bankrupt = s.bankrupt ?? false;
+    this.rentCollected = s.rentCollected ?? 0;
+    this.goodsTaxCollected = s.goodsTaxCollected ?? 0;
+    this.incomeToday = s.incomeToday ?? 0;
+    this.expenseToday = s.expenseToday ?? 0;
+    this.upkeepDueToday = s.upkeepDueToday ?? 0;
   }
 
   /** Datos agregados para growth (Fase 4) y HUD. */

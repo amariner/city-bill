@@ -336,7 +336,7 @@ trampas**. Los tests nuevos se añaden al script `"test"` de `package.json`.
 - Tests: préstamo sube `treasury` y `debt` igual; tras `days`, `debt ≈ 0` e `interest > 0`; dividendo no reparte por debajo de `reserve + debt`; en quiebra `place` ⇒ `bankrupt` pero `step()` sigue (pop > 0 a 5 días).
 - Trampas: `payWage` cívico ya clampa a 0 (`economy.ts:206`); `payPensions` devuelve si `perHome ≤ 0`.
 
-**H3.4 Panel de presupuesto**
+**H3.4 Panel de presupuesto** — ✅ implementado
 - Archivos: C `src/ui/budgetPanel.ts` (tecla T; desglose por categoría; sliders R/C/I → `act(setTax)`; préstamos; sparkline 30 días de `treasury` en `CityStats.budget.history`), M `cityHud.ts` (tesoro rojo si quiebra, ámbar si deuda), M `theme.ts`.
 - Visual: panel abierto; colores de paleta. Trampas: firma-diff a 4 Hz.
 

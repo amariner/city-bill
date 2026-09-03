@@ -108,6 +108,7 @@ export class Toasts {
       tierLocked: 'edificio aún no desbloqueado',
       notFound: 'no hay nada que demoler aquí',
       notPlayerPlaceable: 'ese elemento no se coloca a mano',
+      bankrupt: 'tesoro en quiebra: pide un préstamo',
       invalid: 'acción no disponible',
     };
     this.push(labels[reason] ?? 'acción rechazada', { accent: ALERT, mark: '!' });

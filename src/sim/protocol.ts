@@ -40,6 +40,45 @@ export interface TaxRates {
   I: number;
 }
 
+export interface BudgetHistoryPoint {
+  day: number;
+  treasury: number;
+}
+
+export interface BudgetLoan {
+  id: number;
+  tier: 0 | 1 | 2;
+  balance: number;
+  interestRate: number;
+  daysRemaining: number;
+}
+
+export interface BudgetBreakdown {
+  taxR: number;
+  taxC: number;
+  taxI: number;
+  rent: number;
+  goods: number;
+  lifestyle: number;
+  wages: number;
+  pensions: number;
+  upkeep: number;
+  interest: number;
+  build: number;
+  dividend: number;
+}
+
+export interface CityBudget {
+  incomeToday: number;
+  expenseToday: number;
+  upkeepPerDay: number;
+  debt: number;
+  bankrupt: boolean;
+  breakdown: BudgetBreakdown;
+  history: BudgetHistoryPoint[];
+  loans: BudgetLoan[];
+}
+
 export type PlayerAction =
   | { kind: 'place'; id: string; cx: number; cz: number; rot: Rot }
   | { kind: 'bulldoze'; cx: number; cz: number }
@@ -269,6 +308,8 @@ export interface CityStats {
   /** Deuda viva y estado operativo del tesoro (H3.3). */
   debt: number;
   bankrupt: boolean;
+  /** Presupuesto municipal para el panel de alcalde (H3.4). */
+  budget: CityBudget;
   /** Edificios sin acceso a una vía y actualmente fuera de servicio. */
   abandoned: number;
   /** Reparto por edad (banco de pruebas): niños/adultos/mayores. */

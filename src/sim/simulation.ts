@@ -21,7 +21,7 @@ import { decayNeeds, restore, NEED_KEYS } from './citizens/needs';
 import { chooseActivity } from './citizens/brain';
 import { ACTIVITY_BY_KIND, SimContext, activityLabel, EDU_PER_HOUR, CLINIC_FEE, isFestivalDay } from './citizens/activities';
 import { SocialSystem, SocialSaveState } from './citizens/social';
-import { AgentState, ActivityKind, activityId, AGENT_STRIDE, TravelModeCode, CityStats, CitizenInfoMsg, settlementLevel, SETTLEMENT_CLASSES, PlayerAction, RecordedAction, GrowthPolicy } from './protocol';
+import { AgentState, ActivityKind, activityId, AGENT_STRIDE, TravelModeCode, CityStats, CitizenInfoMsg, settlementLevel, SETTLEMENT_CLASSES, PlayerAction, RecordedAction, GrowthPolicy, BudgetHistoryPoint } from './protocol';
 import {
   computeDemand, demandLevels, itemForDemand, findParcel, townCenter, townAttractiveness,
   householdHardship, updateEmigrationPressure, EMIGRATE_POP_FLOOR, EMIGRATE_PRESSURE_LIMIT,
@@ -158,6 +158,7 @@ export interface SimSaveState {
   };
   growthPolicy?: GrowthPolicy;
   actions: RecordedAction[];
+  budgetHistory?: BudgetHistoryPoint[];
   rngState: number;
   churnRngState: number;
   social: SocialSaveState;
@@ -206,6 +207,8 @@ export class Simulation {
   events: SimEvent[] = [];
   /** Journal de acciones aceptadas; es la fuente del replay y del guardado. */
   readonly actions: RecordedAction[] = [];
+  /** Últimos 30 cierres del tesoro para el sparkline del presupuesto. */
+  private budgetHistory: BudgetHistoryPoint[] = [];
   /** Cambios espaciales pendientes de entregar al hilo de render. */
   private pendingBuilt: BuiltChange[] = [];
   private pendingRazed: RazedChange[] = [];
@@ -329,6 +332,7 @@ export class Simulation {
     this.vaccination = state.flags.vaccination;
     this.vocationalMobility = state.flags.vocationalMobility ?? true;
     this.actions.push(...state.actions);
+    this.budgetHistory = [...(state.budgetHistory ?? [])];
     this.rng = createRng(0, state.rngState);
     this.churnRng = createRng(0, state.churnRngState);
     this.social.restore(state.social);
@@ -384,6 +388,7 @@ export class Simulation {
       },
       growthPolicy: this.growthPolicy,
       actions: this.actions.map((a) => ({ ...a, action: { ...a.action } as PlayerAction })),
+      budgetHistory: this.budgetHistory.map((point) => ({ ...point })),
       rngState: this.rng.state,
       churnRngState: this.churnRng.state,
       social: this.social.serialize(),
@@ -706,6 +711,9 @@ export class Simulation {
 
     // Cierre del día: vida (1 día = 1 año), economía, contratos, tiers.
     if (this.clock.day !== this.lastDay) {
+      this.budgetHistory.push({ day: this.lastDay, treasury: this.economy.treasury });
+      if (this.budgetHistory.length > 30) this.budgetHistory.shift();
+      this.economy.rollBudgetDay();
       this.lastDay = this.clock.day;
       this.stepLife();
       this.economy.endOfDay();
@@ -961,7 +969,7 @@ export class Simulation {
       const families = this.households.get(k) ?? 0;
       if (families <= 0) continue;
       const rent = RENT_PER_DAY * families * (1 + RENT_TIER_FACTOR * (b.data.tier ?? 0));
-      this.economy.treasury += this.economy.spend(k, rent);
+      this.economy.collectRent(this.economy.spend(k, rent));
     }
   }
 
@@ -1582,6 +1590,7 @@ export class Simulation {
   /** Estado agregado de la ciudad (surfacing en el HUD): datos que la sim ya
    * lleva por dentro y que hasta ahora no salían a la superficie. Puro read. */
   cityStats(): CityStats {
+    this.economy.updateBankruptcy(this.citizens.size);
     const s = this.economy.stats(this.citizens);
     const unemployment = s.adults > 0 ? 1 - s.employed / s.adults : 0;
     const shops = this.economy.workplaces.filter((w) => w.building.data.role === 'commerce');
@@ -1632,6 +1641,29 @@ export class Simulation {
       taxRates: { ...this.economy.taxRates },
       debt: this.economy.debt,
       bankrupt: this.economy.bankrupt,
+      budget: {
+        incomeToday: this.economy.incomeToday,
+        expenseToday: this.economy.expenseToday,
+        upkeepPerDay: this.economy.upkeepDueToday,
+        debt: this.economy.debt,
+        bankrupt: this.economy.bankrupt,
+        breakdown: {
+          taxR: this.economy.ledger.taxR,
+          taxC: this.economy.ledger.taxC,
+          taxI: this.economy.ledger.taxI,
+          rent: this.economy.rentCollected,
+          goods: this.economy.goodsTaxCollected,
+          lifestyle: this.economy.lifestyleSpent,
+          wages: this.economy.wagesFromTreasury,
+          pensions: this.economy.pensionsPaid,
+          upkeep: this.economy.ledger.upkeep,
+          interest: this.economy.ledger.interest,
+          build: this.economy.ledger.build,
+          dividend: this.economy.dividendPaid,
+        },
+        history: this.budgetHistory.map((point) => ({ ...point })),
+        loans: this.economy.loans.map(({ id, tier, balance, interestRate, daysRemaining }) => ({ id, tier, balance, interestRate, daysRemaining })),
+      },
       abandoned: this.index.buildings.filter((b) => b.abandoned).length,
       children,
       adults: s.adults,

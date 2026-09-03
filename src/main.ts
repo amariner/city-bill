@@ -33,6 +33,7 @@ import { CityHud } from './ui/cityHud';
 import { Toasts } from './ui/toasts';
 import { DevPanel } from './ui/devPanel';
 import { ControlBar } from './ui/controlBar';
+import { BudgetPanel } from './ui/budgetPanel';
 import { Toolbar } from './ui/toolbar';
 import { Grid, cellFromKey, cellToWorld, rotatedFootprint } from './world/grid';
 import { clearSave, loadSave, writeSave } from './save/save';
@@ -75,6 +76,7 @@ let inspector: CitizenInspector | null = null;
 let cityHud: CityHud | null = null;
 let devPanel: DevPanel | null = null;
 let controlBar: ControlBar | null = null;
+let budgetPanel: BudgetPanel | null = null;
 let toolbar: Toolbar | null = null;
 let toolState: ToolState | null = null;
 let ghost: Ghost | null = null;
@@ -212,6 +214,7 @@ function buildRenderAndUi(grid: Grid, worldSeed: number): void {
       window.location.reload();
     },
   } : undefined);
+  budgetPanel = new BudgetPanel(sim);
   // Panel del banco de pruebas: solo en ?scene=test-dev (fuerza/observa mecánicas).
   if (sceneName === 'test-dev') devPanel = new DevPanel(sim);
 }
@@ -407,6 +410,7 @@ loop.onUpdate((dt) => {
     const mm = String(Math.floor((h % 1) * 60)).padStart(2, '0');
     hud.setStats({ agents: n, clock: `${hh}:${mm} día ${day} ×${simClient.speed}` });
     cityHud?.update(simClient.city, { day, hour: h, speed: simClient.speed });
+    budgetPanel?.update(simClient.city);
     controlBar?.update(simClient.speed); // resalta la pastilla de velocidad activa
     toolbar?.update();
     devPanel?.update();

@@ -29,6 +29,7 @@ const CONTROLS: Array<[string, string]> = [
   ['clic en vecino', 'inspeccionar'],
   ['F', 'seguir al vecino'],
   ['C', 'abrir la crónica'],
+  ['T', 'abrir el presupuesto'],
   ['B · R · Z · X', 'construir · vías · zonas · demoler'],
   ['V', 'mostrar / ocultar zonas'],
   ['Tab · Esc', 'rotar · cancelar herramienta'],
