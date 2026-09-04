@@ -313,8 +313,13 @@ repetido, arbolado automático en márgenes de carretera (rasgo de identidad).
 - [ ] **T5.2 Tren. [POST-MVP]** Vía + estación + tren con 3-5 vagones en circuito, humo
   de la locomotora con sprites de esferas. *Fuera del done del MVP (2026-08-14, §6);
   primer candidato del hito de continuación.*
-- [ ] **T5.3 Sonido generativo.** Web Audio: viento, pájaros, campana lejana, murmullo
-  al hacer zoom a ciudadanos charlando. Volumen ligado al zoom.
+- [x] **T5.3 Sonido generativo.** `src/audio/ambient.ts`: Web Audio procedimental
+  con viento, pájaros diurnos, campana a las 08/12/18 h y murmullo que solo se
+  abre al acercarse a ciudadanos que están charlando de verdad. El volumen sigue
+  al zoom, empieza tras el primer gesto (autoplay) y `M`/el control de la barra
+  lo silencia; la preferencia persiste localmente. La mezcla reutiliza su objeto
+  de trabajo, por lo que no genera basura por frame. Tests puros de mezcla y
+  preview verificados el 2026-09-04.
 - [x] **T5.4 Juice atmosférico del anochecer.** Luces de ventana encendiéndose una a
   una al caer la tarde (glow *emissive*, no difuso), humo de chimenea y bandada de
   pájaros, todo sobre una "hora azul" que atenúa/enfría el pueblo para que el juice
@@ -428,7 +433,7 @@ tractores (residuo T3.9), página itch.io.
 - [ ] **Gate H2**: números de F3 en captura, con el pueblo denso de H1.
 
 **H3 — El alma sonora**
-- [ ] T5.3 completo (`src/audio/` nuevo): viento + pájaros + campana + murmullo,
+- [x] T5.3 completo (`src/audio/` nuevo): viento + pájaros + campana + murmullo,
   mezcla por zoom, mute (M), arranque tras primer gesto. Determinismo no aplica
   (FX cosmético, §0.6), pero cero allocaciones por frame.
 - [ ] **Gate H3**: demo con sonido en preview + sin regresión de fps.
@@ -462,6 +467,20 @@ tractores (residuo T3.9), página itch.io.
 
 ## 6. Diario del agente (rellenar al trabajar)
 > Anota aquí: fecha, tarea, decisiones no obvias, deuda técnica, conflictos con §1.
+
+- 2026-09-04 — **T5.3, ambiente procedimental.** Se añadió `AmbientAudio`:
+  dos lechos de ruido filtrado (viento/murmullo), pájaros y campana sintetizados
+  con Web Audio sin assets externos. El audio se crea únicamente tras una tecla
+  o clic y se puede silenciar con `M` o la barra; el estado se guarda de forma
+  best-effort en `localStorage`. El murmullo no es decorativo genérico: el main
+  cuenta la actividad `chat` del snapshot y lo mezcla solo si hay conversaciones
+  cercanas. Se corrigió una primera versión que creaba un objeto de mezcla en
+  cada frame: ahora reutiliza almacenamiento interno. Verificado en preview
+  (interruptor cambia de estado) y con `typecheck`, build y pruebas unitarias.
+  Durante la exploración de H1 se probó trama vial proactiva; alteraba de forma
+  real las oleadas epidémicas integradas, por lo que se retiró en lugar de
+  rebajar los criterios sanitarios. Sigue pendiente para H1 con una solución que
+  conserve o modele explícitamente la dinámica de contactos.
 
 - 2026-07-05 (sesión merge) — **RECONCILIACIÓN de dos líneas divergentes de
   `main`**. El `main` local (18 commits: duelo visual, jubilación, guardado

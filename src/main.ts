@@ -43,6 +43,7 @@ import { DistrictPanel } from './ui/districtPanel';
 import { Grid, cellFromKey, cellToWorld, rotatedFootprint } from './world/grid';
 import { clearSave, loadSave, writeSave } from './save/save';
 import { StartMenu } from './ui/startMenu';
+import { AmbientAudio } from './audio/ambient';
 
 const sceneName = new URLSearchParams(window.location.search).get('scene');
 const query = new URLSearchParams(window.location.search);
@@ -102,6 +103,7 @@ let districtsLayer: DistrictsLayer | null = null;
 let districtPanel: DistrictPanel | null = null;
 let overlayLayer: OverlayLayer | null = null;
 let alertsLayer: AlertsLayer | null = null;
+const ambientAudio = new AmbientAudio();
 let overlayIndex = 0;
 let hoverCell: [number, number] = [0, 0];
 /** Semilla realmente en juego: la del pueblo montado (fija la estación/fiestas
@@ -257,7 +259,10 @@ function buildRenderAndUi(grid: Grid, worldSeed: number): void {
       clearSave();
       window.location.reload();
     },
-  } : undefined);
+    muted: ambientAudio.muted,
+    onToggleMute: () => { ambientAudio.activate(); ambientAudio.toggle(); },
+  } : { muted: ambientAudio.muted, onToggleMute: () => { ambientAudio.activate(); ambientAudio.toggle(); } });
+  ambientAudio.onMuteChange = (muted) => controlBar?.setMuted(muted);
   budgetPanel = new BudgetPanel(sim);
   // Panel del banco de pruebas: solo en ?scene=test-dev (fuerza/observa mecánicas).
   if (sceneName === 'test-dev') devPanel = new DevPanel(sim);
@@ -437,6 +442,15 @@ window.addEventListener('resize', () => {
   stage.renderer.setSize(window.innerWidth, window.innerHeight);
   camera.resize();
 });
+window.addEventListener('keydown', (event) => {
+  if (event.key.toLowerCase() === 'm') {
+    event.preventDefault();
+    ambientAudio.activate();
+    ambientAudio.toggle();
+  } else if (!event.metaKey && !event.ctrlKey && !event.altKey) {
+    ambientAudio.activate();
+  }
+});
 
 const agentViews: AgentView[] = [];
 
@@ -485,6 +499,11 @@ loop.onUpdate((dt) => {
     updateNight(stage, lampFactor(h)); // hora azul: atenúa/enfría al anochecer (T5.4)
     updateTerrainSeason(warmth); // nieve del terreno en invierno (T5.1 paso 2)
     atmosphere?.update(h, dt); // juice del anochecer: luces de ventana, humo, bandada (T5.4)
+    // El murmullo no es un loop genérico: se abre solo al acercarse a vecinos
+    // que realmente están charlando en este snapshot (actividad 7 = chat).
+    let chatters = 0;
+    for (let i = 0; i < n; i++) if (agentViews[i].activity === 7) chatters++;
+    ambientAudio.update(camera.zoomIndex, h, simClient.population, chatters);
     const hh = String(Math.floor(h)).padStart(2, '0');
     const mm = String(Math.floor((h % 1) * 60)).padStart(2, '0');
     hud.setStats({ agents: n, clock: `${hh}:${mm} día ${day} ×${simClient.speed}` });

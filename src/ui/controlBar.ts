@@ -33,6 +33,7 @@ const CONTROLS: Array<[string, string]> = [
   ['B · R · Z · X · D', 'construir · vías · zonas · demoler · distritos'],
   ['L · clic · Enter', 'crear línea de bus'],
   ['V', 'ciclar overlays de edificios'],
+  ['M', 'silenciar / activar ambiente'],
   ['Tab · Esc', 'rotar · cancelar herramienta'],
   ['0 – 3', 'velocidad del tiempo'],
   ['F3', 'panel de rendimiento'],
@@ -43,6 +44,8 @@ const STYLE_ID = 'city-bill-controlbar-style';
 export interface ControlBarOptions {
   seed?: number;
   onNewGame?: () => void;
+  muted?: boolean;
+  onToggleMute?: () => void;
 }
 
 export class ControlBar {
@@ -53,6 +56,7 @@ export class ControlBar {
   private helpOpen = false;
   private current: Speed | null = null;
   private overlayLabel: HTMLDivElement;
+  private muteButton: HTMLButtonElement | null = null;
 
   constructor(private setSpeed: (s: Speed) => void, options: ControlBarOptions = {}) {
     this.injectStyle();
@@ -85,6 +89,15 @@ export class ControlBar {
       this.pills.set(sp.s, b);
     }
     this.root.appendChild(speedRow);
+
+    if (options.onToggleMute) {
+      this.muteButton = document.createElement('button');
+      this.muteButton.className = 'cb-help-toggle';
+      this.muteButton.title = 'Silenciar / activar ambiente · tecla M';
+      this.muteButton.addEventListener('click', () => options.onToggleMute?.());
+      this.root.appendChild(this.muteButton);
+      this.setMuted(options.muted ?? false);
+    }
 
     if (options.seed !== undefined) {
       const slot = document.createElement('div');
@@ -143,6 +156,12 @@ export class ControlBar {
 
   setOverlayLabel(label: string): void {
     this.overlayLabel.textContent = `V · ${label}`;
+  }
+
+  setMuted(muted: boolean): void {
+    if (!this.muteButton) return;
+    this.muteButton.textContent = muted ? '♪ sonido off' : '♪ sonido on';
+    this.muteButton.classList.toggle('cb-active', muted);
   }
 
   private toggleHelp(): void {
