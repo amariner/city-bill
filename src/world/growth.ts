@@ -244,9 +244,17 @@ export function residentialVisualId(id: string, cx: number, cz: number, rot: Rot
   return choices.at(-1)?.id ?? id;
 }
 
-/** Escalera de densificación que cabe en una parcela existente. El salto a la
- * losa queda fuera: su huella exige reparcelación, no un simple reemplazo. */
-export const DENSITY_LADDER = ['cottage', 'town-house', 'low-block'] as const;
+/** Escalera de densificación. Los escalones que ensanchan la parcela usan la
+ * validación de reparcelación de `upgradeCandidate`: solo prosperan si queda
+ * suelo libre alrededor, sin desplazar ni pisar vecinos. */
+export const DENSITY_LADDER = [
+  'cottage',
+  'town-house',
+  'row-houses',
+  'low-block',
+  'apartment-slab',
+  'brick-block',
+] as const;
 export const UPGRADE_LAND_VALUE = 0.6;
 
 /** H4.5 — Busca el siguiente peldaño residencial, manteniendo ancla y giro.

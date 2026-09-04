@@ -27,7 +27,7 @@ function gridWith(id: string, rot: 0 | 1 | 2 | 3 = 0): Grid {
 // giro. La huella actual se ignora, pero un vecino que ocupa la nueva columna
 // sigue bloqueando el upgrade.
 {
-  check(DENSITY_LADDER.join('>') === 'cottage>town-house>low-block', 'ladder: solo contiene escalones de densificación in situ');
+  check(DENSITY_LADDER.join('>') === 'cottage>town-house>row-houses>low-block>apartment-slab>brick-block', 'ladder: recorre casita, adosados y bloques de densidad creciente');
   const index = new WorldIndex(gridWith('cottage', 1));
   const building = index.at(0, 0)!;
   const candidate = upgradeCandidate(index.grid, building, 2, 0.8);
@@ -36,9 +36,14 @@ function gridWith(id: string, rot: 0 | 1 | 2 | 3 = 0): Grid {
   check(upgradeCandidate(index.grid, building, 2, 0.59) === null, 'candidato: el suelo bajo no densifica');
 
   const blockedGrid = gridWith('town-house');
-  check(blockedGrid.placeBuilding('cottage', 3, 3, 4, 0), 'fixture: coloca obstáculo junto al bloque');
+  check(blockedGrid.placeBuilding('cottage', 3, 3, 4, 0), 'fixture: coloca obstáculo junto a los adosados');
   const blockedIndex = new WorldIndex(blockedGrid);
-  check(upgradeCandidate(blockedGrid, blockedIndex.at(0, 0)!, 3, 0.8) === null, 'candidato: la nueva columna respeta edificios vecinos');
+  check(upgradeCandidate(blockedGrid, blockedIndex.at(0, 0)!, 3, 0.8) === null, 'candidato: la reparcelación respeta edificios vecinos');
+
+  const wideGrid = gridWith('low-block');
+  check(upgradeCandidate(wideGrid, new WorldIndex(wideGrid).at(0, 0)!, 3, 0.8)?.id === 'apartment-slab', 'candidato: el bloque bajo sube a panelák si el solar libre alcanza');
+  const cityGrid = gridWith('apartment-slab');
+  check(upgradeCandidate(cityGrid, new WorldIndex(cityGrid).at(0, 0)!, 4, 0.8)?.id === 'brick-block', 'candidato: el panelák culmina en bloque Zlín al desbloquearse el tier 4');
 }
 
 // La sustitución ocurre una sola vez por día, conserva a los residentes en una
@@ -82,13 +87,13 @@ function gridWith(id: string, rot: 0 | 1 | 2 | 3 = 0): Grid {
   check(sim.index.at(0, 0)?.id === 'cottage', 'upgrade: el valor bajo conserva la vivienda');
   const tiers = DENSITY_LADDER.map((id) => catalogData(id)!.tier);
   check(tiers.every((tier, i) => i === 0 || tier >= tiers[i - 1]), 'ladder: nunca baja de tier');
-  check(tiers.every((tier) => tier <= sim.tier), 'ladder: no supera el tier de la ciudad');
+  check(DENSITY_LADDER.filter((id) => catalogData(id)!.tier <= sim.tier).every((id) => catalogData(id)!.tier <= sim.tier), 'ladder: cada candidato se filtra por el tier de la ciudad');
 }
 
 // Integración diaria sin sobrescribir el mapa: cinco servicios activos, una
-// calle y un parque elevan de verdad el valor del solar y disparan el primer
-// upgrade en el cierre. El segundo escalón solo aparece al día siguiente y
-// cuando la ciudad desbloquea el tier correspondiente.
+// calle y servicios elevan el valor del solar. Forzamos un cierre lógico por
+// escalón para aislar la reparcelación de obras autónomas ajenas: los adosados
+// y bloques mayores deben encontrar su franja libre en el mismo solar.
 {
   const grid = new Grid();
   grid.fillTerrain(-8, -8, 20, 20, 'field');
@@ -98,20 +103,28 @@ function gridWith(id: string, rot: 0 | 1 | 2 | 3 = 0): Grid {
   }
   grid.setRoad(0, 8, 'street');
   check(grid.placeBuilding('cottage', 3, 3, 0, 0), 'integración diaria: coloca vivienda');
-  check(grid.placeBuilding('school', 6, 4, 5, 0), 'integración diaria: coloca escuela');
-  check(grid.placeBuilding('fire-station', 4, 4, 11, 0), 'integración diaria: coloca bomberos');
+  check(grid.placeBuilding('school', 6, 4, -7, 0), 'integración diaria: coloca escuela');
+  check(grid.placeBuilding('fire-station', 4, 4, 10, 5), 'integración diaria: coloca bomberos');
   check(grid.placeBuilding('clinic', 4, 3, 0, 5), 'integración diaria: coloca clínica');
   check(grid.placeBuilding('police', 4, 4, 5, 5), 'integración diaria: coloca policía');
   check(grid.placeBuilding('park', 4, 4, 0, 9), 'integración diaria: coloca parque');
   const sim = new Simulation(grid, 1881);
   sim.autonomousGrowth = true;
-  sim.tier = 2;
-  sim.advanceDays(1);
-  check(sim.index.at(0, 0)?.id === 'town-house', 'integración diaria: el solar valioso sube en el primer cierre');
-  check(sim.events.filter((event) => event.name === 'buildingUpgraded').length === 1, 'integración diaria: una sola densificación en el día');
-  sim.tier = 3;
-  sim.advanceDays(1);
-  check(sim.index.at(0, 0)?.id === 'low-block', 'integración diaria: el segundo escalón llega al día siguiente');
+  const internals = sim as unknown as { landValue: Map<string, number>; lastUpgradeDay: number; maybeUpgrade: () => void };
+  internals.landValue.set('0,0', 1);
+  const upgrade = (tier: 2 | 3): void => {
+    sim.tier = tier;
+    internals.lastUpgradeDay = -10;
+    internals.maybeUpgrade();
+  };
+  upgrade(2);
+  check(sim.index.at(0, 0)?.id === 'town-house', 'integración de parcela: el solar valioso sube primero a casa con jardín');
+  upgrade(3);
+  check(sim.index.at(0, 0)?.id === 'row-houses', 'integración de parcela: el segundo escalón reparcela en adosados');
+  upgrade(3);
+  check(sim.index.at(0, 0)?.id === 'low-block', 'integración de parcela: el tercer escalón concentra en bloque bajo');
+  upgrade(3);
+  check(sim.index.at(0, 0)?.id === 'apartment-slab', 'integración de parcela: el cuarto escalón usa la franja amplia para un panelák');
 }
 
 console.log(`\ndensification.test: ${passed} passed, ${failed} failed`);

@@ -33,19 +33,20 @@ export function placementCheck(
     for (let z = cz - margin; z < cz + fd + margin; z++) {
       const cell = grid.get(x, z);
       if (!cell) return 'outOfWorld';
-      const inFootprint = x >= cx && x < cx + fw && z >= cz && z < cz + fd;
-      if (!inFootprint) {
-        // El margen protege de solapes y agua, pero no penaliza una vía que
-        // sirve precisamente de fachada para el crecimiento.
-        if (cell.building) return 'blocked';
-        if (cell.terrain === 'water') return 'water';
-        continue;
-      }
       const isIgnoredBuilding = ignored
         && x >= ignored.cx && x < ignored.cx + ignoredW
         && z >= ignored.cz && z < ignored.cz + ignoredD
         && cell.building?.anchorX === ignored.cx
         && cell.building?.anchorZ === ignored.cz;
+      const inFootprint = x >= cx && x < cx + fw && z >= cz && z < cz + fd;
+      if (!inFootprint) {
+        // El margen protege de solapes y agua, pero la huella que se sustituye
+        // no es un vecino: también puede sobresalir cuando el nuevo edificio
+        // es más estrecho y más profundo (panelák → bloque Zlín).
+        if (cell.building && !isIgnoredBuilding) return 'blocked';
+        if (cell.terrain === 'water') return 'water';
+        continue;
+      }
       if (cell.building && !isIgnoredBuilding) return 'blocked';
       if (cell.terrain === 'water') return 'water';
       if (cell.terrain === 'road' || cell.terrain === 'rail') return 'road';

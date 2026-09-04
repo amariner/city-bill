@@ -245,7 +245,7 @@ repetido, arbolado automático en márgenes de carretera (rasgo de identidad).
 
 - [x] **T4.1 Demanda.** `world/growth.ts` calcula demanda residencial/comercial/agrícola
   a partir del estado real de la sim (desempleo, viviendas llenas, tiendas saturadas).
-- [~] **T4.2 Crecimiento por etapas.** En celdas zonificadas (o adyacentes a carretera
+- [x] **T4.2 Crecimiento por etapas.** En celdas zonificadas (o adyacentes a carretera
   en modo autónomo total), la demanda materializa edificios por etapas con animación de
   construcción (andamio low-poly → pop). Parcela vacía → casita → casa con jardín →
   adosados → bloque, según densidad local. Cada edificio nuevo genera/atrae ciudadanos.
@@ -256,10 +256,12 @@ repetido, arbolado automático en márgenes de carretera (rasgo de identidad).
   chunk revela el edificio ya fundido (relevo invisible; `worldView.beginConstruction/
   endConstruction` lo omite mientras dura la obra). Verificado por screenshot en escena de
   aislamiento (`?scene=fxtest`, temporal, ya retirada): andamio visible rodeando la tienda/
-  escuela que crecen dentro. *Etapas operativas:* la escalera in situ
-  casita→casa con jardín→bloque conserva ancla, giro, hogares, capacidad y
-  fachada visual determinista; falta ampliar esa escalera a los saltos que hoy
-  exigen reparcelación y lograr el trazado más tupido (T4.4 ribbon→trama).
+  escuela que crecen dentro. *Etapas operativas:* la escalera
+  casita→casa con jardín→adosados→bloque bajo→panelák→bloque Zlín conserva
+  ancla, giro, hogares, capacidad y fachada visual determinista. Los saltos que
+  ensanchan o cambian proporción reparcelan únicamente si el solar libre pasa la
+  misma validación espacial que el resto del crecimiento. El trazado más tupido
+  sigue siendo deuda de T4.4 (ribbon→trama).
 - [x] **T4.3 Inmigración/emigración.** Familias llegan si hay vivienda+empleo+felicidad;
   se van si no. La población es consecuencia, no un slider. (Inmigración modulada por
   atractividad = ciclo 12; emigración digna por penuria sostenida = ciclo 14, RESEARCH.md.)
@@ -428,7 +430,8 @@ tractores (residuo T3.9), página itch.io.
   en esa huella. El jardín de hierba ya está portado como derivación del grid de
   RENDER al cargar y al recibir parches (nunca en el worker). Falta la trama 2D
   proactiva (`eeeaab4`: `STREET_EVERY`, `buildingsSinceRoad`).
-- [ ] Rematar T4.2 (etapas de densidad) si la mezcla no basta para el done nº 5.
+- [x] T4.2 rematado: etapas de densidad y reparcelación segura cubren desde
+  casita hasta bloque Zlín; la mezcla visual conserva la variedad entre obras.
 - [ ] Playtest 30 min a ×8 (residuo T4.4): el arco aldea→pueblo→villa se sostiene.
 - [ ] **Gate H1**: screenshots del arco (d0 / ~d30 / ~d80) + checklist §4 + Crónica
   coherente. Al cerrar: borrar `rescate/construction-sector`.
@@ -601,6 +604,15 @@ tractores (residuo T3.9), página itch.io.
   completa de 332 contratos siguen verdes; la deuda de T4.2 se reduce a mejorar
   la cobertura de etapas/parcelación y a la trama vial 2D, no a la continuidad
   render↔sim de los upgrades.
+
+- 2026-09-04 — **H1/T4.2, escalera completa y reparcelación.** La secuencia ya
+  no salta de casa con jardín a bloque bajo: `DENSITY_LADDER` recorre adosados,
+  panelák y bloque Zlín. `placementCheck` reconoce además como propia —también
+  dentro del margen— la huella que una obra reemplaza, requisito para un salto
+  más estrecho y profundo como panelák→Zlín; no relaja la protección de vecinos,
+  agua ni vías. Las pruebas cubren candidatos de cada tier, bloqueo de un solar
+  ocupado y la sucesión física hasta panelák (38 pruebas de densificación); la
+  sonda larga completa conserva 332/332 contratos.
 
 - 2026-09-04 — **H1, sondas de trama 2D (revertidas fuera del main).**
   En un árbol temporal se probó una ramificación cada 12 obras. Sin freno abrió
