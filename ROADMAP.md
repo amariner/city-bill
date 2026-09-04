@@ -650,6 +650,15 @@ tractores (residuo T3.9), página itch.io.
   ligado a una señal existente de capacidad económica/constructiva, no ser un
   temporizador nuevo.
 
+- 2026-09-04 — **H1, causa de la ráfaga espacial localizada.** La traza por
+  día mostró que, tras la primera transversal, la simulación no solo encadena
+  casas: responde a las viviendas dispersas con parques y comisarías que sí
+  cubren algún hogar nuevo (ocho parques entre d13 y d16). Exigir ganancia de
+  cobertura redujo el caso de 79 a 43 edificios, pero dejó solo 58 habitantes:
+  el problema principal es el corredor de 12 celdas que dispersa hogares y crea
+  necesidades públicas reales demasiado pronto. La siguiente sonda debe abrir
+  una calle corta, parcelable por fases, antes de volver a tocar la demanda.
+
 - 2026-09-04 — **H1, contrato único de calle autónoma.** La extensión que usa
   el crecimiento dejó de duplicar un pintor simplificado: delega en
   `roads.ts`, la misma geometría que consume la herramienta manual. Así una
