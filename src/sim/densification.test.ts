@@ -93,26 +93,26 @@ function gridWith(id: string, rot: 0 | 1 | 2 | 3 = 0): Grid {
 // Integración diaria sin sobrescribir el mapa: cinco servicios activos, una
 // calle y servicios elevan el valor del solar. Forzamos un cierre lógico por
 // escalón para aislar la reparcelación de obras autónomas ajenas: los adosados
-// y bloques mayores deben encontrar su franja libre en el mismo solar.
+// y bloques mayores deben encontrar su franja libre en el mismo solar, hasta
+// el bloque Zlín final del tier 4.
 {
   const grid = new Grid();
   grid.fillTerrain(-8, -8, 20, 20, 'field');
   for (let cx = -8; cx <= 20; cx++) {
     grid.setRoad(cx, -2, 'street');
-    grid.setRoad(cx, 4, 'street');
   }
   grid.setRoad(0, 8, 'street');
   check(grid.placeBuilding('cottage', 3, 3, 0, 0), 'integración diaria: coloca vivienda');
   check(grid.placeBuilding('school', 6, 4, -7, 0), 'integración diaria: coloca escuela');
-  check(grid.placeBuilding('fire-station', 4, 4, 10, 5), 'integración diaria: coloca bomberos');
-  check(grid.placeBuilding('clinic', 4, 3, 0, 5), 'integración diaria: coloca clínica');
-  check(grid.placeBuilding('police', 4, 4, 5, 5), 'integración diaria: coloca policía');
-  check(grid.placeBuilding('park', 4, 4, 0, 9), 'integración diaria: coloca parque');
+  check(grid.placeBuilding('fire-station', 4, 4, 12, 5), 'integración diaria: coloca bomberos');
+  check(grid.placeBuilding('clinic', 4, 3, 12, 0), 'integración diaria: coloca clínica');
+  check(grid.placeBuilding('police', 4, 4, 16, 0), 'integración diaria: coloca policía');
+  check(grid.placeBuilding('park', 4, 4, 16, 10), 'integración diaria: coloca parque');
   const sim = new Simulation(grid, 1881);
   sim.autonomousGrowth = true;
   const internals = sim as unknown as { landValue: Map<string, number>; lastUpgradeDay: number; maybeUpgrade: () => void };
   internals.landValue.set('0,0', 1);
-  const upgrade = (tier: 2 | 3): void => {
+  const upgrade = (tier: 2 | 3 | 4): void => {
     sim.tier = tier;
     internals.lastUpgradeDay = -10;
     internals.maybeUpgrade();
@@ -125,6 +125,8 @@ function gridWith(id: string, rot: 0 | 1 | 2 | 3 = 0): Grid {
   check(sim.index.at(0, 0)?.id === 'low-block', 'integración de parcela: el tercer escalón concentra en bloque bajo');
   upgrade(3);
   check(sim.index.at(0, 0)?.id === 'apartment-slab', 'integración de parcela: el cuarto escalón usa la franja amplia para un panelák');
+  upgrade(4);
+  check(sim.index.at(0, 0)?.id === 'brick-block', 'integración de parcela: el tier 4 culmina en bloque Zlín sin desplazar vecinos');
 }
 
 console.log(`\ndensification.test: ${passed} passed, ${failed} failed`);
