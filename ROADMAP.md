@@ -442,10 +442,10 @@ tractores (residuo T3.9), página itch.io.
 
 **H4 — Puertas abiertas** *(gate = done final)*
 - [ ] T5.1 rematado (crossfade capa B + nieve en tejados).
-- [~] Onboarding (3-5 tooltips) + línea de título; semilla visible + acción "nueva
-  semilla"; verificar `?days=N` en la escena normal. **Onboarding hecho:** cuatro
-  pistas no modales y persistentes (`src/ui/onboarding.ts`); queda la comprobación
-  de `?days=N` en la escena normal.
+- [x] Onboarding (3-5 tooltips) + línea de título; semilla visible + acción "nueva
+  semilla"; `?days=N` en la escena normal. Cuatro pistas no modales y persistentes
+  (`src/ui/onboarding.ts`); `?seed=4242&days=2` verificado en preview (día 2,
+  ciudad renderizada desde el `worldReady` del worker).
 - [ ] `npm run build` limpio + deploy GitHub Pages (Actions, `base`) + README/hero
   al día.
 - [ ] **Gate H4**: recorrer el DONE de §3.1 punto por punto **en la URL pública, en
@@ -493,6 +493,14 @@ tractores (residuo T3.9), página itch.io.
   la cuarta persiste `done` en localStorage. En preview se verificaron la
   secuencia 1/4→4/4 y la desaparición final; pruebas puras cubren límite,
   identidad de pistas y clave versionada.
+
+- 2026-09-04 — **Arranque maduro reproducible.** `?days=N` dejó de ser una
+  capacidad exclusiva de `test-dev`: en la escena normal invalida el save de
+  arranque, precrece la sim dentro del worker y espera `worldReady` antes de
+  montar el render, con el mismo overlay de progreso. La URL `?seed=4242&days=2`
+  se verificó en preview: la interfaz mostró día 2, 19:00 y 12 habitantes; no
+  hubo un flash del grid inicial. Límite explícito de 400 días y prueba pura de
+  parseo para valores inválidos y fraccionarios.
 
 - 2026-07-05 (sesión merge) — **RECONCILIACIÓN de dos líneas divergentes de
   `main`**. El `main` local (18 commits: duelo visual, jubilación, guardado

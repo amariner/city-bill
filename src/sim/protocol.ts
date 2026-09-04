@@ -198,8 +198,8 @@ export interface InitMsg {
   seed: number;
   /** Grid serializado (grid.serialize()); el worker lo deserializa. */
   gridJson: string;
-  /** Banco de pruebas (?scene=test-dev): si >0, el worker PRE-CRECE su sim estos
-   * días de juego antes de ir en vivo → su `Simulation` ES la ciudad madura
+  /** Si >0, el worker PRE-CRECE su sim estos días de juego antes de ir en vivo
+   * (`?days=N` en el banco o en la escena normal) → su `Simulation` ES la ciudad madura
    * (población, edades, relaciones, obras intactas, sin reseed con pérdida) y
    * arranca a mediodía (la hora con más gente en la calle). Emite `growProgress`
    * mientras crece y `worldReady` con el grid resultante para que el render
@@ -220,8 +220,8 @@ export interface GridPatchMsg {
   razed: Array<{ cx: number; cz: number }>;
 }
 
-/** Grid completo entregado una sola vez tras el pre-crecimiento del banco de
- * pruebas. Después de este mensaje, los cambios viajan como GridPatch. */
+/** Grid completo entregado una sola vez tras un pre-crecimiento. Después de
+ * este mensaje, los cambios viajan como GridPatch. */
 export interface WorldReadyMsg {
   type: 'worldReady';
   gridJson: string;

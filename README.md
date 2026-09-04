@@ -29,11 +29,12 @@ npx tsc --noEmit   # type-check
 | `/?scene=test-dev` | **Banco de pruebas**: pueblo pre-crecido (`?days=`, def. 100) + panel dev. |
 | `/?scene=buildings` | Expositor del catálogo completo de edificios. |
 | `/?seed=N` | Fuerza la semilla del mundo (comparte un pueblo, reproduce un bug). |
+| `/?seed=N&days=D` | Partida normal madurada D días en el worker (0–400), útil para reproducir una ciudad ya crecida. |
 
 Controles: arrastrar/WASD para mover, rueda para zoom, **Q**/**E** para rotar,
 clic en un vecino para inspeccionarlo, **F** para seguirlo, **C** para la crónica,
-**0**–**3** para la velocidad del tiempo (también en la barra de control), **F3**
-para el panel de rendimiento.
+**0**–**3** para la velocidad del tiempo (también en la barra de control), **M**
+para silenciar el ambiente y **F3** para el panel de rendimiento.
 
 ## Qué lo hace especial
 

@@ -45,16 +45,20 @@ import { clearSave, loadSave, writeSave } from './save/save';
 import { StartMenu } from './ui/startMenu';
 import { AmbientAudio } from './audio/ambient';
 import { Onboarding } from './ui/onboarding';
+import { preGrowDaysFrom } from './sim/preGrow';
 
 const sceneName = new URLSearchParams(window.location.search).get('scene');
 const query = new URLSearchParams(window.location.search);
 const saveEnabled = sceneName === null;
+// Puerta trasera reproducible del MVP: en la escena normal, `?seed=N&days=D`
+// entrega una ciudad ya vivida pero sigue usando el mismo flujo de juego.
+const normalPreGrowDays = sceneName === null ? preGrowDaysFrom(query.get('days')) : 0;
 if (saveEnabled && query.get('new') === '1') clearSave();
 // Una semilla explícita es una orden de arranque reproducible: no debe quedar
 // atrapada detrás del menú ni restaurar accidentalmente un slot anterior.
 const forcedSeed = query.get('seed');
 const hasForcedSeed = forcedSeed !== null && Number.isFinite(Number(forcedSeed));
-const initialSave = saveEnabled && query.get('new') !== '1' && !hasForcedSeed ? loadSave() : null;
+const initialSave = saveEnabled && normalPreGrowDays === 0 && query.get('new') !== '1' && !hasForcedSeed ? loadSave() : null;
 
 /** Semilla del mundo: la guardada, o una nueva aleatoria que se persiste. Así el
  * pueblo es único por jugador y sobrevive a las recargas. `?seed=N` la fuerza
@@ -295,8 +299,7 @@ if (sceneName === 'buildings') {
   const params = new URLSearchParams(window.location.search);
   const seedParam = params.get('seed');
   const devSeed = seedParam !== null && Number.isFinite(Number(seedParam)) ? Number(seedParam) >>> 0 : 0x7e57de5;
-  const daysParam = Number(params.get('days'));
-  const growDays = Number.isFinite(daysParam) && daysParam > 0 ? Math.min(400, Math.floor(daysParam)) : 100;
+  const growDays = preGrowDaysFrom(params.get('days')) || 100;
   const zoomParam = Number(params.get('zoom'));
   const devZoom = Number.isFinite(zoomParam) ? zoomParam : 1; // ?zoom= para encuadrar el banco
   camera.setTarget(0, 6).setZoomIndex(devZoom);
@@ -332,7 +335,13 @@ if (sceneName === 'buildings') {
     ? seedSandbox(worldSeed)
     : sceneName === 'farm' ? seedFarm(worldSeed) : sceneName === 'rail' ? seedRail(worldSeed) : seedWorld(worldSeed));
   camera.setTarget(sceneName === 'sandbox' || sceneName === 'farm' || sceneName === 'rail' ? 0 : 20, sceneName === 'sandbox' ? 0 : sceneName === 'farm' ? 2 : sceneName === 'rail' ? 0 : 20);
-  simClient = new SimClient(worldSeed, grid.serialize(), 0, sceneName !== 'sandbox' && sceneName !== 'rail', initialSave?.seed === worldSeed ? initialSave.saveBlob : undefined);
+  simClient = new SimClient(
+    worldSeed,
+    grid.serialize(),
+    normalPreGrowDays,
+    sceneName !== 'sandbox' && sceneName !== 'rail',
+    initialSave?.seed === worldSeed ? initialSave.saveBlob : undefined,
+  );
   if (saveEnabled) {
     simClient.onSaveReady = (msg) => writeSave({ seed: worldSeed, saveBlob: msg.saveBlob });
     window.setInterval(() => simClient?.save('auto'), 10_000);
@@ -340,7 +349,17 @@ if (sceneName === 'buildings') {
       if (!skipUnloadSave) simClient?.save('unload');
     });
   }
-  buildRenderAndUi(grid, worldSeed);
+  if (normalPreGrowDays > 0) {
+    const overlay = makeLoadingOverlay(normalPreGrowDays);
+    simClient.onGrowProgress = (day) => overlay.progress(day);
+    simClient.onWorldReady = (gridJson, center) => {
+      buildRenderAndUi(Grid.deserialize(gridJson), worldSeed);
+      centerCameraOn(center);
+      overlay.remove();
+    };
+  } else {
+    buildRenderAndUi(grid, worldSeed);
+  }
   if (initialSave && initialSave.seed === worldSeed) {
     // La partida restaurada queda pausada hasta que el jugador elija continuar.
     simClient.setSpeed(0);
