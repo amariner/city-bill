@@ -57,9 +57,10 @@ function stabilizeHousehold(sim: Simulation): void {
 {
   const grid = new Grid();
   grid.fillTerrain(-4, -4, 8, 8, 'field');
-  check('capacidad: coloca una tipología con permiso de vivienda', grid.placeBuilding('cottage', 3, 3, 0, 0, 0, 4));
+  check('capacidad: coloca una tipología con permiso de vivienda', grid.placeBuilding('cottage', 3, 3, 0, 0, 0, 4, 'farmhouse'));
   const index = new WorldIndex(grid);
   check('capacidad: el índice respeta el permiso de la parcela', index.at(0, 0)?.capacity === 4);
+  check('fachada: el índice conserva la tipología visual de la parcela', index.at(0, 0)?.visualId === 'farmhouse');
 }
 
 const ticksPerDay = Math.round(DAY_GAME_SECONDS / TICK_GAME_S);
