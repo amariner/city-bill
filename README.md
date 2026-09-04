@@ -32,6 +32,7 @@ Pages. La URL prevista del repositorio es `https://amariner.github.io/city-bill/
 | `/?scene=test-dev` | **Banco de pruebas**: pueblo pre-crecido (`?days=`, def. 100) + panel dev. |
 | `/?scene=buildings` | Expositor del catálogo completo de edificios. |
 | `/?seed=N` | Fuerza la semilla del mundo (comparte un pueblo, reproduce un bug). |
+| `/?new=1&seed=N` | Ignora el slot local e inicia limpio con esa semilla. |
 | `/?seed=N&days=D` | Partida normal madurada D días en el worker (0–400), útil para reproducir una ciudad ya crecida. |
 | `/?stress=N` | Banco de render: muestra N peatones sintéticos deterministas sin alterar la simulación; activar F3 para medir. |
 
@@ -45,7 +46,10 @@ para silenciar el ambiente y **F3** para el panel de rendimiento.
 - **Construcción autónoma (Fase 4).** La demanda sale del estado REAL de la sim
   (paro, viviendas llenas, tiendas saturadas), no de un guion. Cuando falta
   frente construible, la ciudad **traza sus propias calles**. Cada edificio se
-  **levanta con andamio y pop**, no aparece de golpe.
+  **levanta con andamio y pop**, no aparece de golpe. Las parcelas separan su
+  capacidad y su huella de la fachada: las viviendas se mezclan de forma
+  determinista sin desestabilizar a sus habitantes, y al densificarse conservan
+  esa continuidad visual.
 - **NPCs de verdad (Fase 3).** Ciudadanos con necesidades, personalidad y una
   IA de utilidad: el patrón día/noche (trabajar, comer, comprar, socializar,
   dormir) **EMERGE** de las curvas, sin horarios hardcodeados. Nacen, forman
@@ -63,6 +67,10 @@ para silenciar el ambiente y **F3** para el panel de rendimiento.
 - **Rendimiento de maqueta.** Instancing para vegetación y peatones, edificios
   horneados por chunk, mundo con frustum culling, simulación en un Web Worker
   desacoplada del render.
+- **El paso del año.** Luz, terreno, copas de árboles y tejados funden su paleta
+  a lo largo de las estaciones; en invierno la nieve cubre las cubiertas sin
+  añadir mallas ni llamadas de dibujo. El ambiente procedimental suma viento,
+  aves, campana y murmullo de conversaciones reales.
 
 ## Stack
 
