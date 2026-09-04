@@ -580,6 +580,14 @@ tractores (residuo T3.9), página itch.io.
   retranqueo, vías y agua. No es trabajo pendiente ni toca el worker; el único
   bloque funcional restante de la primera línea de H1 es la trama 2D proactiva.
 
+- 2026-09-04 — **H1, arco visual reproducible.** Se capturó la semilla 4242
+  en la escena normal: d0 = aldea de 6 habitantes (60 fps, 102 draw calls),
+  d30 = pueblo de 36 en primavera y d80 = villa de 92 en invierno. La etapa
+  media conserva retranqueos verdes, caminos legibles y fachadas mezcladas; el
+  banco visual de 500 peatones en d80 sostuvo 60 fps. Estas capturas satisfacen
+  la evidencia del arco, aunque el gate H1 permanece abierto hasta resolver la
+  trama 2D y el playtest largo.
+
 - 2026-07-05 (sesión merge) — **RECONCILIACIÓN de dos líneas divergentes de
   `main`**. El `main` local (18 commits: duelo visual, jubilación, guardado
   T2.6, perf T6.1 + render rico) y `origin/main` (49 commits: ciclos 11-40 de
