@@ -295,9 +295,11 @@ repetido, arbolado automático en márgenes de carretera (rasgo de identidad).
   con solo emitir `{from,dir,length}`. Lo verdaderamente delicado que queda es la
   ESTÉTICA: elegir desde dónde/hacia dónde extender para que el pueblo emergente
   sea bonito (heurística de periferia + demanda), y el playtest de 30 min.
-- [~] **T4.5 Hitos y tiers.** Población desbloquea tiers del catálogo (T1→T4) con una
+- [x] **T4.5 Hitos y tiers.** Población desbloquea tiers del catálogo (T1→T4) con una
   tarjeta de celebración discreta. El tier T4 introduce la estética Zlín (bloques de
-  ladrillo, fábrica, tren) — ver CATALOG.md.
+  ladrillo, fábrica, tren) — ver CATALOG.md. Los umbrales 25/80/200 viven en
+  `tierForPopulation`, cubiertos por pruebas puras; el cierre diario emite
+  `tierUnlocked`, que alimenta la tarjeta y la Crónica.
 
 ### Fase 5 — Atmósfera y juice
 - [x] **T5.1 Estaciones.** Tras el merge, el juego combina DOS capas de estación:

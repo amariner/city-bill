@@ -127,6 +127,16 @@ export function demandLevels(d: DemandLevelsInput): DemandLevels {
 
 export type DemandKind = 'residential' | 'commerce' | 'work' | 'school' | 'clinic' | 'police' | 'fire' | 'park' | null;
 
+/** H4.5 — Progreso urbano visible. Los umbrales viven junto al catálogo y la
+ * demanda, no escondidos en el cierre diario de la simulación: así el render,
+ * la Crónica y las pruebas comparten una única escalera aldea→Zlín. */
+export function tierForPopulation(population: number): Tier {
+  if (population >= 200) return 4;
+  if (population >= 80) return 3;
+  if (population >= 25) return 2;
+  return 1;
+}
+
 /** Zona natural de cada rol de catálogo. Las zonas solo orientan el crecimiento;
  * el jugador sigue pudiendo colocar manualmente cualquier edificio válido. */
 export function zoneForRole(role: SimRole): ZoneKind | null {

@@ -30,7 +30,7 @@ import {
   computeDemand, demandLevels, itemForDemand, findParcel, townCenter, townAttractiveness,
   householdHardship, updateEmigrationPressure, EMIGRATE_POP_FLOOR, EMIGRATE_PRESSURE_LIMIT,
   extendRoad, GrowthPlacement, CARRYING_CAPACITY, fertilityFactor, growthCenter, residentialVisualId,
-  upgradeCandidate, UPGRADE_LAND_VALUE,
+  upgradeCandidate, UPGRADE_LAND_VALUE, tierForPopulation,
 } from '../world/growth';
 import { lifeYear, ADULT_AGE, OLD_AGE, RETIREMENT_AGE } from './lifecycle';
 import { STARTING_MONEY, PENSION_PER_DAY, RENT_PER_DAY, RENT_TIER_FACTOR, SEASON_YIELD_SWING } from './economy';
@@ -1042,7 +1042,7 @@ export class Simulation {
         this.settlementLevelSeen++;
         this.events.push({ name: 'settlementRose', data: { class: SETTLEMENT_CLASSES[this.settlementLevelSeen], population: pop } });
       }
-      const unlocked: Tier = pop >= 200 ? 4 : pop >= 80 ? 3 : pop >= 25 ? 2 : 1;
+      const unlocked = tierForPopulation(pop);
       if (unlocked > this.tier) {
         this.tier = unlocked;
         this.events.push({ name: 'tierUnlocked', data: { tier: unlocked, population: pop } });

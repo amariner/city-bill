@@ -2,7 +2,7 @@
 import { Grid, rotatedFootprint } from './grid';
 import { createRng } from '../rng';
 import { catalogData } from './catalogData';
-import { demandLevels, extendRoad, findParcel, growthCenter, itemForDemand, paintYard, residentialChoices, residentialVisualId, townAttractiveness, zoneForRole } from './growth';
+import { demandLevels, extendRoad, findParcel, growthCenter, itemForDemand, paintYard, residentialChoices, residentialVisualId, tierForPopulation, townAttractiveness, zoneForRole } from './growth';
 
 let passed = 0;
 let failed = 0;
@@ -77,6 +77,10 @@ function footprintIsZone(grid: Grid, id: string, p: { cx: number; cz: number; ro
 
 // --- El catálogo no salta el tier ------------------------------------------
 {
+  assert(tierForPopulation(0) === 1 && tierForPopulation(24) === 1, 'tier 1 hasta antes de 25 habitantes');
+  assert(tierForPopulation(25) === 2 && tierForPopulation(79) === 2, 'tier 2 entre 25 y 79 habitantes');
+  assert(tierForPopulation(80) === 3 && tierForPopulation(199) === 3, 'tier 3 entre 80 y 199 habitantes');
+  assert(tierForPopulation(200) === 4, 'tier 4 abre la ciudad Zlín a 200 habitantes');
   assert(residentialChoices(1).every((id) => (catalogData(id)?.tier ?? 99) <= 1), 'residentialChoices nunca supera el tier disponible');
   assert(residentialChoices(4).length > residentialChoices(1).length, 'residentialChoices crece al desbloquear tiers');
   assert(itemForDemand('residential', 1) === 'cottage', 'tier 1 no ofrece residenciales futuros');
