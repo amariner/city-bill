@@ -698,6 +698,14 @@ tractores (residuo T3.9), página itch.io.
   temporizador de obra, aunque sea local, no representa la capacidad económica
   que falta. El prototipo se retira junto con su estado serializado.
 
+  Otra sonda distinguió la promoción privada del servicio público: el frente
+  nuevo solo restringía vivienda/comercio/trabajo y parques, escuela y seguridad
+  seguían buscando la cobertura de la trama existente. Evita la oleada de
+  servicios en el borde, pero una rama de 8 pasos se estabilizó en 42 edificios
+  y una de 12 en 73: ambas seguían con dividendo cero al día 50. La separación
+  de responsabilidades es correcta para una futura política de frentes; no
+  basta por sí sola para hacer integrable la calle autónoma.
+
 - 2026-09-04 — **H1, contrato único de calle autónoma.** La extensión que usa
   el crecimiento dejó de duplicar un pintor simplificado: delega en
   `roads.ts`, la misma geometría que consume la herramienta manual. Así una
