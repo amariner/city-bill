@@ -434,9 +434,11 @@ tractores (residuo T3.9), página itch.io.
   coherente. Al cerrar: borrar `rescate/construction-sector`.
 
 **H2 — Aguanta máquinas ajenas**
-- [~] Medir la escena REAL con F3: `?seed=4242&days=80` dio 60 fps, 101 draw calls,
-  123.8k triángulos, 82 geometrías, 2 texturas y 92 habitantes a zoom 1. Falta repetir
-  con el pueblo denso de H1 y resolver la discrepancia con el banco antiguo.
+- [~] Medir la escena REAL con F3: tras las fachadas/etapas actuales de H1,
+  `?seed=4242&days=80` dio 60 fps, 109 draw calls, 123.4k triángulos, 82
+  geometrías, 2 texturas y 92 habitantes a zoom 1. El mismo estado con
+  `&stress=500` sostuvo 60 fps, 109 draw calls y 233.2k triángulos. Falta repetir
+  cuando la trama 2D pendiente produzca el pueblo más denso de H1.
 - [x] T3.6 saldado: LOD lejano sin bobbing/sway y `?stress=500` a 60 fps (109 draw
   calls, 233.2k triángulos, 82 geometrías y 2 texturas); la capa sintética es estable
   y no toca la sim ni crea agentes por frame.
@@ -611,6 +613,14 @@ tractores (residuo T3.9), página itch.io.
   de la tasa de construcción y conservar explícitamente la intensidad de
   encuentros antes de tocar el main. Ninguno de los dos prototipos entró en la
   rama de trabajo.
+
+- 2026-09-04 — **H2, base actualizada tras H1.** En navegador real, la escena
+  `?new=1&seed=4242&days=80` volvió a llegar a villa de 92 habitantes y F3 marcó
+  60 fps, 109 draw calls, 123.4k triángulos, 82 geometrías y 2 texturas. Al
+  sustituir solo la capa visual con `&stress=500`, permaneció en 60 fps con 109
+  draw calls y 233.2k triángulos. Es la línea base válida para las fachadas y
+  upgrades actuales; no se usa indebidamente para cerrar H2 mientras falte la
+  trama 2D que cambie la densidad espacial.
 
 - 2026-07-05 (sesión merge) — **RECONCILIACIÓN de dos líneas divergentes de
   `main`**. El `main` local (18 commits: duelo visual, jubilación, guardado
