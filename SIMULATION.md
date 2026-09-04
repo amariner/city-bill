@@ -1,7 +1,7 @@
-# SIMULATION.md — Guía de la simulación para el agente (Claude Sonnet)
+# SIMULATION.md — Guía de la simulación para el agente
 
 Este documento explica **cómo funciona la lógica de simulación ya construida**
-(Fase 3 del ROADMAP), qué decisiones de diseño son intocables, qué queda por
+(hitos H1-H5 del plan híbrido; Fase 3 del ROADMAP histórico), qué decisiones de diseño son intocables, qué queda por
 hacer y las trampas conocidas. Léelo ENTERO antes de tocar nada en `src/sim/`.
 El ROADMAP.md sigue siendo el plan maestro; esto es el mapa del territorio.
 
@@ -57,8 +57,9 @@ src/world/render/
 4. **Cero horarios hardcodeados.** El día emerge de curvas: `clock.darkness`
    (coseno suave 0=mediodía 1=medianoche) × urgencia de necesidad. Si te ves
    escribiendo `if (hour > 22)`, para y usa una curva en `activities.ts`.
-5. **Snapshot plano**: `AGENT_STRIDE = 6` floats `[id,x,z,heading,state,activity]`,
-   x/z en CELDAS float. Si necesitas más columnas, cambia `AGENT_STRIDE` en
+5. **Snapshot plano**: `AGENT_STRIDE = 8` floats
+   `[id,x,z,heading,state,activity,mode,grief]`, x/z en CELDAS float; vehículos
+   aparte con `VEHICLE_STRIDE = 6`. Si necesitas más columnas, cambia `AGENT_STRIDE` en
    `protocol.ts` Y el writer (`simulation.snapshot()`) Y el reader (`client.view()`)
    en el MISMO commit.
 6. **PathQueue**: nunca hagas A* síncrono por ciudadano. Pide ticket con
@@ -170,9 +171,12 @@ amplía `ACTIVE_LOGICS`.
 4. **T3.9 Vehículos**: nuevo estado del autómata (`moving` con modo 'drive'),
    velocidad por terreno en geometry.ts (road más rápida para coches),
    snapshot: añade columna `mode` (ver contrato 5 de §3).
-5. **Fase 2 (construcción)**: cuando el jugador construya, envía `ActionMsg` al
-   worker (el handler 'action' ya reindexay reconstruye economía; 'place' está
-   pendiente de completar con footprint de catalogData — nota en worker.ts).
+5. **Acciones del jugador (H1.2, hecho)**: `SimClient.act()` envía `ActionMsg`
+   con `seq`; `sim/actions.ts` valida y aplica (`place`, `bulldoze`, `road`,
+   `zone`, `setPolicy`, `setTax`, `loan`, `busLine`, `district`, `rail`), la sim
+   registra `{seq, tick, action}` para el replay y el worker contesta
+   `actionApplied`/`actionRejected`. Todo cambio del grid llega al main como
+   `gridPatch`.
 6. **Fase 4 (growth)**: la sim ya expone lo que necesita: `economy.stats()`,
    `economy.prosperity`, viviendas via `index.ofRole('residential')` vs
    población. `growth.ts` debe decidir QUÉ construir y emitir la misma ruta

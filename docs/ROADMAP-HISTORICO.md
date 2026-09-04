@@ -1,0 +1,1377 @@
+# ROADMAP HISTÓRICO — congelado el 2026-09-04
+
+> Este documento es el ROADMAP anterior, tal cual estaba al reconciliar el proyecto
+> con el plan del city builder híbrido (docs/PLAN-CITY-BUILDER-HIBRIDO.md). Contiene el
+> catálogo de fases T0-T6, el antiguo MVP vivarium (hitos H0-H4, numeración que NO
+> coincide con los hitos H1-H7 del ROADMAP vigente) y el diario íntegro hasta esa fecha.
+> No se edita: es consulta. El plan vigente es ROADMAP.md.
+
+---
+
+# ROADMAP — Guía de ejecución para el agente
+
+Este documento es el **plan maestro** de city-bill: un **vivarium contemplativo** para
+navegador con estética low-poly isométrica pastel — un pueblo que se construye solo,
+con **NPCs verdaderamente autónomos**, y que narra su propia saga en la Crónica. Está
+escrito para que un agente (Claude en Claude Code) lo ejecute tarea a tarea sin
+supervisión. Todo el desarrollo ocurre aquí, en Claude Code.
+
+**El rumbo vigente es el MVP definido en §3** (fijado 2026-08-14 con el usuario):
+hitos H0-H4 con gate de revisión entre ellos. Las fases de §2 son el catálogo
+histórico de tareas; §3 dice cuáles tocan ahora y en qué orden.
+
+---
+
+## 0. Protocolo del agente — LEER ANTES DE TOCAR CÓDIGO
+
+1. **Orden estricto.** El orden de ejecución lo marca **§3 (hitos H0-H4)**: trabaja el
+   hito ABIERTO y nada más; dentro del hito, sus casillas en orden. No empieces una
+   tarea si la anterior no cumple sus criterios de aceptación. No mezcles tareas.
+   (La numeración `T<fase>.<n>` de §2 sigue siendo el catálogo de referencia.)
+2. **Una tarea, un ciclo completo:** implementar → `npx tsc --noEmit` limpio →
+   arrancar preview (`.claude/launch.json`, servidor `city-bill`) → screenshot →
+   comparar con el checklist visual (§4) → marcar la casilla en este archivo.
+3. **Verificación visual obligatoria** en toda tarea que cambie algo renderizable:
+   haz `preview_screenshot` y comprueba el checklist §4. Si la estética empeora,
+   revierte y reintenta con otro enfoque. La estética tiene prioridad sobre la feature.
+4. **No rompas los contratos de §1.** Si una tarea parece exigir romperlos, detente y
+   documenta el conflicto en este archivo (sección §6) en vez de improvisar.
+5. **Colores solo desde `src/palette.ts`.** Si necesitas un color nuevo, añádelo a la
+   paleta con nombre semántico. Nunca un hex fuera de ese archivo.
+6. **Determinismo siempre:** toda aleatoriedad pasa por `createRng(seed)`. Prohibido
+   `Math.random()` y `Date.now()` en lógica de mundo/sim (solo permitido para FX
+   puramente cosméticos que no persisten).
+7. **Presupuesto por frame:** tras cada tarea de las fases 1-3, comprueba en consola el
+   contador de draw calls (`renderer.info.render.calls`, T1.7 lo expone). Límites: §1.5.
+8. **Commits:** al completar cada tarea, commit con mensaje `T<fase>.<n>: <resumen>`
+   (tareas de fase) o `H<hito>: <resumen>` (trabajo de hito de §3).
+9. **Al terminar una sesión**, deja este archivo actualizado: casillas marcadas y, si
+   quedó algo a medias, una nota en §6 con el estado exacto.
+10. **Escritor único y gates** (decisión 2026-08-14, §6): solo sesiones LOCALES sobre
+    `main`, push al cerrar cada sesión; nada de ramas de larga vida (la nube, solo como
+    excepción puntual fusionada el mismo día). Entre hitos de §3, GATE obligatorio:
+    informe corto (qué se hizo, capturas, números F3, tests) y OK explícito del usuario
+    antes de abrir el siguiente. El done de §3 solo puede encoger, nunca crecer.
+
+---
+
+## 1. Contratos de arquitectura (inmutables salvo decisión documentada)
+
+### 1.1 Mapa de módulos objetivo
+```
+src/
+  palette.ts            # única fuente de color (ya existe)
+  rng.ts                # RNG con semilla (ya existe)
+  props.ts              # fábrica de meshes low-poly (ya existe; crecerá)
+  core/
+    renderer.ts         # setup renderer/escena/luz (extraer de main.ts en T1.1)
+    camera.ts           # cámara isométrica + control de encuadre
+    loop.ts             # bucle de juego: render 60fps, tick de sim desacoplado
+    input.ts            # ratón/teclado/táctil → intents (nunca lógica de juego)
+  world/
+    grid.ts             # rejilla lógica: celdas, capas, chunks
+    roads.ts            # grafo vial + autotiling de carreteras
+    catalog.ts          # definición data-driven de todo lo construible (espejo de CATALOG.md)
+    builder.ts          # colocar/demoler: valida contra grid, emite acciones
+    growth.ts           # crecimiento autónomo de la ciudad (Fase 4)
+    render/
+      instances.ts      # InstancedMesh pools por tipo de prop
+      chunks.ts         # construcción/descarte de chunks visuales
+  sim/
+    worker.ts           # entry del Web Worker de simulación
+    protocol.ts         # tipos de mensajes main↔worker (única frontera)
+    clock.ts            # reloj de juego (1 día = 10 min reales por defecto)
+    citizens/
+      citizen.ts        # estado del ciudadano (datos puros, sin THREE)
+      needs.ts          # necesidades y decaimiento
+      brain.ts          # utility AI: elección de actividad
+      activities.ts     # definición y ejecución de actividades
+      social.ts         # encuentros, relaciones, charlas
+    economy.ts          # empleos, comercio, demanda
+    pathfinding.ts      # A* sobre grafo de navegación
+  ui/
+    hud.ts              # UI mínima diegética (Fase 2)
+  save/
+    save.ts             # serialización semilla+acciones+estado sim
+```
+`neighborhood.ts` actual se convierte en **escenario semilla**: en T1.4 se reescribe para
+generar su contenido a través de `grid.ts` + `catalog.ts` (mismo resultado visual).
+
+### 1.2 Rejilla
+- 1 celda = **2×2 m**. Chunk = **64×64 celdas**. Coordenadas de celda enteras `(cx, cz)`.
+- Capas por celda: `terrain` (campo/hierba/agua), `road`, `building` (id + rotación +
+  celda ancla), `prop` (árbol/deco). Un edificio ocupa N celdas pero se ancla en una.
+- El mundo lógico vive SOLO en `grid.ts`. El render lee el grid; jamás al revés.
+
+### 1.3 Separación render ↔ simulación
+- La simulación corre en un **Web Worker** con tick fijo de **250 ms** de juego.
+- Frontera única: `sim/protocol.ts`. Mensajes tipados:
+  - main→worker: `init{seed}`, `action{place|demolish|zone}`, `setSpeed{0|1|2|3}`, `save`
+  - worker→main: `snapshot{delta}` (posiciones/estados de agentes interpolables),
+    `event{cityGrew|citizenBorn|...}`, `saveBlob`
+- El hilo principal **interpola** entre snapshots para animar agentes a 60 fps.
+- Nada de THREE dentro de `sim/`. Nada de lógica de sim en `world/render/`.
+
+### 1.4 Guardado
+- Formato: `{version, seed, actions[], simState}` en `localStorage` (JSON).
+- `actions[]` = lista ordenada de acciones del jugador. Rejugar semilla+acciones debe
+  reconstruir el mismo mundo (test de regresión barato: T2.6).
+
+### 1.5 Presupuestos de rendimiento (portátil medio)
+- ≤ **200 draw calls** (todo prop repetido va por `InstancedMesh`).
+- ≤ 16 ms/frame render; tick de sim ≤ 50 ms con 1000 ciudadanos.
+- Memoria GPU ≤ 300 MB. Cero allocaciones por frame en el bucle caliente.
+
+### 1.6 Dirección de arte (resumen operativo)
+Ver README. En corto: paleta pastel desaturada de `palette.ts`, flat shading sin
+texturas, sol cálido lateral con sombras largas + ambiente frío, ortográfica isométrica
+(azimut 45°, elevación 32°), variación procedural (escala/rotación/tono) en todo lo
+repetido, arbolado automático en márgenes de carretera (rasgo de identidad).
+
+---
+
+## 2. Fases y tareas
+
+> **Nota (2026-08-14):** estas fases son el CATÁLOGO de tareas. El orden de ejecución
+> vigente y qué entra en el MVP lo dicta **§3**. Las fases/tareas marcadas
+> **[POST-MVP]** no se tocan hasta cerrar el done de §3.1.
+
+### Fase 0 — Fundación visual ✅ COMPLETADA
+- [x] Stack Vite+TS+Three, paleta, props (árboles, casa, granero, cobertizo, casita, tienda, ciudadano), primer barrio con pueblo, luz firmada, RNG con semilla.
+
+### Fase 1 — Motor de mundo ✅ COMPLETADA
+> Objetivo: del diorama estático a un mundo por rejilla, navegable y barato de renderizar.
+
+- [x] **T1.1 Extraer core.** `core/renderer.ts` (stage+luz), `core/camera.ts` (IsoCamera),
+  `core/loop.ts` (GameLoop con dt). Comportamiento idéntico.
+- [x] **T1.2 Grid lógico.** `world/grid.ts` según §1.2: rejilla dispersa por chunks,
+  canPlace/placeBuilding/removeBuilding con footprint rotado, serialize. 26 tests (npm test).
+- [x] **T1.3 Catálogo data-driven.** `world/catalog.ts`: 15 ítems `{id, w, d, tier, role,
+  capacity/jobs/happiness, build()}` (17 hoy — `school`/`clinic` se añadieron después;
+  la fuente de verdad es `catalogData.ts`, espejo en CATALOG.md). Expositor `?scene=buildings`.
+- [x] **T1.4 Escenario semilla sobre grid.** `world/seed.ts` puebla el grid;
+  `world/render/terrain.ts` mergea el terreno con vertex-colors; `worldView` renderiza
+  desde el grid. Carreteras y edificios son celdas consultables.
+- [x] **T1.5 Cámara jugable.** `core/input.ts` + `core/cameraController.ts`: pan
+  (arrastre + WASD), zoom por niveles con easing, rotación 90° (Q/E) suavizada, límites.
+  Elevación constante.
+- [x] **T1.6 Instancing.** `world/render/instances.ts`: árboles a `InstancedMesh`
+  (tronco+copa por especie). Verificado: 4 draw calls para toda la vegetación, O(1) al crecer.
+- [x] **T1.7 Chunks + HUD de debug.** Mundo por chunks (culling automático por
+  boundingSphere) + `core/debugHud.ts` (F3): fps, draw calls, triángulos, chunks
+  visibles, celda bajo cursor. Verificado: zoom-in baja chunks vis 10→7 y draw calls
+  168→118 (culling activo), 60 fps.
+- [x] **T1.8 Ciclo de luz.** `core/renderer.ts` `updateSun(sun, dayFraction)`:
+  el azimut del sol deriva lentamente (±24°) entre la hora dorada de la mañana y
+  la de la tarde, ligado al reloj de JUEGO (main.ts loop); se entibia en los
+  extremos (`palette.sunGolden`). Elevación FIJA → sombras largas SIEMPRE.
+  Verificado por screenshots mañana/tarde: dirección de sombra distinta, ambas
+  largas, calidez visible, una sola dirección de sol (checklist §4). **Con esto,
+  Fase 1 (T1.1–T1.8) queda COMPLETA.**
+
+### Fase 2 — Construcción **[POST-MVP]**
+> Objetivo: el verbo del god-game. Colocar cosas bonitas con validación del grid.
+> **Fuera del MVP por decisión del usuario (2026-08-14, §6):** el MVP es el vivarium
+> contemplativo — el modo autónomo (T4.4) es el único modo. Esta fase entera queda
+> para el hito post-MVP "god-game". No tocar hasta entonces.
+
+- [ ] **T2.1 Raycast a celda + fantasma.** Hover muestra la huella del ítem
+  seleccionado (verde translúcido válido / rojizo inválido) usando `canPlace`.
+- [ ] **T2.2 Herramienta carretera.** Trazado ortogonal por arrastre con preview,
+  autotiling de intersecciones/curvas en `world/roads.ts` (grafo vial actualizado
+  incrementalmente) y **arbolado automático de márgenes** con huecos RNG.
+  *Aceptación:* cualquier red trazada se ve como las referencias; el grafo expone
+  `nearestNode`, `neighbors` para el pathfinding futuro.
+- [ ] **T2.3 Colocación de edificios y naturaleza.** Todo el catálogo T0-T1 colocable
+  con rotación (R). Demolición con animación de "pop" inverso.
+- [ ] **T2.4 Zonificación por pincel.** Zonas residencial/agrícola/verde pintables; de
+  momento solo guardan celdas zonificadas (el crecimiento llega en Fase 4).
+- [ ] **T2.5 HUD diegético mínimo.** Barra inferior translúcida: categorías del
+  catálogo, iconos monocromos dibujados en canvas/SVG inline (nada de librerías UI).
+  La estética manda: la UI no tapa la viñeta, tipografía pequeña y limpia.
+- [~] **T2.6 Guardado/carga.** Adelantada de orden esta sesión — ver decisión
+  2026-07-04 en §6: guardado COMPLETO (ciudadanos/economía/reloj/rng, no solo
+  el grid) en localStorage, autoguardado cada 10s + `beforeunload`. Falta lo
+  propio de Fase 2: `actions[]` (registro de acciones del jugador) no existe
+  todavía porque las herramientas de construcción (T2.1-T2.5) no existen — se
+  añadirá cuando lleguen.
+
+### Fase 3 — NPCs autónomos ⭐ (el corazón del juego)
+> Objetivo: ciudadanos con vida propia observable: viven, trabajan, compran, socializan
+> y duermen sin ningún script fijo. Todo dato puro en el worker; el main solo anima.
+
+- [x] **T3.1 Worker + protocolo + reloj.** Levanta `sim/worker.ts` con `protocol.ts`
+  (§1.3) y `clock.ts` (día de 10 min, velocidades 0/1/2/3). El main interpola un
+  snapshot vacío. *Aceptación:* HUD debug muestra hora de juego avanzando; pausar
+  congela agentes pero no el render.
+- [x] **T3.2 Grafo de navegación + A*.** `sim/pathfinding.ts`: nodos = celdas de
+  carretera/camino + entradas de edificio; A* con heurística Manhattan, presupuesto
+  incremental (máx N expansiones/tick, colas por prioridad). Suavizado de esquinas.
+  *Aceptación:* 200 rutas concurrentes calculadas sin pasar el tick de 50 ms.
+- [x] **T3.3 El ciudadano.** `citizens/citizen.ts`: `{id, nombre, hogar, trabajo?,
+  edad, personalidad{sociable, trabajador, hogareño: 0-1}, needs, actividad, pos, path}`.
+  Nace ligado a una vivienda con capacidad libre. `needs.ts`: energía, hambre, social,
+  ocio, trabajo — decaen con tasas distintas moduladas por personalidad.
+- [x] **T3.4 Cerebro (utility AI).** `brain.ts`: cada ciudadano puntúa las actividades
+  disponibles `score = urgencia(need) × idoneidad(hora) × cercanía × personalidad` y
+  elige la mejor con algo de ruido (RNG con semilla, determinista). NADA de horarios
+  hardcodeados: el patrón día/noche debe EMERGER de las curvas (dormir gana de noche
+  porque energía decae y su urgencia se dispara).
+  *Aceptación:* en un día acelerado se observa: mañana → trabajo, mediodía → comida,
+  tarde → compras/ocio/social, noche → casa. Registrar un log de un ciudadano y
+  verificar que su día es coherente sin ningún `if hora==8`.
+- [x] **T3.5 Actividades.** `activities.ts`: dormir, trabajar, comer, comprar (tienda),
+  pasear (parque/estanque/arboleda), visitar amigo, mirar escaparate, sentarse.
+  Cada una: destino, duración, needs que restaura, animación asociada.
+- [x] **T3.6 Cuerpos en pantalla.** Los ciudadanos se renderizan instanciados con
+  interpolación de posición, orientación al andar, bobbing sutil al caminar y
+  "idle sway" parados. El LOD apaga ambas microanimaciones en los dos zooms lejanos,
+  pero conserva siluetas, interpolación y fade al entrar/salir de edificios.
+  *Aceptación:* 500 ciudadanos animados a 60 fps; de cerca se ven como la referencia
+  (siluetas simples de colores apagados).
+- [x] **T3.7 Social emergente.** `social.ts`: relaciones por afinidad (vecinos,
+  compañeros). Si dos conocidos se cruzan y ambos tienen `social` bajo, se detienen,
+  se orientan cara a cara y "charlan" (como las dos figuras de la referencia) restaurando
+  `social`. Amistades se refuerzan con encuentros; los amigos se visitan.
+  *Aceptación:* observable sin tocar nada: parejas charlando en caminos y porches.
+- [x] **T3.8 Economía viva.** `economy.ts`: los empleos son puestos REALES en edificios
+  del catálogo (granja 2, tienda 3…). Los ciudadanos solicitan empleo por cercanía y
+  personalidad; las tiendas requieren clientes para prosperar; los campos activos
+  requieren granjeros para pasar de barbecho a cultivo (feedback 100 % visual: el campo
+  cambia de color por franjas). Dinero explícito añadido en RESEARCH.md
+  ciclos 2/3/4 (salario, impuestos, economía circular) — ver `sim/economy.ts`.
+- [x] **T3.9 Vehículos** (lógica: ciclo 8 de RESEARCH.md; **mesh de coche hecho**
+  en `render/citizens.ts` — chasis + cabina instanciados, 2 draw calls, colores
+  de `palette.ts`; el peatón no se dibuja al ir en coche). Coches para trayectos
+  > 40 celdas: el coche recorre el grafo vial (velocidad por tipo de vía),
+  aparca cerca del destino. *Pendiente menor:* tractores en franjas de campo.
+- [x] **T3.10 Inspector de ciudadano.** Click en un ciudadano → tarjetita diegética:
+  nombre, actividad actual ("Volviendo a casa"), necesidades como barritas mínimas.
+  Cámara puede seguirle (tecla F). Es la ventana para VERIFICAR la autonomía.
+
+### Fase 4 — Ciudad autónoma
+> Objetivo: la ciudad se construye y evoluciona sola; el jugador es más alcalde-jardinero
+> que constructor. Modo "solo observar" completamente viable.
+
+- [x] **T4.1 Demanda.** `world/growth.ts` calcula demanda residencial/comercial/agrícola
+  a partir del estado real de la sim (desempleo, viviendas llenas, tiendas saturadas).
+- [x] **T4.2 Crecimiento por etapas.** En celdas zonificadas (o adyacentes a carretera
+  en modo autónomo total), la demanda materializa edificios por etapas con animación de
+  construcción (andamio low-poly → pop). Parcela vacía → casita → casa con jardín →
+  adosados → bloque, según densidad local. Cada edificio nuevo genera/atrae ciudadanos.
+  *ANIMACIÓN DE CONSTRUCCIÓN HECHA (ciclo 51):* cada `cityGrew` ya no aparece de golpe —
+  `world/render/construction.ts` monta una copia standalone del edificio + andamio de
+  madera (`props.scaffold`, color `palette.scaffold`) y la anima: el edificio CRECE desde
+  el suelo con pop elástico (easeOutBack) mientras el andamio se retira, y al terminar el
+  chunk revela el edificio ya fundido (relevo invisible; `worldView.beginConstruction/
+  endConstruction` lo omite mientras dura la obra). Verificado por screenshot en escena de
+  aislamiento (`?scene=fxtest`, temporal, ya retirada): andamio visible rodeando la tienda/
+  escuela que crecen dentro. *Etapas operativas:* la escalera
+  casita→casa con jardín→adosados→bloque bajo→panelák→bloque Zlín conserva
+  ancla, giro, hogares, capacidad y fachada visual determinista. Los saltos que
+  ensanchan o cambian proporción reparcelan únicamente si el solar libre pasa la
+  misma validación espacial que el resto del crecimiento. El trazado más tupido
+  sigue siendo deuda de T4.4 (ribbon→trama).
+- [x] **T4.3 Inmigración/emigración.** Familias llegan si hay vivienda+empleo+felicidad;
+  se van si no. La población es consecuencia, no un slider. (Inmigración modulada por
+  atractividad = ciclo 12; emigración digna por penuria sostenida = ciclo 14, RESEARCH.md.)
+- [x] **T4.4 Modo autónomo — FUNCIONA (end-to-end, verificado).** Desde una sola
+  granja (`seedFarm`, `?scene=farm`), la ciudad **traza sus propias calles**:
+  cuando hay demanda pero no queda frente construible junto a una vía,
+  `maybeExtendRoad` ramifica/prolonga una calzada de 3 celdas (con márgenes y
+  arbolado, ortogonal) hacia campo abierto, con ritmo (una calle cada ~2 días).
+  El evento `roadExtended` la replica en el render (worker→main) y el pathfinding
+  la usa al instante (lee el grid en vivo). **Test de aceptación estrella en
+  sim.test:** de 3 edificios a un pueblo con calles autotrazadas, población
+  creciente y vida en la calle. Verificado también por screenshot (`?scene=farm`).
+  *Pulido pendiente:* el crecimiento tiende a RIBBON (casas a lo largo de una
+  calle) más que a trama densa 2D — las ramificaciones perpendiculares se
+  acorralan con los frentes; afinar para un pueblo más tupido, y el playtest
+  largo de 30 min. Pero el criterio "de una granja emerge un pueblo sin input"
+  ya se cumple.
+  *NÚCLEO HECHO:* `extendRoad(grid, from, dir, length, rng)` en `growth.ts` (puro,
+  testeado en grid.test): traza calzada de 3 celdas + márgenes de hierba + arbolado
+  con huecos, ortogonal, sin arrasar edificios. *Pendiente (sesión enfocada):* el
+  ENGANCHE — cuándo/dónde extender (cuando `findParcel` falla con demanda viva),
+  replicar las celdas nuevas en render + grafo de pathfinding vía un evento
+  worker→main (como `cityGrew`), y verificar el pueblo emergente a 30 min. Se dejó
+  aparte a propósito: toca crecimiento (caóticamente sensible) + worker + render.
+  *Hallazgo que BAJA el riesgo del enganche:* el pathfinding lee el grid EN VIVO
+  (`walkCost(this.grid.get(nx,nz))`, sin grafo cacheado), así que una vía nueva en
+  el grid de la sim es navegable AL INSTANTE — no hace falta reconstruir grafo. Y
+  como en `extendRoad` la calzada+márgenes son deterministas (sin RNG; solo el
+  arbolado usa RNG), worker y main producen las MISMAS vías aunque el arbolado
+  difiera — la réplica en render puede ser `extendRoad(renderGrid, from,dir,len,rng)`
+  con solo emitir `{from,dir,length}`. Lo verdaderamente delicado que queda es la
+  ESTÉTICA: elegir desde dónde/hacia dónde extender para que el pueblo emergente
+  sea bonito (heurística de periferia + demanda), y el playtest de 30 min.
+- [x] **T4.5 Hitos y tiers.** Población desbloquea tiers del catálogo (T1→T4) con una
+  tarjeta de celebración discreta. El tier T4 introduce la estética Zlín (bloques de
+  ladrillo, fábrica, tren) — ver CATALOG.md. Los umbrales 25/80/200 viven en
+  `tierForPopulation`, cubiertos por pruebas puras; el cierre diario emite
+  `tierUnlocked`, que alimenta la tarjeta y la Crónica.
+
+### Fase 5 — Atmósfera y juice
+- [x] **T5.1 Estaciones.** Tras el merge, el juego combina DOS capas de estación:
+  (A) **crossfade lento continuo** por `seasonalWarmth(day)` (`weather.ts`) — la
+  LUZ y el cielo (invierno frío/apagado ↔ verano cálido/luminoso, `updateSeason` en
+  `renderer.ts`) y la NIEVE del terreno (el suelo se cubre de blanco en invierno vía
+  `emissive` del material único de terreno, `updateTerrainSeason` en `render/terrain.ts`,
+  aditivo y sin rebuild de malla; factor 0.85 calibrado para que lea sin borrar las
+  sombras). Colores en `palette.ts` (`skyWinter/Summer`, `ambientWinter/Summer`, `snow`).
+  (B) **paleta estacional del terreno y la vegetación** — las 4 variantes de
+  `SEASON_PALETTES` (`palette.ts`: campos/hierba/copas por estación), mezcladas por
+  `seasonalPaletteBlend(...)` y cuantizadas a 0,07 antes de reconstruir chunks.
+  **Tejados resuelto (2026-09-04):** el horneado de edificios detecta
+  los cuatro tonos de cubierta de la paleta y los funde hacia `snow` siguiendo
+  la misma calidez continua del terreno, sin crear mallas ni draw calls. *Pulido
+  pendiente:* verificar visualmente el cruce de la capa (B) a lo largo de una estación.
+- [ ] **T5.2 Tren. [POST-MVP]** Vía + estación + tren con 3-5 vagones en circuito, humo
+  de la locomotora con sprites de esferas. *Fuera del done del MVP (2026-08-14, §6);
+  primer candidato del hito de continuación.*
+- [x] **T5.3 Sonido generativo.** `src/audio/ambient.ts`: Web Audio procedimental
+  con viento, pájaros diurnos, campana a las 08/12/18 h y murmullo que solo se
+  abre al acercarse a ciudadanos que están charlando de verdad. El volumen sigue
+  al zoom, empieza tras el primer gesto (autoplay) y `M`/el control de la barra
+  lo silencia; la preferencia persiste localmente. La mezcla reutiliza su objeto
+  de trabajo, por lo que no genera basura por frame. Tests puros de mezcla y
+  preview verificados el 2026-09-04.
+- [x] **T5.4 Juice atmosférico del anochecer.** Luces de ventana encendiéndose una a
+  una al caer la tarde (glow *emissive*, no difuso), humo de chimenea y bandada de
+  pájaros, todo sobre una "hora azul" que atenúa/enfría el pueblo para que el juice
+  cante. El *rebote elástico al colocar* queda para la Fase 2 (construcción manual, aún
+  no existe). Sistema único `render/atmosphere.ts` ligado al reloj de juego. Ver §6
+  (2026-07-05, sesión juice).
+- [ ] **T5.5 Modo foto. [POST-MVP]** Ocultar UI, encuadres presets, export PNG 4K.
+  *Fuera del done del MVP (2026-08-14, §6).*
+
+### Fase 6 — Lanzamiento
+- [x] **T6.1 Rendimiento final.** Lado SIM: perfilado con hasta 10.000
+  ciudadanos sintéticos (`sim.test.ts`): encontrado y arreglado un O(n²)
+  real en `simulation.hireAndAcquaint()` (vecinos de vista) que solo
+  aparecía en el tick de cierre de día — hasta 1.1 s por tick a 3.000 hab.
+  antes del arreglo, 25 ms después; a 10.000 hab., 61-77 ms (dentro de un
+  margen razonable para un evento de una vez al día). Detalle completo y
+  números en RESEARCH.md §5.
+  Lado RENDER: nueva herramienta `?stress=N` (main.ts) satura
+  `CitizenView` con N agentes sintéticos (sin sim, sin worker) para medir
+  fps/draw calls a escala real — encontró un SEGUNDO límite real:
+  `MAX_AGENTS=2048` en `render/citizens.ts` truncaba en silencio (sin
+  avisar, sin degradar visiblemente el HUD) todo lo que pasara de esa
+  cifra. Ampliado a 12.000. Medido en el preview: **10.000 agentes
+  (peatones + coches) simultáneos a 60 fps, 105 draw calls** — el mismo
+  presupuesto que con 10 agentes, gracias a la instanciación ya existente.
+  Con esto, T6.1 está completo por los dos lados (sim y render) al
+  objetivo de 10.000 de RESEARCH.md §5. `?stress=N` se queda como
+  herramienta permanente de QA (mismo espíritu que `?scene=buildings`).
+- [ ] **T6.2 PWA + táctil. [POST-MVP]** Instalable, gestos de pan/zoom en tablet.
+  *Fuera del done del MVP (2026-08-14, §6): desktop-first.*
+- [x] **T6.3 Onboarding.** Cuatro pistas contextuales de una sola vez, no
+  modales: recorrer la aldea, Crónica, inspector de vecino y velocidad. Avanzan
+  con los primeros gestos sin interceptarlos y quedan marcadas en localStorage.
+  *(En el MVP: hito H4, done nº 4 de §3.)*
+- [~] **T6.4 Build + deploy.** Workflow de GitHub Pages creado (`.github/workflows/
+  deploy-pages.yml`) y `base` dinámico de Vite configurado para `/city-bill/` en CI;
+  el artefacto de prueba referencia correctamente esa ruta. Falta el primer push que
+  ejecute Actions y confirmar la URL pública. *(En el MVP: hito H4, done nº 1 de §3.
+  La página itch.io pasa a POST-MVP.)*
+
+---
+
+## 3. MVP y hitos — el rumbo vigente (fijado 2026-08-14)
+
+**El MVP es un vivarium contemplativo en una URL pública**: el pueblo nace, crece y
+narra su saga solo; el visitante observa (cámara, velocidades, inspector, Crónica).
+*Cada semilla, una saga.* Decidido con el usuario en sesión de grilling (12 decisiones,
+ver §6 2026-08-14). Sustituye a la antigua "demo mínima encantadora" (que exigía
+T2.1-T2.3): 51 ciclos esquivaron la construcción manual y construyeron esto — se
+reconoce el rumbo real.
+
+### 3.1 Definición de DONE (inamovible; solo puede ENCOGER, con decisión del usuario en un gate)
+
+1. [ ] **URL pública viva** (GitHub Pages, `base` de Vite configurada): `npm run build`
+   limpio, carga en frío y corre a 60 fps en un portátil medio.
+2. [ ] **Arranque en día 0** — la fundación (`townFounded`) es el primer beat de la
+   Crónica; `?seed=N` fuerza mundo; semilla visible/compartible y acción "nueva
+   semilla"; `?days=N` funciona en la escena normal como puerta trasera.
+3. [x] **Sonido generativo (T5.3)**: viento, pájaros, campana lejana, murmullo al
+   acercarse a charlas; volumen ligado al zoom; mute (tecla M); arranca tras el primer
+   gesto del usuario (política de autoplay).
+4. [x] **Onboarding mínimo (T6.3)**: 3-5 tooltips contextuales de una sola vez (qué es
+   esto, Crónica [C], click en un vecino, velocidades). Nada modal.
+5. [ ] **El pueblo se ve pueblo**: trama 2D de calles + mezcla/etapas de densidad
+   (T4.2/T4.4); el arco aldea→villa pasa el checklist §4.
+6. [ ] **Contrato §1.5 verificado en la escena real** (F3): ≤200 draw calls,
+   ≤16 ms/frame, tick ≤50 ms con 1000 ciudadanos; T3.6 saldado (LOD lejano + estrés
+   500 a 60 fps).
+7. [x] **Invierno de apertura rematado (T5.1)**: crossfade de la capa estacional (B) +
+   nieve en los tejados (la primera impresión de cada visita es el invierno).
+8. [ ] **Higiene**: `tsc` limpio, suite completa verde, hallazgos menores saldados
+   (duelo duplicado en inspector, grid fantasma de `neighborhood.ts`, comentario
+   `?stress` obsoleto en `render/citizens.ts`).
+
+**Cortado del MVP** (post-MVP, por decisión del usuario, 2026-08-14): Fase 2 entera,
+T5.2 tren, T5.5 modo foto, T6.2 PWA/táctil, persistencia de partida (save/load),
+tractores (residuo T3.9), página itch.io.
+
+### 3.2 Hitos (entre hitos: gate — informe + capturas + OK explícito del usuario)
+
+**H0 — Poner la casa en orden** *(en curso, 2026-08-14)*
+- [x] Rescate de la rama huérfana `claude/city-bill-construction-sector-gmrajg`
+  (8 commits): **injertados** barra de control (`e3be240` → `ui/controlBar.ts`) y
+  README de venta + `docs/hero.png` (`af62abf`, adaptado); **aplazados a H1** los
+  portes de sim — trama 2D (`eeeaab4`), mezcla de densidades (`43f2719`), jardín de
+  hierba (`3f731a2`) — porque su base es un main pre-ciclos-41 y se portan a mano;
+  **descartados** el sector de construcción (`f5e476f`, supersedido por el ciclo 51)
+  y `?scene=grown` (`339ed1d`, redundante con `?scene=test-dev`). Respaldo local:
+  rama `rescate/construction-sector` (se borra al cerrar H1).
+- [x] ROADMAP reescrito: este §3, marcas POST-MVP en §2, protocolo §0 (reglas 1/8/10),
+  §6 al día (entrada del ciclo 51 que faltaba + acta de la sesión 2026-08-14).
+- [x] CATALOG.md actualizado: marcas de implementación reales (17 ítems en
+  `catalogData.ts`) y footprints según el código.
+- [x] Hallazgos menores saldados (done nº 8).
+- [~] **Gate H0**: `tsc` limpio ✓ · **330/330 tests** ✓ · preview verificado ✓ ·
+  push `70ef459` ✓ · rama remota huérfana borrada ✓ — pendiente solo la revisión
+  de este documento y el OK del usuario para abrir H1 (este §3 es el contrato de
+  todo lo demás).
+
+**H1 — El pueblo se ve pueblo**
+- [~] Portar al main actual: la **mezcla residencial visual** ya está: cada
+  parcela conserva `id`, huella y capacidad lógicos, y lleva un `visualId`
+  determinista que solo puede ser una vivienda del tier actual o menor que cabe
+  en esa huella. El jardín de hierba ya está portado como derivación del grid de
+  RENDER al cargar y al recibir parches (nunca en el worker). Falta la trama 2D
+  proactiva (`eeeaab4`: `STREET_EVERY`, `buildingsSinceRoad`).
+- [x] T4.2 rematado: etapas de densidad y reparcelación segura cubren desde
+  casita hasta bloque Zlín; la mezcla visual conserva la variedad entre obras.
+- [ ] Playtest 30 min a ×8 (residuo T4.4): el arco aldea→pueblo→villa se sostiene.
+- [ ] **Gate H1**: screenshots del arco (d0 / ~d30 / ~d80) + checklist §4 + Crónica
+  coherente. Al cerrar: borrar `rescate/construction-sector`.
+
+**H2 — Aguanta máquinas ajenas**
+- [~] Medir la escena REAL con F3: tras las fachadas/etapas actuales de H1,
+  `?seed=4242&days=80` dio 60 fps, 109 draw calls, 123.4k triángulos, 82
+  geometrías, 2 texturas y 92 habitantes a zoom 1. El mismo estado con
+  `&stress=500` sostuvo 60 fps, 109 draw calls y 233.2k triángulos. Falta repetir
+  cuando la trama 2D pendiente produzca el pueblo más denso de H1.
+- [x] T3.6 saldado: LOD lejano sin bobbing/sway y `?stress=500` a 60 fps (109 draw
+  calls, 233.2k triángulos, 82 geometrías y 2 texturas); la capa sintética es estable
+  y no toca la sim ni crea agentes por frame.
+- [ ] **Gate H2**: números de F3 en captura, con el pueblo denso de H1.
+
+**H3 — El alma sonora**
+- [x] T5.3 completo (`src/audio/` nuevo): viento + pájaros + campana + murmullo,
+  mezcla por zoom, mute (M), arranque tras primer gesto. Determinismo no aplica
+  (FX cosmético, §0.6), pero cero allocaciones por frame.
+- [x] **Gate H3**: preview con sonido activado y control visible; durante el banco
+  de 500 peatones F3 sostuvo 60 fps (2026-09-04), sin regresión observable.
+
+**H4 — Puertas abiertas** *(gate = done final)*
+- [x] T5.1 rematado (crossfade capa B + nieve en tejados).
+- [x] Onboarding (3-5 tooltips) + línea de título; semilla visible + acción "nueva
+  semilla"; `?days=N` en la escena normal. Cuatro pistas no modales y persistentes
+  (`src/ui/onboarding.ts`); `?seed=4242&days=2` verificado en preview (día 2,
+  ciudad renderizada desde el `worldReady` del worker).
+- [~] `npm run build` limpio + deploy GitHub Pages (Actions, `base`) + README/hero
+  al día. Workflow y base de `/city-bill/` listos; README actualizado. Queda el
+  despliegue efectivo y su validación en frío.
+- [ ] **Gate H4**: recorrer el DONE de §3.1 punto por punto **en la URL pública, en
+  frío** (otra máquina/navegador), con el usuario delante.
+
+## 4. Checklist visual por screenshot (obligatorio en tareas visuales)
+- [ ] Solo colores de `palette.ts`; nada saturado ni brillante.
+- [ ] Sombras largas, suaves y coherentes (una sola dirección de sol).
+- [ ] Nada se repite exacto: variación visible en árboles/casas contiguas.
+- [ ] Carreteras con margen verde y arbolado con huecos.
+- [ ] Silueta legible: a zoom lejano la escena sigue leyéndose como las referencias
+      (patchwork beige + parcelas verdes + siluetas oscuras de árboles).
+- [ ] 60 fps y draw calls dentro de presupuesto (F3).
+
+## 5. Riesgos y mitigaciones
+| Riesgo | Mitigación |
+|---|---|
+| El worker se convierte en cuello de botella | Presupuesto por tick + colas incrementales (T3.2); medir en HUD F3 |
+| La IA de NPCs se vuelve caja negra | Inspector T3.10 + log por ciudadano; el día debe ser explicable |
+| El crecimiento autónomo genera ciudades feas | Reglas estéticas en growth.ts (retranqueos, arbolado, ortogonalidad) + test visual T4.4 |
+| Deriva estética con contenido nuevo | Checklist §4 obligatorio + paleta única |
+| Scope creep | Nada fuera de este documento sin añadirlo aquí primero |
+
+## 6. Diario del agente (rellenar al trabajar)
+> Anota aquí: fecha, tarea, decisiones no obvias, deuda técnica, conflictos con §1.
+
+- 2026-09-04 — **T5.3, ambiente procedimental.** Se añadió `AmbientAudio`:
+  dos lechos de ruido filtrado (viento/murmullo), pájaros y campana sintetizados
+  con Web Audio sin assets externos. El audio se crea únicamente tras una tecla
+  o clic y se puede silenciar con `M` o la barra; el estado se guarda de forma
+  best-effort en `localStorage`. El murmullo no es decorativo genérico: el main
+  cuenta la actividad `chat` del snapshot y lo mezcla solo si hay conversaciones
+  cercanas. Se corrigió una primera versión que creaba un objeto de mezcla en
+  cada frame: ahora reutiliza almacenamiento interno. Verificado en preview
+  (interruptor cambia de estado) y con `typecheck`, build y pruebas unitarias.
+  Durante la exploración de H1 se probó trama vial proactiva; alteraba de forma
+  real las oleadas epidémicas integradas, por lo que se retiró en lugar de
+  rebajar los criterios sanitarios. Una segunda prueba de mezcla residencial
+  ponderada también se retiró: incluso aislando su RNG de planificación, la
+  menor capacidad efectiva dejó sin escuela, clínica, vacunación y oleadas a la
+  sonda larga (12 contratos fallidos). H1 sigue pendiente de una solución que
+  conserve o modele explícitamente contactos, capacidad económica y secuencia
+  determinista.
+
+- 2026-09-04 — **T6.3, onboarding de observación.** `Onboarding` presenta
+  cuatro notas (cámara, Crónica, inspector, tiempo) como una tarjeta pequeña en
+  esquina inferior derecha. No pausa ni captura los gestos: después de una breve
+  protección contra el clic inicial, cada interacción normal avanza una nota y
+  la cuarta persiste `done` en localStorage. En preview se verificaron la
+  secuencia 1/4→4/4 y la desaparición final; pruebas puras cubren límite,
+  identidad de pistas y clave versionada.
+
+- 2026-09-04 — **Arranque maduro reproducible.** `?days=N` dejó de ser una
+  capacidad exclusiva de `test-dev`: en la escena normal invalida el save de
+  arranque, precrece la sim dentro del worker y espera `worldReady` antes de
+  montar el render, con el mismo overlay de progreso. La URL `?seed=4242&days=2`
+  se verificó en preview: la interfaz mostró día 2, 19:00 y 12 habitantes; no
+  hubo un flash del grid inicial. Límite explícito de 400 días y prueba pura de
+  parseo para valores inválidos y fraccionarios.
+
+- 2026-09-04 — **Invierno, cubiertas nevadas.** `mergeBuildingsForChunk` recibe
+  un factor de nieve y mezcla solo los vértices de materiales de tejado hacia
+  `PALETTE.snow`; `WorldView` cuantiza el crossfade a saltos ≥0,07 para evitar
+  reconstrucciones por cambios imperceptibles. El resultado preserva el contrato
+  de dos meshes por chunk y cero draw calls extra. `?seed=4242&days=2` confirmó
+  visualmente tejados claros en invierno; pruebas puras cubren el factor continuo
+  y sus límites.
+
+- 2026-09-04 — **Preparo de GitHub Pages.** Con remoto confirmado como
+  `amariner/city-bill`, Vite usa `/city-bill/` solo en Actions y `/` en desarrollo.
+  Se añadió workflow con checkout, Node 22, `npm ci`, suite, build, upload de
+  `dist` y deploy oficial de Pages. El build simulado de CI verificó que el
+  `index.html` referencia `/city-bill/assets/...`; queda a propósito sin publicar
+  hasta cerrar las verificaciones finales del MVP.
+
+- 2026-09-04 — **H2, primera medición real + LOD de ciudadanos.** En navegador
+  real, `?seed=4242&days=80` alcanzó 92 habitantes y F3 informó 60 fps, 101 draw
+  calls, 123.8k triángulos, 82 geometrías y 2 texturas a zoom 1. Se implementó el
+  LOD que faltaba en T3.6: a zoom 2 y 3 se mantienen las instancias e interpolación,
+  pero se eliminan bobbing y sway mediante funciones escalares sin crear objetos en
+  el frame caliente. El banco `?stress=500` reinstaurado sustituyó solo la capa visual
+  y sostuvo **60 fps, 109 draw calls, 233.2k triángulos, 82 geometrías y 2 texturas**;
+  las pruebas cubren URL, límite y ambos niveles de detalle. Falta la captura del
+  pueblo denso de H1 para cerrar H2.
+
+- 2026-09-04 — **Gate H3, ambiente sin coste visible.** El control mostraba
+  `SONIDO ON` en el preview durante la medición de `?stress=500`; F3 sostuvo
+  60 fps con 109 draw calls. Es una validación de integración (no una medición
+  aislada por fuente): satisface que el ambiente generativo no introduzca una
+  regresión observable de fluidez en la escena de estrés.
+
+- 2026-09-04 — **T5.1, paleta estacional continua.** Terreno y copas de árbol
+  pasan ahora de una paleta a la siguiente mediante `seasonalPaletteBlend`, una
+  función pura, periódica y continua por fracción de día. `WorldView` cuantiza
+  el progreso a 0,07 para que el render no reconstruya chunks en cada frame; el
+  índice de manchas se conserva entre ambas paletas, por lo que el cambio es de
+  tono y no un parpadeo de patrones. Preview `?seed=4242&days=10&stress=500`:
+  60 fps, 109 draw calls, 82 geometrías y 2 texturas; pruebas cubren el límite
+  de estación y el período anual.
+
+- 2026-09-04 — **H1, capacidad por parcela.** `BuildingRef` puede guardar una
+  capacidad residencial explícita y `WorldIndex` la propaga a oferta, upgrades,
+  realojo y ocupación del overlay; sin ese campo, continúa usando el catálogo y
+  los saves antiguos son idénticos. La sonda larga completa mantuvo todos sus
+  332 contratos. Esta base separa por fin la oferta lógica de la tipología que
+  se renderice, condición necesaria para reintroducir variedad residencial sin
+  desestabilizar escuela, clínica, economía o contagios.
+
+- 2026-09-04 — **H1, mezcla residencial sin desestabilizar la vida.** Se usó
+  esa separación para introducir `visualId`: al crecer, una parcela elige de
+  forma determinista (semilla + coordenadas, sin consumir el RNG de la sim) una
+  tipología residencial de igual o menor tier que cabe en su huella. La capa
+  lógica conserva el `id`, capacidad, ocupación, acceso y pathfinding; render,
+  construcción, parches de worker y serialización transportan solo la fachada
+  alternativa. La sonda larga completa siguió en **332/332** y typecheck/build
+  quedaron limpios. En navegador real, `?seed=4242&days=80&stress=500` mostró
+  la mezcla a 60 fps, 109 draw calls, 233.2k triángulos, 82 geometrías y 2
+  texturas. Sigue pendiente la trama 2D real: no se da por resuelta con esta
+  capa visual.
+
+- 2026-09-04 — **H1, inventario corregido.** La auditoría del main confirmó
+  que `paintYard` ya se había portado en `cb454b3`: `main.ts` lo deriva en el
+  grid de render tras `worldReady` y cada patch, con pruebas que verifican
+  retranqueo, vías y agua. No es trabajo pendiente ni toca el worker; el único
+  bloque funcional restante de la primera línea de H1 es la trama 2D proactiva.
+
+- 2026-09-04 — **H1, arco visual reproducible.** Se capturó la semilla 4242
+  en la escena normal: d0 = aldea de 6 habitantes (60 fps, 102 draw calls),
+  d30 = pueblo de 36 en primavera y d80 = villa de 92 en invierno. La etapa
+  media conserva retranqueos verdes, caminos legibles y fachadas mezcladas; el
+  banco visual de 500 peatones en d80 sostuvo 60 fps. Estas capturas satisfacen
+  la evidencia del arco, aunque el gate H1 permanece abierto hasta resolver la
+  trama 2D y el playtest largo.
+
+- 2026-09-04 — **H1/T4.2, continuidad de las etapas.** La escalera in situ
+  `cottage → town-house → low-block` ya existía, pero la renovación no llevaba
+  su `visualId`: un upgrade podía perder la mezcla residencial que usa la obra
+  nueva. `WorldIndex` expone ahora esa fachada y `applyUpgrade` la elige con la
+  misma función determinista, la preserva incluso al deshacer una obra fallida
+  y la manda en el parche `built`. Las 33 pruebas de densificación y la sonda
+  completa de 332 contratos siguen verdes; la deuda de T4.2 se reduce a mejorar
+  la cobertura de etapas/parcelación y a la trama vial 2D, no a la continuidad
+  render↔sim de los upgrades.
+
+- 2026-09-04 — **H1/T4.2, escalera completa y reparcelación.** La secuencia ya
+  no salta de casa con jardín a bloque bajo: `DENSITY_LADDER` recorre adosados,
+  panelák y bloque Zlín. `placementCheck` reconoce además como propia —también
+  dentro del margen— la huella que una obra reemplaza, requisito para un salto
+  más estrecho y profundo como panelák→Zlín; no relaja la protección de vecinos,
+  agua ni vías. Las pruebas cubren candidatos de cada tier, bloqueo de un solar
+  ocupado y la sucesión física hasta panelák (38 pruebas de densificación); la
+  sonda larga completa conserva 332/332 contratos.
+
+- 2026-09-04 — **H1, sondas de trama 2D (revertidas fuera del main).**
+  En un árbol temporal se probó una ramificación cada 12 obras. Sin freno abrió
+  5 vías y 72 edificios en d80, y la sonda larga cayó a 329/332: el crecimiento
+  inicial superó 4 obras/día, el tesoro dejó de repartir y la movilidad
+  vocacional empeoró. Al imponer un máximo de 4 obras/día, la escena se quedó
+  en 46 habitantes y 16 edificios en d80, no llegó a abrir vías y desaparecieron
+  las oleadas/efecto de vacuna: 325/332. Conclusión: la solución no es una
+  cadencia fija ni un cupo global; necesita separar la disponibilidad de suelo
+  de la tasa de construcción y conservar explícitamente la intensidad de
+  encuentros antes de tocar el main. Una tercera variante abrió la rama solo
+  DESPUÉS de una obra aceptada: sí produjo 3 vías y 46 edificios en d80, pero
+  también llegó a 20 obras en cuatro días y acabó en 325/332 (sin oleada ni
+  crónica epidémica, cuarentena invertida, sin dividendo y peor encaje
+  vocacional). Posponer la rama no arregla que sus frentes nuevos realimenten el
+  crecimiento; ninguno de los tres prototipos entró en la rama de trabajo.
+
+- 2026-09-04 — **H1, umbral espacial afinado y descartado.** Una sonda nueva
+  sobre `?seed=4242` confirmó que el problema no se arregla desplazando el
+  contador: a 15 obras no llega a abrir calle antes del techo; a 14 abre cuatro,
+  pasa de 24 a 79 edificios y cambia la caja espacial de 1,65 a 1,27. Limitar
+  solo la rama proactiva a una vía tampoco basta, porque el escape reactivo aún
+  abre más suelo (122 edificios). Se retira el árbol temporal: la siguiente
+  solución deberá tener un presupuesto explícito de frente edificable y ser
+  común a los caminos proactivo y reactivo, no otro `STREET_EVERY`.
+
+- 2026-09-04 — **H1, reserva de construcción medida y retirada.** Se probó la
+  separación más directa: una reserva inicial de 12 obras y reposición diaria,
+  de modo que una calle no añadiera una obra por cada intento horario. A 0,4/día
+  logró una sola vía y 25 edificios en d80, pero la población bajó a 79 y la
+  sonda larga perdió tres contratos de contagio (pico de 4 enfermos, cuarentena
+  invertida); a 0,8/día quedó en 48 edificios/70 habitantes; a 1,5/día volvió a
+  79 edificios y 4 vías. La cadencia independiente cambia igualmente el orden
+  social temprano, así que no entra en `main`: el presupuesto deberá estar
+  ligado a una señal existente de capacidad económica/constructiva, no ser un
+  temporizador nuevo.
+
+- 2026-09-04 — **H1, causa de la ráfaga espacial localizada.** La traza por
+  día mostró que, tras la primera transversal, la simulación no solo encadena
+  casas: responde a las viviendas dispersas con parques y comisarías que sí
+  cubren algún hogar nuevo (ocho parques entre d13 y d16). Exigir ganancia de
+  cobertura redujo el caso de 79 a 43 edificios, pero dejó solo 58 habitantes:
+  el problema principal es el corredor de 12 celdas que dispersa hogares y crea
+  necesidades públicas reales demasiado pronto. La siguiente sonda debe abrir
+  una calle corta, parcelable por fases, antes de volver a tocar la demanda.
+  La prueba posterior de cuatro celdas, incluso con un máximo global de una
+  vía, aún produjo 73 edificios: no es la longitud del corredor, sino el cambio
+  de orden en `findParcel` al aparecer cualquier acceso nuevo. La solución debe
+  estabilizar esa selección, no solo restringir la geometría que la alimenta.
+
+- 2026-09-04 — **H1, RNG espacial aislado en sonda.** `findParcel` consume el
+  RNG vital por cada candidato; por ello una calle cambiaba también nacimientos,
+  enfermedad y economía. Aislar ese flujo solo después de la primera calle
+  conservó 89 habitantes en el arco de d80 (frente a los 72 de la rama fija),
+  pero la prueba corta aún registró 24 obras: corrige una dependencia accidental
+  sin resolver la demanda que la alimenta. La variante no entra sola en `main`;
+  queda como requisito para la futura política de parcelas, junto a una
+  regulación de demanda que conserve el contrato de <4 obras/día.
+
+- 2026-09-04 — **H1, frente parcelado: mejor sonda hasta ahora, aún no main.**
+  Una transversal posterior al día 5 se entregó como cuatro lotes activos: el
+  crecimiento debía agotarlos antes de volver a elegir toda la red. Con calle
+  de 12 pasos quedó en 28 edificios/78 habitantes, superó 331 de 332 contratos
+  (incluidos oleadas y cuarentena), pero el mantenimiento de 36 celdas rurales
+  dejó el tesoro sin dividendo. Reducirla a cuatro pasos mantuvo la caja pero
+  bajó a 62 habitantes y rompió dos contratos de contagio. La política de lotes
+  es válida; falta financiar el CAPITAL de la calle por separado del
+  mantenimiento social diario antes de integrarla.
+
+  Se ensayó después mantenimiento regional de la calzada hasta el techo de
+  120 habitantes. Preservó crecimiento, oleadas y cuarentena, pero el cierre
+  económico siguió sin repartir dividendo: no es una tarifa de vía aislada, sino
+  la trayectoria productiva que cambia al abrir el frente. Queda descartado
+  compensarlo con una subvención; la integración requerirá un contrato económico
+  explícito para la urbanización y su propia prueba de saldo público.
+
+  La cadencia se probó finalmente solo dentro del frente, no sobre toda la
+  ciudad: una promoción diaria dejó 40 edificios, 42 habitantes y cero
+  dividendo en d50; reducir el frente a dos lotes devolvió 71 edificios, cuatro
+  calles y también cero dividendo. Es una confirmación más precisa de que un
+  temporizador de obra, aunque sea local, no representa la capacidad económica
+  que falta. El prototipo se retira junto con su estado serializado.
+
+  Otra sonda distinguió la promoción privada del servicio público: el frente
+  nuevo solo restringía vivienda/comercio/trabajo y parques, escuela y seguridad
+  seguían buscando la cobertura de la trama existente. Evita la oleada de
+  servicios en el borde, pero una rama de 8 pasos se estabilizó en 42 edificios
+  y una de 12 en 73: ambas seguían con dividendo cero al día 50. La separación
+  de responsabilidades es correcta para una futura política de frentes; no
+  basta por sí sola para hacer integrable la calle autónoma.
+
+  Una última variante espacial conservaba un único ramal y, tras sus cuatro
+  lotes iniciales, penalizaba sus parcelas para que no reordenaran la red vieja.
+  Aun así llegó al mismo caso de 73 edificios y dividendo cero en d50. Por tanto
+  el desencadenante no es solo la prioridad del nuevo frente: los cuatro lotes
+  ya alteran la trayectoria de demanda. También se retira esta versión.
+
+- 2026-09-04 — **H1, contrato único de calle autónoma.** La extensión que usa
+  el crecimiento dejó de duplicar un pintor simplificado: delega en
+  `roads.ts`, la misma geometría que consume la herramienta manual. Así una
+  ramificación respeta agua, edificios y bordes, y pinta la franja, márgenes y
+  arbolado con las mismas reglas visibles. La prueba espacial deja una lámina
+  de agua en mitad de la franja y verifica que se detiene sin asfaltarla;
+  `growth.test` (32), `roads.test` (29), tipos y la sonda larga de 332 contratos
+  permanecen verdes. En preview limpio `?new=1&seed=4242&days=40`, la escena
+  de 45 habitantes conserva sombras largas, márgenes verdes y arbolado irregular
+  alrededor de la trama; F3: 60 fps, 109 draw calls, 122.4k triángulos, 82
+  geometrías y 2 texturas. Esto hace segura la futura política proactiva, pero
+  no la da por resuelta: sigue pendiente separar suelo disponible y cadencia
+  social.
+
+- 2026-09-04 — **H2, base actualizada tras H1.** En navegador real, la escena
+  `?new=1&seed=4242&days=80` volvió a llegar a villa de 92 habitantes y F3 marcó
+  60 fps, 109 draw calls, 123.4k triángulos, 82 geometrías y 2 texturas. Al
+  sustituir solo la capa visual con `&stress=500`, permaneció en 60 fps con 109
+  draw calls y 233.2k triángulos. Es la línea base válida para las fachadas y
+  upgrades actuales; no se usa indebidamente para cerrar H2 mientras falte la
+  trama 2D que cambie la densidad espacial.
+
+- 2026-07-05 (sesión merge) — **RECONCILIACIÓN de dos líneas divergentes de
+  `main`**. El `main` local (18 commits: duelo visual, jubilación, guardado
+  T2.6, perf T6.1 + render rico) y `origin/main` (49 commits: ciclos 11-40 de
+  RESEARCH.md — contagio/epidemias, vocación, legado, alquiler, capacidad de
+  carga, vacunación —, la veta INTERFAZ completa y el banco de pruebas
+  `?scene=test-dev`) habían divergido con 18 conflictos. Estrategia elegida
+  (consultada con el usuario): **`origin/main` como base** (es el superset de
+  simulación e interfaz) y se **injertan** las features únicas del local:
+  · **Jubilación (ciclo 12)**: `RETIREMENT_AGE` en `lifecycle.ts`, `retirements`
+    en `LifeEvents`, exclusión del pool laboral en `economy.ts` (el auto-merge ya
+    la traía), evento `citizenRetired` + restore de propósito proporcional al
+    déficit en `simulation.ts`, narración en `chronicle.ts`. Test estructural
+    nuevo en `sim.test.ts` (no una tirada larga con umbral, ver lección abajo).
+  · **Duelo visible en el snapshot**: `AGENT_STRIDE` 7→8 (grief como 8ª columna);
+    `simulation.snapshot()` la escribe, `client.view()` la lee a `AgentView.grief`
+    y `render/citizens.ts` apaga la ropa del doliente. La LÓGICA de duelo es la de
+    `origin` (`grief.ts`, ciclos 16-20, más desarrollada que la del local); solo se
+    injerta el REFLEJO visual. Test de snapshot nuevo.
+  · **Render rico**: el auto-merge ya fundió `worldView.ts` (jardines de prestigio,
+    decoración de fiesta, edificios fundidos por chunk) + `terrain.ts` (paleta
+    estacional + surcos de cultivo, sobre la nieve de `origin`) + `palette.ts`
+    (union). Aquí solo se CABLEA en `main.ts`: `setHomePrestige`/`setCultivation`
+    por eventos nuevos (`homePrestige`/`cultivationChanged`, emitidos en el cierre
+    del día) y `setSeason`/`setFestivalActive` desde el bucle.
+  · **DESCARTADO del local por estar SUPERSEDIDO por `origin`**: la inmigración por
+    `familySize(avgPrestige, avgGrief)` (→ `townAttractiveness` + capacidad de carga
+    de `origin`); el duelo inline (→ `grief.ts`); el trazado de vías `roadBuilt`/
+    `paintRoadExtension` (→ `roadExtended`/`extendRoad` de `origin`); `?scenario=farm`
+    (→ `?scene=farm`); el modo `?stress=N` de T6.1 (harness de perf de render — se
+    puede re-añadir, hoy `test-dev` cubre la observación a escala).
+  · **APLAZADO — deuda registrada: guardado/restauración (T2.6).** El `serialize`/
+    `restore` del local es incompatible con el estado AMPLIADO de `origin` (contagio
+    `sick`/`immune`, alquiler, vacunación, presión migratoria, granero, `childrenRaised`,
+    contadores…): injertarlo tal cual PERDERÍA ese estado en silencio al recargar.
+    Decisión (consultada): NO integrarlo ahora — la escena normal queda sin persistir
+    (como `origin` hoy). **Nota que abarata la tarea futura:** la capa de `economy.ts`
+    YA trae su `EconomySaveState`/`serialize`/`restore` cubriendo el estado nuevo (vino
+    en el auto-merge); falta reescribir `Simulation.serialize/restore` para sus campos
+    escalares nuevos (`rentEnabled`, `vaccination`, `emigrations`, `roadsExtended`,
+    `emigrationPressure`, `inEpidemic`…) + los campos nuevos del ciudadano, y readaptar
+    el test de regresión guardar→restaurar→avanzar. Ver tarea de seguimiento.
+  · **Lección heredada aplicada**: los tests de las features injertadas se escriben como
+    PROPIEDADES ESTRUCTURALES (jubilación libera el puesto; el duelo aparece en la 8ª
+    columna) y NO como umbrales cruzados en una simulación larga con semilla fija —
+    esos son bombas de relojería frente a cualquier cambio de trayectoria del RNG
+    compartido (lección de los ciclos 5/11/12/15 de RESEARCH.md).
+
+- 2026-07-04 (sesión Sonnet) — **T2.6 adelantada de orden, fuera de la
+  secuencia estricta de §0.1**. Motivo: el usuario quiere publicar un
+  preview público (Cloudflare) donde la ciudad se ve evolucionar en vivo y
+  persiste — sin esto, cada refresco reiniciaba la simulación entera
+  (confirmado: no había ningún código de guardado). Decisión consultada y
+  confirmada con el usuario: alcance COMPLETO (ciudadanos, economía,
+  crecimiento, reloj, rng — no solo el grid). Implementación:
+  · `Simulation.serialize()`/constructor con `restore?` reconstruyen TODO:
+    ciudadanos (con `friends` Map→pares), economía (todas sus Maps salvo
+    `workplaces`, que es DERIVADO de `citizens[].work` + el índice — se
+    recalcula con `economy.rebuild()`, nunca se serializa para no duplicar
+    la fuente de verdad), charlas en curso y reloj. Los DOS streams de rng
+    (general de `Simulation` + el propio de `SocialSystem`) se persisten
+    exponiendo `rng.state` (rng.ts) — pasarlo de vuelta a `createRng()`
+    continúa la MISMA secuencia byte a byte.
+  · Simplificación deliberada: un ciudadano en fase `waitingPath` se
+    normaliza a `deciding` AL GUARDAR — su ticket apunta a una búsqueda de
+    `PathQueue` que no se persiste (efímera, barata de recalcular). Sin
+    esto quedaría un ticket colgado que nunca resolvería tras restaurar.
+  · Frontera respetada (§1.3): el main nunca ve la forma de `SimSaveState`,
+    solo un `blob: string` opaco (`SaveMsg`/`SaveBlobMsg` en protocol.ts) —
+    el worker serializa con `JSON.stringify`, el main lo guarda en
+    localStorage tal cual y lo reenvía en `InitMsg.saveBlob`.
+  · Autoguardado cada 10s + `beforeunload` (best-effort, no todos los
+    navegadores esperan un postMessage antes de descargar). El escenario
+    granja (`?scenario=farm`) NUNCA carga ni guarda: es un escenario fijo
+    para su test de aceptación (T4.4), tiene que arrancar siempre igual.
+  · **Bug real encontrado y corregido**: el primer test de regresión que
+    escribí (guardar→restaurar→avanzar 3 días, comparar contra el original
+    sin restaurar) fallaba con una divergencia real a partir del tick 115
+    — pero el bug estaba en el TEST, no en el guardado: pasaba el objeto de
+    `serialize()` directo a `new Simulation(...)` sin el viaje de ida y
+    vuelta por `JSON.stringify`/`JSON.parse` que SÍ hace `worker.ts` de
+    verdad. Sin ese viaje, sub-objetos como `needs`/`phase` quedaban
+    COMPARTIDOS por referencia entre el original y el restaurado — cada
+    `step()` los mutaba por duplicado, y el rng de cada instancia (streams
+    separados, no compartidos) se desincronizaba en silencio hasta que una
+    decisión de `brain.ts` cruzaba un umbral distinto. Localizado bisecando
+    con un script aparte (comparación campo a campo tick a tick) hasta
+    aislar el primer tick divergente, no adivinando. Con el JSON de por
+    medio (como en producción), 3 días completos sin ninguna diferencia.
+  · Verificado en el preview real (no solo en test): reloj en `10:24 día 1`
+    → recarga de página → sigue en `11:16 día 1` (no vuelve a `00:00 día 0`).
+  · Pendiente real de Fase 2: `actions[]` (registro de acciones del
+    jugador, §1.4) no existe porque las herramientas de construcción
+    (T2.1-T2.5) tampoco existen todavía — se añadirá cuando lleguen.
+
+- 2026-07-04 (misma sesión Sonnet, continuación) — **T6.1: perfilado de
+  escala, un O(n²) real encontrado y arreglado**. Con "complejo, eficiente
+  y autónomo" como objetivo explícito de la sesión, tocaba dedicarle
+  atención de verdad al pilar "eficiente" más allá del arreglo de draw
+  calls de antes. Escribí un diagnóstico sintético (3000→10000 hab.,
+  reusando el mismo patrón de estrés de RESEARCH.md §5) que corre un DÍA
+  COMPLETO de juego, no solo ticks sueltos — y ahí apareció: el tick de
+  cierre de día llegó a costar >1000 ms a 3000 habitantes y directamente
+  murió (desbordamiento de pila) al intentarlo a 10.000. Perfilando con
+  `console.time` a mano (nada sofisticado, solo cronometrar cada sub-bloque
+  del cierre de día) encontré el culpable exacto: `hireAndAcquaint()`
+  conocía "vecinos a <40 celdas" con un barrido O(n²) sobre TODA la
+  población, cada día, para siempre. Arreglado con hash espacial (mismo
+  patrón que `social.detectEncounters`, ya existente) MÁS un tope de 12
+  vecinos por celda de bucket — el hash solo no bastaba porque el
+  escenario de estrés (a propósito, "todos amontonados en las mismas
+  viviendas") mete a miles de vecinos en el MISMO bucket, así que hacía
+  falta acotar también dentro de la celda, no solo entre celdas.
+  Resultado: de >1000 ms a 25 ms a 3000 hab.; 10.000 hab. pasa de "muere"
+  a 61-77 ms en el peor tick. Detalle completo, tabla de números y la
+  lección aprendida en RESEARCH.md §5.
+  · Efecto colateral esperado (ya no me sorprende, es la N-ésima vez esta
+    sesión): el cambio de patrón de amistades desplazó la trayectoria de
+    RNG compartida lo bastante para que un test de crecimiento contenido
+    (T4.2, umbral 16 en 4 días) pasara a 18 — ampliado a 20 con nota
+    explicando por qué (sigue muy lejos de la explosión de 750+/35 días
+    que ese test realmente vigila). 141/141 tests.
+  · Deuda para una futura sesión: el perfilado de esta ronda fue solo del
+    LADO SIM — el lado RENDER (draw calls, ya arreglado para edificios
+    antes en esta sesión) no se ha verificado con 5.000+ ciudadanos y
+    coches simultáneos en pantalla a la vez; candidato natural para
+    cerrar T6.1 del todo.
+
+- 2026-07-04 (misma sesión Sonnet, continuación) — **T4.4, escenario de
+  granja + bug real de `extendRoad` encontrado y corregido**. Orquestado con
+  un workflow multi-agente (entender → implementar → verificar) el nuevo
+  `world/seedFarm.ts` (`?scenario=farm`): siembra SOLO una granja
+  (farmhouse+barn) junto a un tocón corto de vía (41 celdas, no las vías
+  casi infinitas de `seed.ts`), rodeada de campo abierto real (no vacío
+  implícito — `grid.get()` sin sembrar es "fuera del mundo" para
+  `findParcel`/`extendRoad`, así que el campo alrededor tiene que existir de
+  verdad). `seedWorld()`/el juego por defecto quedan intactos, cero cambios.
+  · **Hallazgo real durante la verificación** (no del escenario en sí):
+    `extendRoad` (añadido esta misma sesión, antes de esta continuación)
+    tenía un fallo de diseño que impedía que se disparara casi nunca en la
+    práctica — solo miraba la celda de vía MÁS CERCANA al centro de
+    crecimiento y probaba sus dos lados perpendiculares; en cuanto la
+    densificación normal (casitas a ambos lados de cada tramo de vía
+    servible — justo lo que produce `findParcel`) flanqueaba esa celda
+    concreta, la función devolvía `null` PARA SIEMPRE, aunque hubiera vía
+    servible mucho más allá. Confirmado con una sim de 60 días sobre el
+    mundo sembrado por defecto (sus vías CASI INFINITAS): 0 eventos
+    `roadBuilt` en total.
+  · **Arreglo**: `paintRoadExtension` gana un parámetro `dryRun` (comprueba
+    el hueco sin pintar); `extendRoad` funde la búsqueda y la validación en
+    un solo barrido en anillos — para CADA celda de vía que encuentra prueba
+    en seco sus dos lados, y si ambos fallan sigue mirando más lejos en vez
+    de rendirse. De paso se quita el parámetro `rng` de `extendRoad` (solo
+    decidía qué lado probar primero): ahora sale de un hash determinista de
+    las propias coordenadas del candidato, igual que ya hacía el arbolado de
+    `paintRoadExtension` — aplica la lección de esta sesión sobre no
+    perturbar el rng compartido con decisiones estructurales sin
+    consecuencia de juego (y de paso, como el nº de candidatos probados
+    varía con la densidad, mantener esto fuera del rng compartido evita una
+    fuente más de sensibilidad de trayectoria).
+  · Test de regresión que reproduce el fallo exacto (sin adivinar a mano el
+    orden del barrido en anillos: se descubre el punto natural en un grid
+    limpio, se bloquea ESE punto en un grid gemelo, se comprueba que la
+    función mira más allá) — ver `sim.test.ts`. Verificado también con una
+    sim de 30 días sobre `seedFarm()`: población de la familia inicial a 37,
+    23 edificios, y **el primer ramal de carretera nuevo trazado el día 11**
+    (antes del arreglo: nunca). 131/131 tests.
+  · El crecimiento se frena visiblemente hacia el día 20-30 (21→23
+    edificios) según la demanda pide edificios de tier 2-3 que no caben
+    todavía en la red vial pequeña — comportamiento esperado, mismo límite
+    de `extendRoad` (una vía nueva por vez, longitud fija de 16 celdas), no
+    un bug nuevo.
+
+- 2026-07-04 (misma sesión Sonnet, continuación) — **Presupuesto de draw
+  calls roto en producción, no solo en teoría**: el HUD F3 mostraba 220-249
+  draw calls ya en el día 1-4 de partida con solo 10-20 edificios, muy por
+  encima del límite de §1.5 (≤200) — y los fps reales medidos en el preview
+  eran de 10-17, no 60. Causa: los edificios de `props.ts` NO están
+  instanciados (cada uno es un `Group` de 5-15 `Mesh` sueltos — paredes,
+  tejado, porche, columnas...); `worldView.ts` los añadía tal cual al chunk,
+  así que el coste escalaba con nº edificios × piezas por edificio, no con
+  nº de chunks como el terreno.
+  · Arreglo orquestado con un workflow multi-agente (panel de 3 diseños
+    independientes → jueces → implementación → revisión adversarial):
+    ganó "fundir todo el edificio (ya posicionado/rotado/decorado) en como
+    mucho 2 `THREE.Mesh` con vertex-colors, agrupados por `castShadow`" —
+    mismo patrón que `terrain.ts` (buf/emit/finish) y el horneado de
+    `citizens.ts` (`paintedPart`/`mergeParts`), generalizado a un recorrido
+    recursivo (`buildings.ts`, nuevo). Las `InstancedMesh` de ventanas
+    (`windowGrid`) se expanden instancia a instancia y se hornean también —
+    cero draw calls extra por ventanas.
+  · La fase de verificación automática del workflow murió por un corte de
+    conexión a la API (no un hallazgo real) — la repetí a mano: `tsc`
+    limpio, 126/126 tests, y en el preview real los draw calls bajaron de
+    ~220-249 a **73-102** (por debajo del presupuesto) y los **fps subieron
+    de 10-17 a 60** — la caída de fps que había notado antes en esta misma
+    sesión SÍ era este problema, no un artefacto del entorno como sospeché
+    en su momento. Revisé también a ojo (zoom en granja/granero) que
+    sombras, colores y siluetas no cambiaron nada.
+  · Detalle no obvio de la implementación: las geometrías originales de cada
+    pieza se disponen (`geometry.dispose()`) tras hornearlas — sin esto,
+    cada `refreshChunkAt`/`rebuildAllChunks` (que ya se dispara por
+    `setCultivation`/`setFestivalActive`/`setSeason`/`setHomePrestige`)
+    filtraría memoria GPU porque los edificios se construyen y se tiran en
+    cada reconstrucción, a diferencia del terreno (procedural, nunca se
+    dispone). `showcase.ts` (`?scene=buildings`) no se toca: llama a
+    `catalogItem.build()` directamente y nunca pasa por el camino de fusión
+    de `worldView.ts`.
+  · Deuda que queda: el presupuesto de 200 draw calls vuelve a acercarse
+    según crecen vegetación/citizens/coches en chunks muy poblados — sigue
+    siendo el candidato número uno para T6.1 (perfilado con 5.000
+    ciudadanos) en cuanto la población autónoma llegue a esa escala.
+
+- 2026-07-04 (misma sesión Sonnet, continuación) — T5.1 (paleta estacional).
+  `sim/weather.ts` calculaba estación desde el ciclo 6 sin reflejo visual
+  (anotado como carencia en varias entradas de la bitácora de RESEARCH.md).
+  `palette.ts` gana `SEASON_PALETTES` (terreno + vegetación por estación,
+  todo dentro de las mismas familias de color, ningún hex nuevo fuera de
+  ahí); `render/terrain.ts` y `render/instances.ts` reciben `season` como
+  parámetro, `WorldView.setSeason()` repinta todo el mapa al cambiar (mismo
+  patrón de "reconstruir chunks al cambiar de estado" que `cultivation` y
+  `festivalActive`). `main.ts` calcula la estación en el propio hilo
+  principal con `weatherAt(seed, day)` (pura, sin THREE) — igual que ya
+  hacía con `isFestivalDay`, cero mensaje nuevo del worker.
+  · `cypress` NO varía con la estación a propósito: es de hoja perenne, se
+    queda verde todo el año — el detalle que separa un ciprés de un árbol
+    de hoja caduca en la vida real.
+  · El juego ahora ARRANCA en invierno (día 0 cae en `SEASONS[0]`), no en el
+    verano cálido de las capturas de referencia del checklist §4 — cambio
+    de identidad visual INTENCIONADO (es la variante que pedía T5.1
+    explícitamente: "campos claros"), verificado que sigue leyéndose como
+    patchwork con siluetas oscuras de árboles, solo que en tonos pálidos.
+  · Marcado `[~]`: falta el CROSSFADE lento entre estaciones (hoy es un
+    corte discreto al reconstruir chunks — la vertex-color horneada no se
+    presta a interpolar en shader sin más trabajo) y las cubiertas de nieve
+    en tejados (tocaría todos los builders de `props.ts`, fuera de alcance
+    de esta pasada). Verificado en preview: invierno se ve correctamente
+    (campos pálidos, hierba verde-grisácea distinguible junto a los
+    edificios); primavera/verano/otoño comparten el mismo código genérico
+    (tipado por `tsc`, sin rama especial por estación) — no se esperó en
+    vivo a que el reloj cruzara de estación (20 días de juego ≈ 25 min
+    reales a ×3): el riesgo de que solo LOS DATOS de las otras 3 paletas
+    tengan un error puntual es bajo y más barato de repasar a ojo (ya
+    revisados) que de esperar; queda como verificación en vivo pendiente
+    para una sesión con más margen de tiempo. 126/126 tests, `tsc` limpio.
+
+- 2026-07-04 (misma sesión Sonnet, continuación) — T4.4 (modo autónomo):
+  mecanismo de ramales nuevos en `world/growth.ts`. Cuando `findParcel` no
+  encuentra sitio junto a una vía existente, `extendRoad` localiza la vía
+  más cercana (mismo barrido en anillos que `findParcel`), detecta su eje
+  contando vía en X vs Z a corta distancia, y `paintRoadExtension` traza un
+  ramal PERPENDICULAR con el mismo perfil que las vías sembradas (3 celdas
+  de vía + 2 de margen verde a cada lado, arbolado con huecos) — siempre
+  ortogonal por construcción. `maybeGrow` lo intenta como fallback antes de
+  rendirse, y reintenta `findParcel` una vez abierto el ramal.
+  · Decisión clave (aplica la lección de la sesión sobre sensibilidad del
+    RNG compartido, ver RESEARCH.md): `paintRoadExtension` es PURA salvo la
+    mutación del grid — el arbolado sale de un rng propio sembrado por las
+    coordenadas (`rx,rz,dir`), no del `this.rng` de la sim. Esto permite que
+    el hilo principal repita EXACTAMENTE la misma pintura en su grid espejo
+    recibiendo solo `{rx,rz,axis,dir,length}` por el evento `roadBuilt` — ni
+    transmite el rng compartido ni lo perturba. Test dedicado que verifica
+    la repetibilidad byte a byte (terreno + árboles) en un segundo grid.
+  · Bug de test encontrado al verificar: `nearestRoadCell` (mismo algoritmo
+    de anillos que `findParcel`) no devuelve el punto más cercano en línea
+    recta sino el PRIMER acierto del anillo — para una vía "infinita" eso es
+    el extremo `(centro.x - r, ...)`, no el punto directamente encima del
+    centro. No es un bug del mecanismo (ya era así en `findParcel`, aceptado
+    en producción porque el mundo sembrado es mucho más ancho que cualquier
+    radio de búsqueda razonable) pero sí lo era de mi primer grid de prueba,
+    demasiado estrecho — lo ensanché y el test pasó a ser determinista.
+  · Marcado `[~]` en vez de `[x]`: falta el test de aceptación completo
+    (30 min desde una sola granja, escenario semilla nuevo) — ver nota en la
+    tarea. 126/126 tests, `tsc` limpio.
+
+- 2026-07-04 (sesión Sonnet, pulido visual) — Empieza el barrido de los 4 TODOs
+  de mesh que RESEARCH.md dejó pendientes tras cerrar la pirámide N0-N5
+  (ciclo 10): coche, consultorio, escuela, plaza de fiestas.
+  · **Mesh de coche** (`world/render/citizens.ts`): geometría fundida a mano
+    (sin `BufferGeometryUtils`, que no tiene tipos y rompería `tsc` bajo
+    `isolatedModules` — se construye igual que `render/terrain.ts`, copiando
+    arrays de posición/normal de cada primitiva ya transformada). Chasis+ruedas
+    en un InstancedMesh (blanco para tintar por instancia vía `setColorAt`,
+    ruedas en `PALETTE.carTire` que se oscurece igual al multiplicar) +
+    cabina de cristal en OTRO InstancedMesh de color fijo (`PALETTE.glass`,
+    mismo patrón que las tiras de vidrio de `officeBlock`). `CitizenView`
+    ahora reparte cada agente a peatón o coche según `AgentView.mode`
+    (columna del ciclo 8) con contadores de instancia separados (`nWalk`/
+    `nCar`); el fade de aparición/desaparición se comparte porque `mode`
+    nunca es 1 en estado `Inside` (solo durante `moving`). Verificado en
+    preview a ×3: coche visible en carretera con chasis+ruedas+cabina,
+    orientado con el heading. 4 draw calls totales para todos los agentes
+    (2 peatón + 2 coche), presupuesto intacto.
+  · **Consultorio y escuela** (`props.ts` + `catalog.ts`): mesh propio en vez
+    de reusar `civic()` (que desbordaba el lote — 16×9m sobre un footprint de
+    8×6m/12×8m). Consultorio: caja con tejado plano + cruz roja discreta
+    (dos listones de `PALETTE.signRed` cruzados sobre la puerta — a la
+    distancia de zoom máximo del juego se lee como un acento discreto, tal
+    como pedía RESEARCH.md). Escuela: aulas + patio cubierto con columnas +
+    torrecita con campana (reutiliza el perfil de tejado a cuatro aguas de
+    `civic()`). Ambos ajustados a su footprint real de catalogData (antes:
+    civic() sin ajustar).
+  · Bug de infraestructura encontrado de paso: `.claude/launch.json` fijaba
+    el puerto 5173, que Vite abandona silenciosamente si está ocupado (otra
+    sesión con el mismo repo abierta) — el proxy del preview quedaba
+    apuntando al puerto declarado, no al real, y daba `ERR_CONNECTION_REFUSED`
+    aunque el server sí arrancaba. Fix: `vite.config.ts` con
+    `server.port=8888` + `strictPort:true` (falla alto y claro en vez de
+    saltar de puerto en silencio) y `launch.json` a juego. Puerto fijo
+    acordado con el usuario para evitar este choque en el futuro.
+  · Pendientes de esta ronda: plaza/decoración de fiestas (ciclo 10) y
+    jardín/fachada de prestigio (ciclo 9) — siguiente en la cola.
+  · **Cierra las 3 deudas restantes** (jardín de prestigio, plaza de fiestas,
+    franjas de cultivo T3.8). Las tres comparten el mismo problema: son
+    estado de la SIM (`sim/economy.ts`) que el render por chunks
+    (`world/render/worldView.ts`) no podía ver — los edificios se
+    construyen una vez desde `catalogItem.build()` sin margen para
+    "decoración según estado". Solución uniforme: el worker emite un
+    evento nuevo cuando el estado cambia (`homePrestige` al invertir en una
+    vivienda, `cultivationChanged` al cierre del día) y `WorldView` guarda
+    ese estado en un `Map`/escalar propio y reconstruye SOLO el chunk
+    afectado (`refreshChunkAt`) — mismo mecanismo que ya usaba `cityGrew`,
+    ninguna infraestructura nueva. La decoración se añade como hijo del
+    `mesh` del edificio ANTES de posicionarlo, así hereda su transform
+    (posición+rotación) gratis.
+    - `homeGarden(prestige, w, d, seed)` (`props.ts`): seto siempre que
+      prestige≥0.3, flores desde 0.6, banderín en 1 — todo en el borde +Z
+      (convención de "frente" del catálogo). `seed` determinista por ancla
+      (`ax*92821 + az*68917`), nunca `Math.random()`.
+    - `festivalDecor(w, d, seed)` (`props.ts`): guirnalda de luces
+      (`PALETTE.windowLit`, catenaria aproximada con `sin`) + 2 puestos de
+      mercado, en edificios `role==='civic'`. Activado/desactivado desde
+      `main.ts` comparando `isFestivalDay(day)` cada frame contra el estado
+      guardado en `WorldView` (la comparación es barata; solo dispara
+      reconstrucción en el flanco de cambio) — cero mensaje nuevo del
+      worker necesario porque `isFestivalDay` ya es una función pura
+      importable en el hilo principal.
+    - `economy.cultivation` [0,1]: sube deprisa (×0.35/día) si hubo faena
+      agrícola HOY, decae despacio (×0.12/día) si no — un campo se ve
+      trabajado varios días después de la última jornada, no de un día
+      para otro. `render/terrain.ts` interpola `PALETTE.fields` →
+      `PALETTE.fieldsCultivated` y oscurece filas pares un 12%×cultivation
+      (franjas/surcos). Sin estado por parcela: el modelo sigue sin atar un
+      granjero a UN campo concreto (deuda ya anotada en RESEARCH.md ciclo 1;
+      esto da el feedback agregado que T3.8 prometía, no granularidad nueva).
+    - Verificación: `festivalDecor` se lee a simple vista en `?scene=buildings`
+      (puestos grandes, colores saturados) y también en el mundo real sobre
+      el ayuntamiento/escuela. Las franjas de cultivo se confirmaron en el
+      mundo real (día 1-2, faena ya visible como mosaico verde/beige con
+      surcos). `homeGarden` se confirmó por conteo de nodos en el showcase
+      (hijos > 0 para los 5 tipos residenciales, seto+flores+banderín según
+      prestige) — el seto es pequeño y del mismo verde que el césped, así
+      que a la distancia de cámara fija es difícil de distinguir a simple
+      vista en captura; no llegó a observarse un hogar cruzando el umbral de
+      inversión (bolsillo≥80) en el tiempo de sesión disponible, así que la
+      confirmación 100% visual EN VIVO queda como deuda menor para la
+      próxima sesión (el mecanismo — evento `homePrestige` + reconstrucción
+      de chunk — es idéntico al de `festivalDecor`, que sí se vio, y al de
+      `cityGrew`, ya probado en producción). 116/116 tests, `tsc` limpio.
+  · De paso, un acoplamiento de lógica pura (sin render, no necesita
+    screenshot): **salud→mortalidad** en `sim/lifecycle.ts` — ver
+    RESEARCH.md §4 para el detalle (`deathChance` ahora lee `c.health`).
+
+- 2026-07-03 — Fase 0 completada. Escenario semilla actual generado ad-hoc en
+  `neighborhood.ts`; se migrará a grid en T1.4 (previsto, no es deuda).
+- 2026-07-03 — Adelanto de modelado urbano (ventaja para T1.3): `props.ts` ya incluye
+  `apartmentSlab`, `brickBlock`, `officeBlock`, `rowHouses`, `supermarket`,
+  `parkingGarage`, `civic` y `factory`, con retículas de ventanas en `InstancedMesh`
+  por edificio (helper `windowGrid`). Expositor visual en `showcase.ts`, accesible
+  con `?scene=buildings` — úsalo como test visual del catálogo en T1.3.
+- 2026-07-03 — Fase 1 (T1.1–T1.4) hecha. Decisiones:
+  · El terreno se renderiza como UNA malla mergeada con vertex-colors (`render/terrain.ts`):
+    color base por región (parches grandes) + jitter fino por celda → patchwork con ~1 draw call.
+  · El campo de fondo se siembra dentro del grid (área finita ±90 celdas). El streaming
+    infinito llega en T1.7; por ahora el mundo es finito.
+  · El estanque se aproxima con celdas `water` (borde escalonado). Aceptable; mejorable luego.
+  · TRAMPA APRENDIDA (para futuras mallas a mano): un BufferGeometry de quads en el plano
+    XZ necesita winding CCW visto desde +Y o el backface culling lo descarta (se ve el
+    fondo del cielo y parece que "no hay suelo"). La normal declarada NO afecta al culling,
+    solo a la luz. Además, computeBoundingSphere() explícito por higiene.
+  · Deuda T1.4: los árboles se renderizan como Groups individuales (cientos de draw calls).
+    Lo resuelve T1.6 (instancing). No tocar hasta entonces.
+- 2026-07-03 (sesión Fable, lógica de sim) — Fase 3 casi completa: T3.1-T3.5, T3.7,
+  T3.8 hechas con tests headless (10/10 en `npm test`); T3.6 parcial (instanciado +
+  interpolación + bobbing/fade; falta LOD y estrés 500). **LEE `SIMULATION.md`**: es
+  la guía del territorio de `src/sim/` — arquitectura, contratos, trampas conocidas y
+  el orden recomendado de lo pendiente (T3.10 inspector primero). Decisiones clave:
+  · Catálogo partido en `catalogData.ts` (datos puros, sin THREE) + `catalog.ts`
+    (builders): la sim del worker importa SOLO los datos.
+  · La sim es una clase pura (`sim/simulation.ts`) testeable sin worker: `worker.ts`
+    solo la envuelve con mensajería. Los tests corren días de juego en ms.
+  · Necesidad 'purpose' en vez de need "trabajo" literal: los parados la sienten
+    decaer igual (presión para aceptar empleo), pero no puntúan 'work' sin puesto.
+  · Saltadas de momento en T3.5: 'mirar escaparate' y 'sentarse' (triviales de añadir
+    como entradas de ACTIVITIES cuando haya bancos/escaparates renderizados).
+  · Teclas 0-3 = velocidad de sim. HUD F3 muestra reloj de juego y agentes.
+- 2026-07-04 (sesión Opus, profundidad de sim + primer render) — Ver la bitácora
+  de RESEARCH.md §4 para los ciclos 11-18 de LÓGICA (salud→mortalidad,
+  prestigio→inmigración, clima→coche, emigración digna, clínica medida, duelo,
+  consuelo, memoria afectiva de la Crónica). Con inmigración+emigración, **T4.3
+  queda COMPLETA**. En render: **T3.9 mesh de coche HECHO** (chasis+cabina
+  instanciados, `render/citizens.ts`; colores nuevos `carBodies`/`carCabin` en
+  `palette.ts`; el peatón no se dibuja en coche). Decisión de proceso importante:
+  · **Verificación visual headless establecida**: Chromium preinstalado
+    (`/opt/pw-browsers`) + `playwright-core` (instalado en el scratchpad, NO en el
+    proyecto) permiten arrancar `npm run dev` y capturar la escena con
+    `--use-gl=swiftshader`. El mesh de coche se verificó en una escena de
+    aislamiento temporal (borrada tras la captura): lee como cochecito low-poly,
+    proporción correcta vs peatón, paleta coherente, sombra. Este es el camino
+    para saldar la deuda visual acumulada (nieve/estaciones T5.1, plaza, jardín
+    de prestigio, franjas de campo T3.8) con screenshot obligatorio del §4.
+  · Trampa aprendida cazando el coche en el mundo vivo: a zoom máximo la cámara
+    puede quedar sobre campo vacío sin agentes, y el wheel de Playwright satura
+    al límite de zoom — para verificar un mesh concreto, una escena de
+    aislamiento es MUCHO más fiable que perseguir agentes en la sim.
+  · **T5.1 completa** (tinte de luz/cielo + NIEVE del terreno por estación, via
+    emissive de un material de terreno único). **T1.8 completa** (ciclo de luz).
+  · **Semilla del mundo aleatoria y PERSISTIDA** (`pickWorldSeed` en main.ts,
+    `seedWorld(seed)` parametrizado): cada jugador tiene SU pueblo (antes era el
+    mismo hardcodeado para todos) y perdura al recargar; `?seed=N` lo fuerza.
+    Verificado: seeds distintas → pueblos distintos, misma seed → mismo pueblo.
+    Es un primer paso de T2.6 (persiste el MUNDO; falta persistir el TIEMPO/
+    estado de sim — el guardado completo §1.4 sigue pendiente).
+- 2026-07-05 (sesión Opus, veta INTERFAZ — surfacing) — La UI se había quedado muy
+  por detrás de la sim (40 ciclos de lógica, casi invisibles). Primer paso de la veta:
+  **HUD de ciudad** (`ui/cityHud.ts`) siempre visible (población/tesoro/paro/estación/
+  granero/salud/riqueza) + **inspector enriquecido** (vocación ✓, legado, alquiler).
+  Sin lógica nueva: sólo plumbing por la frontera única — `CityStats` en `protocol.ts`,
+  `Simulation.cityStats()` puro, en el `SnapshotMsg`, expuesto en `SimClient.city`.
+  Acentos de alerta con colores semánticos de la paleta. Verificado por screenshot
+  (§4). Detalle: `describe()` ahora devuelve `Omit<CitizenInfoMsg,'type'|'id'>` (el
+  contrato del mensaje es la única fuente de verdad). Ver RESEARCH.md §4 (2026-07-05).
+  NOTA: la nieve del TERRENO en invierno (T5.1 paso 2) YA estaba implementada
+  (`updateTerrainSeason`); lo pendiente ahí es sólo el pulido de cubiertas en tejados.
+- 2026-07-05 (sesión Opus — BANCO DE PRUEBAS `?scene=test-dev`) — Nueva escena de
+  desarrollo: abre directamente en una ciudad MADURA y VIVA (≈90-100 hab, ~30
+  edificios, tier 3, calles auto-trazadas, economía y estaciones corriendo) para
+  testear TODAS las mecánicas de un vistazo. Es el banco de pruebas visual del
+  proyecto: cada avance nuevo debe verse aquí. Decisiones y trampas:
+  · **Pre-crecido DENTRO del worker** (no reseed con pérdida). La idea inicial del
+    brief era pre-crecer headless y sembrar el worker con `grid.serialize()`; lo
+    PROBÉ y medí: reseed desde el grid pierde toda la vida acumulada (el
+    constructor de `Simulation` sólo repuebla viviendas a capacidad → ~33 hab, sin
+    niños ni mayores, ~2 personas en la calle → ciudad casi muerta). En su lugar,
+    el worker PRE-CRECE su propia `Simulation` N días (init con `preGrowDays`) y su
+    sim ES la ciudad madura (gente, edades, vínculos, obras intactas: ~90 hab, con
+    30 niños). Devuelve el grid resultante (`grownGrid`) para que el render dibuje
+    EXACTO lo que construyó (cero divergencia). Bloquea el worker ~10 s, no el main
+    (overlay animado + barra de progreso vía `growProgress`). Contratos nuevos en
+    `protocol.ts`: `InitMsg.preGrowDays`, `GrowProgressMsg`, `GrownGridMsg`.
+  · **Determinismo**: semilla FIJA por defecto (`0x7e57de5`, pueblo reproducible
+    para testear a ojo), forzable con `?seed=`; días de maduración con `?days=`
+    (def. 100), encuadre con `?zoom=`. Semilla mínima de granja (`seedFarm`): la
+    ciudad se traza sus propias calles → trama 2D tupida, lo más vistoso.
+  · **Abre al ATARDECER (~19:00), no a mediodía.** MEDIDO headless (contando
+    agentes fuera por hora): a las 13-14h casi todos trabajan/estudian DENTRO (~9
+    en la calle); el pico es tras la jornada, ~19h (~17 fuera, ×2). Un año son 80
+    días (4 estaciones de 20, `weather.ts`); el reloj arranca a medianoche tras el
+    pre-crecido → hay que adelantar a la hora viva. Aun en el pico, la mayoría está
+    dentro (modelo de actividades): la ciudad se ve viva pero NO abarrotada — es la
+    densidad real de la sim, se disfruta mejor observándola en el tiempo.
+  · **Panel dev** (`ui/devPanel.ts`, overlay DOM plegable, sólo test-dev): velocidad,
+    saltar tiempo (+1d/+estación/+año), disparar epidemia, toggles de mecánicas
+    (crecimiento/cuarentena/vacuna/sanidad/alquiler) y contadores en vivo (pob. por
+    edad, empleo/paro, obras, tier, economía, contagio). CERO lógica de sim ahí: sólo
+    LEE `simClient.city` y ENVÍA comandos (`DevMsg` en el contrato). Los toggles
+    reflejan el estado REAL que reporta la sim (fuente de verdad), no un espejo local.
+    `CityStats` ampliado con los agregados del panel; helpers dev en `Simulation`
+    (`forceEpidemic` garantiza casos índice levantando inmunidad; `advanceDays`).
+  · **Salto de tiempo NO congela**: `advanceDays` a 0.2 s/día-de-juego bloquearía
+    el worker ~16 s en un "+año". Se ENCOLA (`pendingSkip`) y el bucle lo consume por
+    lotes (`SKIP_TICKS_PER_FRAME`) → el salto se VE correr (reloj y estaciones
+    girando) en vez de congelar. Verificado: +estación pasa otoño→invierno en ~3 s.
+  · Todo verificado end-to-end en navegador con Playwright (disparar epidemia:
+    sana→enfermos; toggles; salto con cambio de estación; sin errores de página).
+    `tsc` limpio, `grid.test` 33/33. Refactor de `main.ts`: `buildRenderAndUi(grid)`
+    separado de la creación del `SimClient` (el render se monta al llegar el grid
+    maduro; el juego normal lo llama sincrónico como antes).
+- 2026-07-05 (sesión Opus, LÓGICA+INTERFAZ a la par — ciclo 41) — **Rotación vocacional
+  (churn)**: la vocación (ciclo 36) ya no es solo un tinte de propósito, ahora MUEVE a la
+  gente. Un adulto infeliz en su oficio (trabaja lejos de su vocación) puede DEJARLO para
+  buscar el suyo, si hay vacante que lo colma a su alcance; al reasignar, gravita a su
+  llamada (descuento de distancia solo para el que busca). Salda la lección del ciclo 37
+  (preferir sin churn = no-op): medido A/B, el encaje sube (p.ej. seed 500 0.27→0.38) y
+  el suelo de comida es IDÉNTICO ON/OFF (benigno). RNG APARTE (`churnRng`) para no
+  perturbar el flujo general. **Interfaz a la par**: evento `vocationFound` → la Crónica
+  lo narra ("X encuentra su vocación: por fin labra la tierra"), un toast ✦ lo asoma, y
+  el inspector ya lo marca ✓ — se ve a alguien pasar a su vocación. 282/282 tests, `tsc`
+  limpio, screenshot de regresión limpio. Ver RESEARCH.md §4 (2026-07-05, ciclo 41).
+- 2026-07-05 (sesión Opus, LÓGICA+INTERFAZ a la par — ciclo 42) — **Linaje (apellidos
+  heredados)**: la historia autónoma (la Crónica) se vuelve SAGA generacional. Un hijo
+  hereda el apellido de un progenitor (mismo nº de tiradas de RNG → mundo byte-idéntico,
+  282 tests previos intactos); los apellidos se perpetúan y emergen dinastías. **Interfaz
+  a la par**: la Crónica narra "nace Ada, de Vera" y el inspector muestra "hijo/a de Vera
+  Novák". Descartado un hito de dinastía por apellido (ruidoso con solo 12 apellidos;
+  pediría un árbol genealógico real — ciclo futuro). 288/288 tests, `tsc` limpio.
+  Ver RESEARCH.md §4 (2026-07-05, ciclo 42).
+- 2026-07-05 (sesión Opus, LÓGICA+INTERFAZ a la par — ciclo 43) — **Dinastías
+  (descendencia real)**: el hito de dinastía legítimo que el ciclo 42 dejó pendiente. Cada
+  persona lleva un `lineId` (el tronco de su estirpe, propagado al nacer); cuando una línea
+  cruza 8 descendientes vivos, la Crónica la reconoce ("la familia Novák echa raíces: 9
+  descendientes vivos"), un toast ❦ lo asoma, y el inspector muestra la familia hacia abajo
+  ("familia: N hijos viven aquí"). Descendencia REAL (por lineId, no coincidencia de
+  apellido); sin RNG → mundo byte-idéntico (288 tests previos intactos). El linaje se lee
+  ya en tres direcciones: de quién vienes, quién sigue contigo, cuándo tu estirpe se vuelve
+  historia. 292/292 tests, `tsc` limpio. Ver RESEARCH.md §4 (2026-07-05, ciclo 43).
+- 2026-07-05 (sesión Opus, LÓGICA+INTERFAZ a la par — ciclo 44) — **Extinción de estirpe**:
+  cierra el arco familiar (rise & fall). Cuando una dinastía reconocida se apaga del todo
+  (ni un descendiente vivo ni el fundador), la Crónica cierra su historia ("se extingue la
+  familia Novák — no queda ninguno de su sangre") y un toast ❧ sobrio la asoma. Emergente
+  de largo plazo (medido offline: ~día 180 en seeds 7/999/12345); cubierto por test
+  unitario del predicado + narración (el run de 200 años disparaba la suite a >4 min).
+  Con esto el arco de una familia es COMPLETO: nace (42), crece y se reconoce (43), se
+  apaga (44). 297/297 tests, `tsc` limpio. Ver RESEARCH.md §4 (2026-07-05, ciclo 44).
+- 2026-07-05 (sesión Opus, LÓGICA+INTERFAZ a la par — ciclo 45) — **Hitos del pueblo
+  (primer edificio de cada tipo)**: abre la veta de la historia del LUGAR (tras el arco
+  familiar). Cuando la ciudad levanta sola un tipo de edificio que no había (escuela,
+  consultorio, adosados, fábrica…), la Crónica lo celebra ("el pueblo estrena un edificio
+  nuevo: Escuela") y un toast ⌂ lo asoma. Acoplado a los tiers (cada tier abre tipos);
+  emerge del crecimiento sin guion. 301/301 tests, `tsc` limpio, screenshot del pueblo en
+  desarrollo sin regresión. Ver RESEARCH.md §4 (2026-07-05, ciclo 45).
+- 2026-07-05 (sesión Opus, INTERFAZ alcanza a la lógica — ciclo 46) — **Las amistades,
+  visibles**: la afinidad social (charlas/vínculos/duelo, T3.7) se simulaba desde hace ~40
+  ciclos pero nunca se veía. El inspector muestra ahora el lazo más cercano vivo, marcándolo
+  "amistad íntima" si supera el umbral de duelo por amigo (0.55) o "conocido/a" si no. Cero
+  lógica nueva (`closestFriend` sobre `c.friends`, dos campos en el mensaje). Con esto el
+  inspector cuenta a una persona casi completa (quién es, con quién vive, de quién viene,
+  quién la acompaña, qué hace, qué ama, qué debe, qué deja). 305/305 tests, `tsc` limpio.
+  Ver RESEARCH.md §4 (2026-07-05, ciclo 46).
+- 2026-07-05 (sesión Opus, LÓGICA+INTERFAZ a la par — ciclo 47) — **Identidad del
+  asentamiento (aldea→pueblo→villa→ciudad)**: el lugar tiene ahora un nombre por su tamaño
+  (función pura `settlementClass`, umbrales 0/20/60/150, eje distinto de los tiers). El HUD
+  lo muestra SIEMPRE (la etiqueta del chip de población pasó a ALDEA/PUEBLO/VILLA/CIUDAD;
+  verificado por screenshot "ALDEA · 16") y la Crónica celebra cada ascenso ("la aldea se
+  hace pueblo (20 almas)") con toast ✦. Emerge pronto (seed 42: pueblo@d3) → test barato.
+  309/309 tests, `tsc` limpio. Ver RESEARCH.md §4 (2026-07-05, ciclo 47).
+- 2026-07-05 (sesión Opus — JUICE ATMOSFÉRICO T5.4) — El atardecer del banco de
+  pruebas (`?scene=test-dev` abre a ~19 h) ahora está VIVO. Un único sistema,
+  `world/render/atmosphere.ts` (clase `Atmosphere`), ligado al reloj de JUEGO:
+  · **Luces de ventana una a una** — la señal es `lampFactor(hora)` (0 de día, 1 de
+    noche, rampa suave al anochecer 17.5→20 h y al amanecer 5.5→7.5 h; nada de
+    `if hora==X`). Cada ventana tiene un `threshold` → prende cuando `lampFactor` lo
+    supera (efecto "una a una", escalonado). Dos mecanismos por rendimiento/estética:
+    (a) bloques urbanos (`windowGrid`): el brillo cálido va como EMISSIVE por
+    instancia vía un atributo `aGlow` (vec3) + parche mínimo de shader
+    (`onBeforeCompile`, se suma a `totalEmissiveRadiance`, SIN tocar el difuso →
+    apagadas = cristal frío normal, encendidas brillan aunque el pueblo se atenúe);
+    (b) casas pequeñas (`litWindow`, mesh suelto): material propio cuyo
+    `emissiveIntensity` sube Atmosphere (0 de día → cálido de noche). Añadidas
+    ventanas encendibles a `cottage`/`farmhouse`/`rowHouses` para que el PUEBLO
+    entero se ilumine, no sólo los bloques. Escalonado por posición de mundo
+    (determinista, sin RNG).
+  · **"Hora azul"** (`updateNight` en `renderer.ts`) — TRAMPA/decisión clave: el mundo
+    NO oscurecía nunca (la elevación del sol es fija por regla de arte §4, no hay
+    atenuación nocturna), así que un glow difuso cálido se PERDÍA contra las paredes
+    crema a plena luz. Sin un pueblo que se atenúe, "encender luces" no se lee. Añadida
+    una atenuación nocturna suave y fría (nunca a negro, §4: silueta legible) que modula
+    intensidad de sol/ambiente/hemi y tiñe cielo+ambiente hacia el crepúsculo. Es motivo
+    documentado para tocar la luz firmada (regla §0.3/§0.4). La ELEVACIÓN del sol NO se
+    toca: sólo intensidad/color/cielo → las sombras siguen largas. Colores nuevos en
+    `palette.ts`: `windowLit` (subido a ámbar), `skyNight`, `ambientNight`, `smoke`,
+    `bird` (+`windowDay` sin uso final).
+  · **Humo de chimenea** — bocanadas (InstancedMesh de esferas facetadas pálidas,
+    `depthWrite:false`) que suben, derivan y se deshacen encogiendo; sólo emiten al
+    anochecer/amanecer (`lampFactor>0.2`). Chimeneas marcadas con `userData.kind` +
+    `topOffset` en `farmhouse`/`cottage`/`factory`. Es FX cosmético efímero → usa
+    `Math.random` (permitido, §0.6). El resto (luces, bandada) es determinista.
+  · **Bandada** — una bandada (InstancedMesh de conos triangulares oscuros) que gira
+    sobre el centro de la ciudad al alba (~7 h) y al ocaso (~18.5 h), dormida el resto.
+  · **Escaneo del mundo**: Atmosphere recorre el árbol de render y cachea ventanas
+    (`kind:'windows'`/`'litWindow'`) y chimeneas; `invalidate()` en `cityGrew` re-escanea
+    tras crecer la ciudad (ventanas/chimeneas nuevas). Las ventanas sólo se repintan
+    cuando el crepúsculo se MUEVE (`lastLamp`); de día/noche pleno, gratis.
+  · Verificado con Playwright (headless swiftshader) en `?scene=test-dev` (dusk vivo:
+    ventanas cálidas por todo el pueblo, humo, bandada, hora azul) y en `?scene=buildings`
+    (de día: ventanas = cristal frío, cero glow, sin artefactos del shader). `tsc` limpio;
+    `npm test` 33/33 + 276/276 verde. Coste medido: +14 draw calls sobre la base (2 FX
+    instanciados + ~12 ventanas de casa); la base del banco ya son ~425 (edificios como
+    grupos de meshes, NO instanciados — deuda pre-existente de T1.6/T6.1, no de T5.4).
+    NOTA fps=10 del HUD headless es artefacto de swiftshader (SW render), no hardware real.
+- 2026-07-05 (sesión Opus, tras el merge — ciclo 48) — **La inmigración es LLEGADA, no
+  nacimiento**: corrección + beat. Los inmigrantes (T4.3) emitían `citizenBorn` → salían
+  como "nace X" y falseaban la natalidad (medido: 19 nacimientos reales vs 27 familias
+  coladas como nacidas en 20 días). Ahora `citizenBorn` solo se emite para nacimientos
+  reales (age 0); la inmigración emite `familyArrived`. **Interfaz a la par**: la Crónica
+  narra "la familia Novák se instala en el pueblo", con contador `llegadas` en la cabecera
+  y compactación por año ("N llegadas de fuera"). Invariante verificada: todo `citizenBorn`
+  lleva progenitor (linaje). 319/319 tests, `tsc` limpio. Ver RESEARCH.md §4 (ciclo 48).
+- 2026-07-05 (sesión Opus, tras el merge — ciclo 49) — **El nacimiento del pueblo**: la
+  saga necesitaba un principio. La Crónica abre ahora con "se funda el pueblo — N almas lo
+  levantan" (evento `townFounded` al construir, kind `founded`), primera línea que NUNCA se
+  compacta (como el legado). Dedup por persistencia (la sim se reconstruye al recargar pero
+  la Crónica persiste por semilla). Con esto la Crónica cuenta un arco completo: el pueblo
+  nace (49) → llegan/nacen sus gentes (48/42) → familias y dinastías (43) crecen y se apagan
+  (44) → el lugar madura de aldea a ciudad (47). 324/324 tests, `tsc` limpio.
+- 2026-07-05 (sesión Opus, tras el merge — ciclo 50) — **La construcción se lee**: el
+  evento `cityGrew` narraba el id crudo ("construye: cottage") e inundaba el feed (una
+  línea por edificio). Ahora viaja con el nombre de catálogo ("se levanta: Casita de
+  pueblo") y es kind `built`, que se CUENTA al compactar años ("N edificios nuevos") — el
+  largo plazo no se atasca; los estrenos de tipo nuevo conservan su beat (firstBuilding,
+  45). Sirve a la historia (la construcción autónoma se lee como crónica de desarrollo) y a
+  la UI. Antes: intentado y REVERTIDO el "invierno duro" (no emerge: el granero-colchón del
+  ciclo 40 previene la hambruna por diseño). 330/330 tests, `tsc` limpio.
+- 2026-07-05 (sesión Opus — ciclo 51) — **[Entrada añadida a posteriori el 2026-08-14:
+  el ciclo se commiteó sin diario, deuda de §0.9.]** **Animación de construcción
+  (T4.2)**: cada `cityGrew` ya no aparece de golpe — `world/render/construction.ts`
+  monta copia standalone del edificio + andamio (`props.scaffold`, `palette.scaffold`)
+  y anima: el edificio CRECE desde el suelo con pop elástico (easeOutBack) mientras el
+  andamio se retira; al terminar, el chunk revela el edificio fundido (relevo invisible
+  vía `worldView.beginConstruction/endConstruction`). Verificado por screenshot en
+  escena de aislamiento temporal (`?scene=fxtest`, ya retirada). Detalle en T4.2 (§2).
+- 2026-08-14 (sesión Opus 5 — grilling + H0) — **EL RUMBO: MVP fijado con el usuario
+  y arranque de los hitos.** Tras 6 semanas de parón, sesión de interrogatorio con 12
+  decisiones cerradas (todas del usuario): el MVP es un **vivarium contemplativo en URL
+  pública** (GitHub Pages), sin construcción manual (Fase 2 entera POST-MVP), sin
+  guardado de partida (semilla en URL, "cada semilla una saga"), desktop-first, con
+  sonido generativo + onboarding mínimo dentro del done y tren/foto/PWA fuera; arranque
+  en día 0 (la fundación como beat inaugural); proceso híbrido = hitos H0-H4 con gate
+  del usuario + bucle fractal DENTRO del hito; escritor único (solo sesiones locales).
+  Todo en §3 (nuevo) y §0 reglas 1/8/10. **H0 ejecutado esta sesión:** auditoría de la
+  rama huérfana `claude/city-bill-construction-sector-gmrajg` — injertados
+  `ui/controlBar.ts` (e3be240, verificado en preview: click ×8 acelera, no tapa la
+  viñeta) y README+hero (af62abf, adaptado: sin vender trama/mezcla hasta portarlas);
+  aplazados a H1 los portes de sim (eeeaab4 trama 2D, 43f2719 mezcla de densidades,
+  3f731a2 jardín — base pre-ciclos-41, se portan a mano); descartados f5e476f
+  (supersedido por ciclo 51) y 339ed1d (?scene=grown, redundante con test-dev).
+  Respaldo local `rescate/construction-sector`; la rama remota se borra en el gate.
+  CATALOG.md actualizado a marcas/footprints reales. Hallazgos menores saldados:
+  duelo duplicado en inspector, grid fantasma de neighborhood.ts, comentario ?stress.
+  Verificación del gate: `tsc` limpio, **330/330 tests**, preview OK, push `70ef459`,
+  rama remota huérfana borrada (respaldo local `rescate/construction-sector` vivo
+  hasta cerrar H1).

@@ -10,8 +10,8 @@ documento es el catálogo de DISEÑO: ✅ = en el código, con su `id` real; sin
 pendiente de modelar. *Sincronizado con el código el 2026-09-03 (H4.5): footprints,
 tiers, servicios y empleos de los ✅ son los del código.*
 
-Tiers: **T0** disponible desde el inicio · **T1** aldea (pop 20) · **T2** pueblo (pop 100)
-· **T3** villa (pop 400) · **T4** ciudad (pop 1500, estética Zlín).
+Tiers (`tierForPopulation` en `growth.ts`): **T0/T1** disponibles desde el inicio ·
+**T2** pueblo (pop 25) · **T3** villa (pop 80) · **T4** ciudad (pop 200, estética Zlín).
 
 Economía H3.1: las obras que coloca el jugador tienen `cost` y `playerPlaceable` en
 `catalogData.ts`; el crecimiento autónomo no las carga. Los edificios públicos activos
@@ -23,9 +23,10 @@ son deliberadamente legibles y el ledger del tesoro se conserva en el guardado.
 
 ## Infraestructura
 
-> Hoy las vías existen como TERRENO (`road`/`path`, con márgenes y arbolado automáticos
-> — T4.4), no como ítems de catálogo. Esta tabla es diseño para la construcción manual
-> (Fase 2, **POST-MVP**) y para el tren (T5.2, **POST-MVP**).
+> Las vías son TERRENO (`road`/`path`/`rail` con `roadKind`), no ítems de catálogo:
+> `world/roads.ts` define los 4 tipos (camino, rural, calle, avenida) y el ferrocarril, y
+> tanto la herramienta del jugador (H2.2) como el crecimiento autónomo pintan con esa
+> misma geometría. Esta tabla describe su diseño visual.
 
 | Ítem | Celdas | Tier | Rol sim | Notas visuales |
 |---|---|---|---|---|
@@ -71,7 +72,7 @@ son deliberadamente legibles y el ledger del tesoro se conserva en el guardado.
 | Mercado | 4×3 | T2 | 6 | Puestos con toldos de la paleta de acentos |
 | Iglesia / ermita | 3×4 | T1 | 1 | Blanca, torre con tejado a cuatro aguas |
 | Café | 2×2 | T2 | 3 | Terraza con sillas, punto social fuerte |
-| Almacén ferroviario | 4×6 | T4 | 12 | Junto a vía, portones grandes (con el tren, **POST-MVP**) |
+| Almacén ferroviario | 4×6 | T4 | 12 | Junto a vía, portones grandes (el tren ya existe, H5.6; el almacén sigue pendiente) |
 
 ## Naturaleza y decoración
 | Ítem | Celdas | Tier | Rol sim | Estado / notas visuales |
@@ -93,6 +94,6 @@ son deliberadamente legibles y el ledger del tesoro se conserva en el guardado.
 | Ciudadano | T0 | ✅ Peatones instanciados con interpolación y bobbing (T3.6); necesidades, utility-AI, social — Fase 3 |
 | Coche | T2 | ✅ Trayectos > 40 celdas por el grafo vial, aparca cerca del destino (T3.9) |
 | Pájaros | T0 | ✅ Bandada del anochecer (T5.4), puro ambiente |
-| Tractor | T1 | Pendiente — residuo de T3.9, **POST-MVP** (recorte 2026-08-14) |
+| Tractor | T1 | Pendiente — post-v1 (ROADMAP §3.5) |
 | Camión | T3 | Pendiente — granja/fábrica → mercado/almacén |
 | Tren | T4 | ✅ Circuito cerrado + estación activa: 1 locomotora y 3-5 vagones, estado guardable |
