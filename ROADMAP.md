@@ -706,6 +706,12 @@ tractores (residuo T3.9), página itch.io.
   de responsabilidades es correcta para una futura política de frentes; no
   basta por sí sola para hacer integrable la calle autónoma.
 
+  Una última variante espacial conservaba un único ramal y, tras sus cuatro
+  lotes iniciales, penalizaba sus parcelas para que no reordenaran la red vieja.
+  Aun así llegó al mismo caso de 73 edificios y dividendo cero en d50. Por tanto
+  el desencadenante no es solo la prioridad del nuevo frente: los cuatro lotes
+  ya alteran la trayectoria de demanda. También se retira esta versión.
+
 - 2026-09-04 — **H1, contrato único de calle autónoma.** La extensión que usa
   el crecimiento dejó de duplicar un pintor simplificado: delega en
   `roads.ts`, la misma geometría que consume la herramienta manual. Así una
