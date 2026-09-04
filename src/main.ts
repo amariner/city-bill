@@ -522,6 +522,7 @@ loop.onUpdate((dt) => {
     const h = (t % DAY_GAME_SECONDS) / 3600;
     updateNight(stage, lampFactor(h)); // hora azul: atenúa/enfría al anochecer (T5.4)
     updateTerrainSeason(warmth); // nieve del terreno en invierno (T5.1 paso 2)
+    worldView?.setWinterSnow(warmth); // cubiertas: el mismo crossfade invernal, sin draw calls extra
     atmosphere?.update(h, dt); // juice del anochecer: luces de ventana, humo, bandada (T5.4)
     // El murmullo no es un loop genérico: se abre solo al acercarse a vecinos
     // que realmente están charlando en este snapshot (actividad 7 = chat).

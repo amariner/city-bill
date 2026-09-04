@@ -9,7 +9,7 @@ import { Grid, Chunk, Cell, CELL_SIZE, CHUNK, rotatedFootprint, cellFromKey } fr
 import { catalogItem } from '../catalog';
 import { buildTerrainMeshForChunk } from './terrain';
 import { buildVegetationForChunk } from './instances';
-import { mergeBuildingsForChunk } from './buildings';
+import { mergeBuildingsForChunk, roofSnowAmount } from './buildings';
 import { homeGarden, festivalDecor } from '../../props';
 import { Season } from '../../sim/weather';
 
@@ -33,6 +33,8 @@ export class WorldView {
   private festivalActive = false;
   /** Estación actual (T5.1) — colorea terreno y vegetación. */
   private season: Season = 'verano';
+  /** Nieve continua de cubiertas; se hornea junto al edificio sin draw calls extra. */
+  private roofSnow = 0;
   /** Anclas de edificios EN OBRA (T4.2): el chunk las omite mientras un FX de
    * construcción las anima aparte; al terminar, `endConstruction` las revela. */
   private underConstruction = new Set<string>();
@@ -125,6 +127,15 @@ export class WorldView {
     this.rebuildAllChunks();
   }
 
+  /** Cruza suavemente las cubiertas hacia nieve. Se cuantiza levemente para no
+   * reconstruir chunks por variaciones microscópicas de un día al siguiente. */
+  setWinterSnow(warmth: number): void {
+    const next = roofSnowAmount(warmth);
+    if (Math.abs(next - this.roofSnow) < 0.07) return;
+    this.roofSnow = next;
+    this.rebuildAllChunks();
+  }
+
   private rebuildAllChunks(): void {
     for (const chunk of [...this.byChunk.keys()]) {
       const [chx, chz] = chunk.split(',').map(Number);
@@ -177,7 +188,7 @@ export class WorldView {
     });
 
     if (buildingRoots.length > 0) {
-      const { shadowMesh, unshadowedMesh } = mergeBuildingsForChunk(buildingRoots);
+      const { shadowMesh, unshadowedMesh } = mergeBuildingsForChunk(buildingRoots, this.roofSnow);
       if (shadowMesh) group.add(shadowMesh);
       if (unshadowedMesh) group.add(unshadowedMesh);
     }

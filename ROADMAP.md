@@ -307,9 +307,10 @@ repetido, arbolado automático en márgenes de carretera (rasgo de identidad).
   `SEASON_PALETTES` (`palette.ts`: campos/hierba/copas por estación), aplicadas vía
   `worldView.setSeason(...)` desde el bucle de render. Esta segunda capa es un CORTE
   discreto al reconstruir los chunks (como `cultivation`/`festivalActive`), no un
-  crossfade. *Pulido pendiente:* fundir la capa (B) con un crossfade como la (A), y
-  cubiertas de nieve en los TEJADOS (hoy la nieve solo cubre el suelo — exigiría tocar
-  todos los builders de `props.ts`).
+  crossfade. **Tejados resuelto (2026-09-04):** el horneado de edificios detecta
+  los cuatro tonos de cubierta de la paleta y los funde hacia `snow` siguiendo
+  la misma calidez continua del terreno, sin crear mallas ni draw calls. *Pulido
+  pendiente:* fundir la paleta discreta de capa (B) como la (A).
 - [ ] **T5.2 Tren. [POST-MVP]** Vía + estación + tren con 3-5 vagones en circuito, humo
   de la locomotora con sprites de esferas. *Fuera del done del MVP (2026-08-14, §6);
   primer candidato del hito de continuación.*
@@ -501,6 +502,14 @@ tractores (residuo T3.9), página itch.io.
   se verificó en preview: la interfaz mostró día 2, 19:00 y 12 habitantes; no
   hubo un flash del grid inicial. Límite explícito de 400 días y prueba pura de
   parseo para valores inválidos y fraccionarios.
+
+- 2026-09-04 — **Invierno, cubiertas nevadas.** `mergeBuildingsForChunk` recibe
+  un factor de nieve y mezcla solo los vértices de materiales de tejado hacia
+  `PALETTE.snow`; `WorldView` cuantiza el crossfade a saltos ≥0,07 para evitar
+  reconstrucciones por cambios imperceptibles. El resultado preserva el contrato
+  de dos meshes por chunk y cero draw calls extra. `?seed=4242&days=2` confirmó
+  visualmente tejados claros en invierno; pruebas puras cubren el factor continuo
+  y sus límites.
 
 - 2026-07-05 (sesión merge) — **RECONCILIACIÓN de dos líneas divergentes de
   `main`**. El `main` local (18 commits: duelo visual, jubilación, guardado

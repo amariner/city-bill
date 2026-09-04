@@ -56,6 +56,25 @@ function finish(buf: QuadBuffers): THREE.Mesh | null {
 const tmpColor = new THREE.Color();
 const tmpMatrix = new THREE.Matrix4();
 const abandonedTint = new THREE.Color(PALETTE.abandoned);
+const snowTint = new THREE.Color(PALETTE.snow);
+/** Todos los tonos que representan una cubierta en la paleta única. Detectarlos
+ * al hornear conserva los dos meshes por chunk: no añadimos capas ni draw calls. */
+const ROOF_COLORS = new Set<number>([
+  PALETTE.houseRoof,
+  PALETTE.barnRoof,
+  PALETTE.flatRoof,
+  PALETTE.roofTerracotta,
+]);
+
+/** Nieve de tejado [0,1] desde la calidez estacional continua. Pura para que
+ * la transición sea verificable sin un renderer. */
+export function roofSnowAmount(warmth: number): number {
+  return Number.isFinite(warmth) ? Math.max(0, Math.min(1, -warmth)) : 0;
+}
+
+function tintRoofSnow(color: THREE.Color, snow: number): void {
+  if (snow > 0 && ROOF_COLORS.has(color.getHex())) color.lerp(snowTint, snow * 0.82);
+}
 
 /** El abandono no borra ni sustituye la malla: baja el brillo y apaga la
  * saturación para que la huella siga leyendo como edificio cerrado. */
@@ -70,7 +89,7 @@ function tintAbandoned(color: THREE.Color): void {
  * tener su matrixWorld actualizada (se llama updateMatrixWorld en el
  * llamador antes de recorrer, una vez por chunk basta porque los edificios
  * cuelgan directamente del group del chunk). */
-function bakeBuilding(root: THREE.Object3D, shadowBuf: QuadBuffers, unshadowedBuf: QuadBuffers): void {
+function bakeBuilding(root: THREE.Object3D, shadowBuf: QuadBuffers, unshadowedBuf: QuadBuffers, snow: number): void {
   const abandoned = root.userData.abandoned === true;
   root.traverse((child) => {
     if (child instanceof THREE.InstancedMesh) {
@@ -83,6 +102,7 @@ function bakeBuilding(root: THREE.Object3D, shadowBuf: QuadBuffers, unshadowedBu
         } else {
           tmpColor.copy((child.material as THREE.MeshLambertMaterial).color);
         }
+        tintRoofSnow(tmpColor, snow);
         if (abandoned) tintAbandoned(tmpColor);
         bakeInto(buf, child.geometry, tmpMatrix, tmpColor);
       }
@@ -92,6 +112,7 @@ function bakeBuilding(root: THREE.Object3D, shadowBuf: QuadBuffers, unshadowedBu
       const buf = child.castShadow ? shadowBuf : unshadowedBuf;
       const material = child.material as THREE.MeshLambertMaterial;
       tmpColor.copy(material.color);
+      tintRoofSnow(tmpColor, snow);
       if (abandoned) tintAbandoned(tmpColor);
       bakeInto(buf, child.geometry, child.matrixWorld, tmpColor);
     }
@@ -104,7 +125,7 @@ function bakeBuilding(root: THREE.Object3D, shadowBuf: QuadBuffers, unshadowedBu
  * originales de cada pieza horneada para no filtrar memoria GPU en los
  * reconstruye-todo-el-chunk de setCultivation/setFestivalActive/setSeason/
  * setHomePrestige. */
-export function mergeBuildingsForChunk(buildings: THREE.Object3D[]): {
+export function mergeBuildingsForChunk(buildings: THREE.Object3D[], roofSnow = 0): {
   shadowMesh: THREE.Mesh | null;
   unshadowedMesh: THREE.Mesh | null;
 } {
@@ -113,7 +134,7 @@ export function mergeBuildingsForChunk(buildings: THREE.Object3D[]): {
 
   for (const root of buildings) {
     root.updateMatrixWorld(true);
-    bakeBuilding(root, shadowBuf, unshadowedBuf);
+    bakeBuilding(root, shadowBuf, unshadowedBuf, roofSnow);
   }
 
   // Las geometrías originales ya no hacen falta: sus vértices viven ahora en
