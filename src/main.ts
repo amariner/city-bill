@@ -46,9 +46,13 @@ import { StartMenu } from './ui/startMenu';
 import { AmbientAudio } from './audio/ambient';
 import { Onboarding } from './ui/onboarding';
 import { preGrowDaysFrom } from './sim/preGrow';
+import { makeStressAgents, stressCountFrom } from './world/render/stress';
 
 const sceneName = new URLSearchParams(window.location.search).get('scene');
 const query = new URLSearchParams(window.location.search);
+// Banco de rendimiento H2: `?stress=500` sustituye solo la capa visual de
+// peatones. La sim real sigue debajo para conservar ciudad, reloj y HUD.
+const stressAgents = makeStressAgents(stressCountFrom(query.get('stress')));
 const saveEnabled = sceneName === null;
 // Puerta trasera reproducible del MVP: en la escena normal, `?seed=N&days=D`
 // entrega una ciudad ya vivida pero sigue usando el mismo flujo de juego.
@@ -485,22 +489,26 @@ loop.onUpdate((dt) => {
   construction?.update(dt); // FX de construcción en curso (T4.2)
   if (worldView) hud.setStats({ chunks: worldView.countVisibleChunks(camera.cam) });
   if (simClient && citizenView) {
-    const n = simClient.view(agentViews);
-    citizenView.update(agentViews, n, dt);
+    const simCount = simClient.view(agentViews);
+    const renderedAgents = stressAgents.length > 0 ? stressAgents : agentViews;
+    const renderedCount = stressAgents.length > 0 ? stressAgents.length : simCount;
+    // T3.6: en los dos zooms lejanos la silueta instanciada basta; apagamos
+    // bobbing/sway, no a los ciudadanos ni su interpolación.
+    citizenView.update(renderedAgents, renderedCount, dt, camera.zoomIndex < 2);
     vehicleView?.update(simClient.vehicles, simClient.busStops);
     overlayLayer?.refreshFromStats(simClient.buildingStats);
     overlayLayer?.refreshFromTraffic(simClient.traffic);
     alertsLayer?.refreshFromStats(simClient.buildingStats);
     alertsLayer?.update(dt);
     if (inspector) {
-      inspector.setAgents(agentViews, n);
-      inspector.update(agentViews, n);
+      inspector.setAgents(agentViews, simCount);
+      inspector.update(agentViews, simCount);
       // Marcador de selección: sigue al ciudadano abierto en el inspector.
       if (selectionMarker) {
         const sel = inspector.selected;
         let selView: AgentView | null = null;
         if (sel !== null) {
-          for (let i = 0; i < n; i++) {
+          for (let i = 0; i < simCount; i++) {
             if (agentViews[i].id === sel && agentViews[i].state !== 0 /* Inside */) {
               selView = agentViews[i];
               break;
@@ -527,11 +535,11 @@ loop.onUpdate((dt) => {
     // El murmullo no es un loop genérico: se abre solo al acercarse a vecinos
     // que realmente están charlando en este snapshot (actividad 7 = chat).
     let chatters = 0;
-    for (let i = 0; i < n; i++) if (agentViews[i].activity === 7) chatters++;
+    for (let i = 0; i < simCount; i++) if (agentViews[i].activity === 7) chatters++;
     ambientAudio.update(camera.zoomIndex, h, simClient.population, chatters);
     const hh = String(Math.floor(h)).padStart(2, '0');
     const mm = String(Math.floor((h % 1) * 60)).padStart(2, '0');
-    hud.setStats({ agents: n, clock: `${hh}:${mm} día ${day} ×${simClient.speed}` });
+    hud.setStats({ agents: renderedCount, clock: `${hh}:${mm} día ${day} ×${simClient.speed}` });
     cityHud?.update(simClient.city, { day, hour: h, speed: simClient.speed });
     budgetPanel?.update(simClient.city);
     controlBar?.update(simClient.speed); // resalta la pastilla de velocidad activa

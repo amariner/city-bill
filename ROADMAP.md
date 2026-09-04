@@ -213,10 +213,10 @@ repetido, arbolado automático en márgenes de carretera (rasgo de identidad).
 - [x] **T3.5 Actividades.** `activities.ts`: dormir, trabajar, comer, comprar (tienda),
   pasear (parque/estanque/arboleda), visitar amigo, mirar escaparate, sentarse.
   Cada una: destino, duración, needs que restaura, animación asociada.
-- [~] **T3.6 Cuerpos en pantalla.** Los ciudadanos se renderizan instanciados con
+- [x] **T3.6 Cuerpos en pantalla.** Los ciudadanos se renderizan instanciados con
   interpolación de posición, orientación al andar, bobbing sutil al caminar y
-  "idle sway" parados. LOD: a zoom lejano, sin bobbing. Aparecen/desaparecen al entrar
-  y salir de edificios (fade de escala).
+  "idle sway" parados. El LOD apaga ambas microanimaciones en los dos zooms lejanos,
+  pero conserva siluetas, interpolación y fade al entrar/salir de edificios.
   *Aceptación:* 500 ciudadanos animados a 60 fps; de cerca se ven como la referencia
   (siluetas simples de colores apagados).
 - [x] **T3.7 Social emergente.** `social.ts`: relaciones por afinidad (vecinos,
@@ -431,10 +431,12 @@ tractores (residuo T3.9), página itch.io.
   coherente. Al cerrar: borrar `rescate/construction-sector`.
 
 **H2 — Aguanta máquinas ajenas**
-- [ ] Medir la escena REAL con F3 (resolver la contradicción 105 vs ~425 draw calls
-  del banco — deuda T1.6/T6.1 anotada en §6/T5.4).
-- [ ] T3.6 saldado: LOD a zoom lejano + estrés 500 ciudadanos a 60 fps; hornear/
-  instanciar lo que falte; cero allocaciones por frame en el bucle caliente.
+- [~] Medir la escena REAL con F3: `?seed=4242&days=80` dio 60 fps, 101 draw calls,
+  123.8k triángulos, 82 geometrías, 2 texturas y 92 habitantes a zoom 1. Falta repetir
+  con el pueblo denso de H1 y resolver la discrepancia con el banco antiguo.
+- [x] T3.6 saldado: LOD lejano sin bobbing/sway y `?stress=500` a 60 fps (109 draw
+  calls, 233.2k triángulos, 82 geometrías y 2 texturas); la capa sintética es estable
+  y no toca la sim ni crea agentes por frame.
 - [ ] **Gate H2**: números de F3 en captura, con el pueblo denso de H1.
 
 **H3 — El alma sonora**
@@ -520,6 +522,16 @@ tractores (residuo T3.9), página itch.io.
   `dist` y deploy oficial de Pages. El build simulado de CI verificó que el
   `index.html` referencia `/city-bill/assets/...`; queda a propósito sin publicar
   hasta cerrar las verificaciones finales del MVP.
+
+- 2026-09-04 — **H2, primera medición real + LOD de ciudadanos.** En navegador
+  real, `?seed=4242&days=80` alcanzó 92 habitantes y F3 informó 60 fps, 101 draw
+  calls, 123.8k triángulos, 82 geometrías y 2 texturas a zoom 1. Se implementó el
+  LOD que faltaba en T3.6: a zoom 2 y 3 se mantienen las instancias e interpolación,
+  pero se eliminan bobbing y sway mediante funciones escalares sin crear objetos en
+  el frame caliente. El banco `?stress=500` reinstaurado sustituyó solo la capa visual
+  y sostuvo **60 fps, 109 draw calls, 233.2k triángulos, 82 geometrías y 2 texturas**;
+  las pruebas cubren URL, límite y ambos niveles de detalle. Falta la captura del
+  pueblo denso de H1 para cerrar H2.
 
 - 2026-07-05 (sesión merge) — **RECONCILIACIÓN de dos líneas divergentes de
   `main`**. El `main` local (18 commits: duelo visual, jubilación, guardado

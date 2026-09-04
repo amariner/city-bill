@@ -24,6 +24,20 @@ import { AgentState, TravelModeCode } from '../../sim/protocol';
 // el hito H2 (ROADMAP §3) para el estrés de 500+ y la verificación de §1.5.
 const MAX_AGENTS = 12000;
 
+/**
+ * El movimiento fino no aporta lectura a partir del segundo zoom lejano y sí
+ * obliga a evaluar dos ondas por peatón y frame. Mantener estas funciones
+ * escalares (en vez de devolver un objeto) conserva el bucle caliente libre
+ * de allocaciones.
+ */
+export function walkingBob(time: number, id: number, detailed: boolean): number {
+  return detailed ? Math.abs(Math.sin(time * 9 + id)) * 0.06 : 0;
+}
+
+export function idleSway(time: number, id: number, detailed: boolean): number {
+  return detailed ? Math.sin(time * 1.3 + id) * 0.04 : 0;
+}
+
 /** Convierte una geometría de THREE en no-indexada, coloreada y transformada. */
 function paintedPart(
   geo: THREE.BufferGeometry,
@@ -155,7 +169,7 @@ export class CitizenView {
   }
 
   /** Vuelca la vista interpolada a las instancias. Llamar cada frame. */
-  update(agents: AgentView[], count: number, dt: number): void {
+  update(agents: AgentView[], count: number, dt: number, detailed = true): void {
     this.time += dt;
     let nWalk = 0;
     let nCar = 0;
@@ -179,8 +193,8 @@ export class CitizenView {
         this.carGlass.setMatrixAt(nCar, this.m);
         nCar++;
       } else {
-        const bob = a.state === AgentState.Walking ? Math.abs(Math.sin(this.time * 9 + a.id)) * 0.06 : 0;
-        const sway = a.state === AgentState.Idle ? Math.sin(this.time * 1.3 + a.id) * 0.04 : 0;
+        const bob = a.state === AgentState.Walking ? walkingBob(this.time, a.id, detailed) : 0;
+        const sway = a.state === AgentState.Idle ? idleSway(this.time, a.id, detailed) : 0;
         this.p.set(a.x * CELL_SIZE, bob, a.z * CELL_SIZE);
         this.q.setFromAxisAngle(this.up, a.heading + sway);
         this.m.compose(this.p, this.q, this.s);

@@ -33,6 +33,7 @@ Pages. La URL prevista del repositorio es `https://amariner.github.io/city-bill/
 | `/?scene=buildings` | Expositor del catálogo completo de edificios. |
 | `/?seed=N` | Fuerza la semilla del mundo (comparte un pueblo, reproduce un bug). |
 | `/?seed=N&days=D` | Partida normal madurada D días en el worker (0–400), útil para reproducir una ciudad ya crecida. |
+| `/?stress=N` | Banco de render: muestra N peatones sintéticos deterministas sin alterar la simulación; activar F3 para medir. |
 
 Controles: arrastrar/WASD para mover, rueda para zoom, **Q**/**E** para rotar,
 clic en un vecino para inspeccionarlo, **F** para seguirlo, **C** para la crónica,
