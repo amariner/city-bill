@@ -691,6 +691,13 @@ tractores (residuo T3.9), página itch.io.
   compensarlo con una subvención; la integración requerirá un contrato económico
   explícito para la urbanización y su propia prueba de saldo público.
 
+  La cadencia se probó finalmente solo dentro del frente, no sobre toda la
+  ciudad: una promoción diaria dejó 40 edificios, 42 habitantes y cero
+  dividendo en d50; reducir el frente a dos lotes devolvió 71 edificios, cuatro
+  calles y también cero dividendo. Es una confirmación más precisa de que un
+  temporizador de obra, aunque sea local, no representa la capacidad económica
+  que falta. El prototipo se retira junto con su estado serializado.
+
 - 2026-09-04 — **H1, contrato único de calle autónoma.** La extensión que usa
   el crecimiento dejó de duplicar un pintor simplificado: delega en
   `roads.ts`, la misma geometría que consume la herramienta manual. Así una
