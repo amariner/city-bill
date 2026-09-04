@@ -630,6 +630,15 @@ tractores (residuo T3.9), página itch.io.
   vocacional). Posponer la rama no arregla que sus frentes nuevos realimenten el
   crecimiento; ninguno de los tres prototipos entró en la rama de trabajo.
 
+- 2026-09-04 — **H1, umbral espacial afinado y descartado.** Una sonda nueva
+  sobre `?seed=4242` confirmó que el problema no se arregla desplazando el
+  contador: a 15 obras no llega a abrir calle antes del techo; a 14 abre cuatro,
+  pasa de 24 a 79 edificios y cambia la caja espacial de 1,65 a 1,27. Limitar
+  solo la rama proactiva a una vía tampoco basta, porque el escape reactivo aún
+  abre más suelo (122 edificios). Se retira el árbol temporal: la siguiente
+  solución deberá tener un presupuesto explícito de frente edificable y ser
+  común a los caminos proactivo y reactivo, no otro `STREET_EVERY`.
+
 - 2026-09-04 — **H1, contrato único de calle autónoma.** La extensión que usa
   el crecimiento dejó de duplicar un pintor simplificado: delega en
   `roads.ts`, la misma geometría que consume la herramienta manual. Así una
