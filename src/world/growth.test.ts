@@ -2,7 +2,7 @@
 import { Grid, rotatedFootprint } from './grid';
 import { createRng } from '../rng';
 import { catalogData } from './catalogData';
-import { demandLevels, findParcel, growthCenter, itemForDemand, paintYard, residentialChoices, residentialVisualId, townAttractiveness, zoneForRole } from './growth';
+import { demandLevels, extendRoad, findParcel, growthCenter, itemForDemand, paintYard, residentialChoices, residentialVisualId, townAttractiveness, zoneForRole } from './growth';
 
 let passed = 0;
 let failed = 0;
@@ -138,6 +138,18 @@ function footprintIsZone(grid: Grid, id: string, p: { cx: number; cz: number; ro
   assert(grid.get(4, 4)?.terrain === 'grass' && grid.get(6, 6)?.terrain === 'grass', 'jardín: cubre huella y retranqueo');
   assert(grid.get(3, 4)?.terrain === 'road', 'jardín: respeta la vía');
   assert(grid.get(7, 3)?.terrain === 'water', 'jardín: respeta el agua');
+}
+
+// --- Calle autónoma = calle del jugador ------------------------------------
+{
+  const grid = new Grid();
+  grid.fillTerrain(-8, -8, 8, 8, 'field');
+  // La banda de tres celdas debe frenar en el agua, sin "secarla" para abrir
+  // paso. Es el mismo contrato de paintRoad usado por la herramienta manual.
+  grid.setTerrain(0, 3, 'water');
+  const laid = extendRoad(grid, [0, 0], { dx: 0, dz: 1 }, 6, 19);
+  assert(laid.length === 6, 'calle autónoma se detiene antes de la franja de agua');
+  assert(grid.get(0, 2)?.terrain === 'road' && grid.get(0, 3)?.terrain === 'water', 'calle autónoma comparte el veto de agua de la carretera manual');
 }
 
 // --- Carga fiscal y atractividad (H3.2) -------------------------------------

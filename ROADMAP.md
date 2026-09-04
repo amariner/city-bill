@@ -630,6 +630,20 @@ tractores (residuo T3.9), página itch.io.
   vocacional). Posponer la rama no arregla que sus frentes nuevos realimenten el
   crecimiento; ninguno de los tres prototipos entró en la rama de trabajo.
 
+- 2026-09-04 — **H1, contrato único de calle autónoma.** La extensión que usa
+  el crecimiento dejó de duplicar un pintor simplificado: delega en
+  `roads.ts`, la misma geometría que consume la herramienta manual. Así una
+  ramificación respeta agua, edificios y bordes, y pinta la franja, márgenes y
+  arbolado con las mismas reglas visibles. La prueba espacial deja una lámina
+  de agua en mitad de la franja y verifica que se detiene sin asfaltarla;
+  `growth.test` (32), `roads.test` (29), tipos y la sonda larga de 332 contratos
+  permanecen verdes. En preview limpio `?new=1&seed=4242&days=40`, la escena
+  de 45 habitantes conserva sombras largas, márgenes verdes y arbolado irregular
+  alrededor de la trama; F3: 60 fps, 109 draw calls, 122.4k triángulos, 82
+  geometrías y 2 texturas. Esto hace segura la futura política proactiva, pero
+  no la da por resuelta: sigue pendiente separar suelo disponible y cadencia
+  social.
+
 - 2026-09-04 — **H2, base actualizada tras H1.** En navegador real, la escena
   `?new=1&seed=4242&days=80` volvió a llegar a villa de 92 habitantes y F3 marcó
   60 fps, 109 draw calls, 123.4k triángulos, 82 geometrías y 2 texturas. Al
