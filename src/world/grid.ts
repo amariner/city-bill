@@ -30,6 +30,9 @@ export interface BuildingRef {
   /** El edificio sigue ocupando su huella, pero no presta servicio ni aloja
    * nuevas familias mientras no tenga acceso a una vía. */
   abandoned?: boolean;
+  /** Familias autorizadas en ESTA parcela. Por defecto usa el catálogo; el
+   * crecimiento autónomo puede preservar la oferta al elegir otra tipología. */
+  housingCapacity?: number;
 }
 
 export interface PropRef {
@@ -184,10 +187,11 @@ export class Grid {
     return this.get(cx, cz)?.building;
   }
 
-  placeBuilding(id: string, w: number, d: number, cx: number, cz: number, rot: Rot = 0): boolean {
+  placeBuilding(id: string, w: number, d: number, cx: number, cz: number, rot: Rot = 0, housingCapacity?: number): boolean {
     if (!this.canPlace(w, d, cx, cz, rot)) return false;
     const [fw, fd] = rotatedFootprint(w, d, rot);
     const ref: BuildingRef = { id, rot, anchorX: cx, anchorZ: cz, fw, fd };
+    if (Number.isFinite(housingCapacity) && housingCapacity! > 0) ref.housingCapacity = Math.floor(housingCapacity!);
     for (let x = cx; x < cx + fw; x++) {
       for (let z = cz; z < cz + fd; z++) this.ensureCell(x, z).building = ref;
     }
@@ -311,6 +315,7 @@ export class Grid {
             ...(b.fw === undefined ? {} : { fw: b.fw }),
             ...(b.fd === undefined ? {} : { fd: b.fd }),
             ...(b.abandoned === undefined ? {} : { abandoned: b.abandoned }),
+            ...(b.housingCapacity === undefined ? {} : { housingCapacity: b.housingCapacity }),
           };
         }
         if (cell.prop) normalized.prop = { id: cell.prop.id, variant: cell.prop.variant };

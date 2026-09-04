@@ -24,6 +24,8 @@ export interface SimBuilding {
   /** Rotación original de la huella; la densificación la conserva. */
   rot: Rot;
   data: CatalogItemData;
+  /** Capacidad de familias de la parcela; puede superar la tipología visual. */
+  capacity: number;
   entrance: CellXZ | null;
   /** Celda central (para distancias). */
   cx: number;
@@ -96,6 +98,7 @@ export class WorldIndex {
           id: b.id,
           rot: b.rot,
           data,
+          capacity: b.housingCapacity ?? data.capacity ?? 0,
           entrance: buildingEntrance(this.grid, cx, cz, fw, fd),
           cx: cx + fw / 2,
           cz: cz + fd / 2,

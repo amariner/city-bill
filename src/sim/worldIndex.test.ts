@@ -52,6 +52,16 @@ function stabilizeHousehold(sim: Simulation): void {
   check('acceso: un sendero en el anillo sí cuenta', hasRoadAccess(grid, 0, 0, 5, 4));
 }
 
+// H1: la oferta puede pertenecer a la parcela, no sólo al id visual. Los saves
+// antiguos no traen este campo y siguen usando la capacidad del catálogo.
+{
+  const grid = new Grid();
+  grid.fillTerrain(-4, -4, 8, 8, 'field');
+  check('capacidad: coloca una tipología con permiso de vivienda', grid.placeBuilding('cottage', 3, 3, 0, 0, 0, 4));
+  const index = new WorldIndex(grid);
+  check('capacidad: el índice respeta el permiso de la parcela', index.at(0, 0)?.capacity === 4);
+}
+
 const ticksPerDay = Math.round(DAY_GAME_SECONDS / TICK_GAME_S);
 
 // --- Servicios públicos y destinos de paseo (H4.1) -------------------------

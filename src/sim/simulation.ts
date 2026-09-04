@@ -530,7 +530,7 @@ export class Simulation {
   /** 1-3 adultos por hueco de vivienda. Vecinos de la misma casa se conocen. */
   private spawnPopulation(): void {
     for (const b of this.index.ofRole('residential')) {
-      this.fillHome(b.ax, b.az, b.id, b.data.capacity ?? 1);
+      this.fillHome(b.ax, b.az, b.id, b.capacity || 1);
     }
   }
 
@@ -678,7 +678,7 @@ export class Simulation {
       .filter((building) => {
         const key = `${building.ax},${building.az}`;
         return (this.landValue.get(key) ?? 0) >= UPGRADE_LAND_VALUE
-          && (this.households.get(key) ?? 0) === (building.data.capacity ?? 1);
+          && (this.households.get(key) ?? 0) === building.capacity;
       })
       .sort((a, b) => a.ax - b.ax || a.az - b.az);
     for (const building of candidates) {
@@ -697,11 +697,12 @@ export class Simulation {
     const oldId = building.id;
     const oldFamilies = this.households.get(oldKey) ?? 0;
     const next = catalogData(candidate.id);
-    if (!next || oldFamilies > (next.capacity ?? 1)) return false;
+    const nextCapacity = Math.max(next?.capacity ?? 1, building.capacity);
+    if (!next || oldFamilies > nextCapacity) return false;
     if (!this.grid.removeBuilding(building.ax, building.az)) return false;
     if (building.id === 'station') this.refreshTrain();
-    if (!this.grid.placeBuilding(candidate.id, next.w, next.d, candidate.cx, candidate.cz, candidate.rot)) {
-      if (!this.grid.placeBuilding(oldId, building.data.w, building.data.d, building.ax, building.az, building.rot)) {
+    if (!this.grid.placeBuilding(candidate.id, next.w, next.d, candidate.cx, candidate.cz, candidate.rot, nextCapacity)) {
+      if (!this.grid.placeBuilding(oldId, building.data.w, building.data.d, building.ax, building.az, building.rot, building.capacity)) {
         throw new Error('no se pudo restaurar una vivienda tras fallar su upgrade');
       }
       return false;
@@ -712,7 +713,7 @@ export class Simulation {
     this.moveHomeKey(oldKey, newKey, candidate.id);
     this.index.rebuild();
     this.economy.rebuild(this.index, this.citizens);
-    const vacancies = Math.max(0, (next.capacity ?? 1) - oldFamilies);
+    const vacancies = Math.max(0, nextCapacity - oldFamilies);
     if (vacancies > 0) this.fillHome(candidate.cx, candidate.cz, candidate.id, vacancies, true);
     this.hireAndAcquaint();
     this.events.push({ name: 'buildingUpgraded', data: {
@@ -732,7 +733,7 @@ export class Simulation {
     let free = 0;
     for (const b of this.index.ofRole('residential')) {
       if (b.abandoned) continue;
-      free += (b.data.capacity ?? 1) - (this.households.get(`${b.ax},${b.az}`) ?? 0);
+      free += b.capacity - (this.households.get(`${b.ax},${b.az}`) ?? 0);
     }
     return free;
   }
@@ -1454,7 +1455,7 @@ export class Simulation {
       if (this.growthPolicy !== 'zonesOnly') this.maybeExtendRoad(center);
       return;
     }
-    if (!this.applyGrowth(p)) return;
+    if (!this.applyGrowth(p, demand === 'residential' ? it.capacity ?? 1 : undefined)) return;
     if (publicService) {
       if (cost > 0 && !this.economy.spendPublic(cost, 'build')) throw new Error('tesoro incoherente al cobrar un servicio autónomo');
       this.serviceNeedsReported.delete(id);
@@ -1545,9 +1546,9 @@ export class Simulation {
 
   /** Coloca el edificio, reindexa y aloja/contrata. Emite `cityGrew` para que
    * el main replique la colocación en el grid de render. */
-  private applyGrowth(p: GrowthPlacement): boolean {
+  private applyGrowth(p: GrowthPlacement, housingCapacity?: number): boolean {
     const it = catalogData(p.id);
-    if (!it || !this.grid.placeBuilding(p.id, it.w, it.d, p.cx, p.cz, p.rot)) return false;
+    if (!it || !this.grid.placeBuilding(p.id, it.w, it.d, p.cx, p.cz, p.rot, housingCapacity)) return false;
     this.pendingBuilt.push({ id: p.id, cx: p.cx, cz: p.cz, rot: p.rot });
     this.index.rebuild();
     this.economy.rebuild(this.index, this.citizens);
@@ -1567,7 +1568,7 @@ export class Simulation {
         bankrupt: this.economy.bankrupt,
         railService: this.train !== null,
       });
-      const cap = it.capacity ?? 1;
+      const cap = housingCapacity ?? it.capacity ?? 1;
       const families = Math.max(1, Math.round(cap * attractiveness));
       this.fillHome(p.cx, p.cz, p.id, families, true); // ciclo 48: inmigración → beat de llegada
     }
@@ -1644,7 +1645,7 @@ export class Simulation {
       .sort((a, b) => manhattan([oldAx, oldAz], [a.ax, a.az]) - manhattan([oldAx, oldAz], [b.ax, b.az]) || a.ax - b.ax || a.az - b.az);
     const target = homes.find((b) => {
       const key = `${b.ax},${b.az}`;
-      return (b.data.capacity ?? 1) - (this.households.get(key) ?? 0) >= displacedFamilies;
+      return b.capacity - (this.households.get(key) ?? 0) >= displacedFamilies;
     });
 
     for (const id of ids) {
@@ -2277,7 +2278,7 @@ export class Simulation {
       const key = `${building.ax},${building.az}`;
       const jobs = building.data.jobs ?? 0;
       const workers = workersByBuilding.get(building) ?? 0;
-      const capacity = building.data.capacity ?? 0;
+      const capacity = building.capacity;
       const households = this.households.get(key) ?? 0;
       const residential = building.data.role === 'residential';
       const occupancy = residential

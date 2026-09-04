@@ -552,6 +552,14 @@ tractores (residuo T3.9), página itch.io.
   60 fps, 109 draw calls, 82 geometrías y 2 texturas; pruebas cubren el límite
   de estación y el período anual.
 
+- 2026-09-04 — **H1, capacidad por parcela.** `BuildingRef` puede guardar una
+  capacidad residencial explícita y `WorldIndex` la propaga a oferta, upgrades,
+  realojo y ocupación del overlay; sin ese campo, continúa usando el catálogo y
+  los saves antiguos son idénticos. La sonda larga completa mantuvo todos sus
+  332 contratos. Esta base separa por fin la oferta lógica de la tipología que
+  se renderice, condición necesaria para reintroducir variedad residencial sin
+  desestabilizar escuela, clínica, economía o contagios.
+
 - 2026-07-05 (sesión merge) — **RECONCILIACIÓN de dos líneas divergentes de
   `main`**. El `main` local (18 commits: duelo visual, jubilación, guardado
   T2.6, perf T6.1 + render rico) y `origin/main` (49 commits: ciclos 11-40 de

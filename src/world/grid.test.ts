@@ -53,6 +53,8 @@ function assert(cond: boolean, msg: string): void {
   g.placeBuilding('road', 4, 1, 20, 20, 1);
   assert(g.get(20, 23)?.building?.id === 'road', 'footprint rotado (1x4) ocupa hasta cz+3');
   assert(g.get(21, 20)?.building === undefined, 'footprint rotado no desborda en x');
+  assert(g.placeBuilding('licensed-house', 1, 1, 30, 30, 0, 6), 'placeBuilding admite capacidad por parcela');
+  assert(g.get(30, 30)?.building?.housingCapacity === 6, 'la capacidad por parcela queda en el grid');
 }
 
 // --- No se puede construir sobre agua/carretera -----------------------------
@@ -114,12 +116,13 @@ function assert(cond: boolean, msg: string): void {
 {
   const g = new Grid();
   g.fillTerrain(-3, -3, 3, 3, 'field');
-  g.placeBuilding('barn', 3, 2, 0, 0);
+  g.placeBuilding('barn', 3, 2, 0, 0, 0, 5);
   g.setProp(-2, -2, { id: 'tree', variant: 42 });
   g.setZone(3, -2, 'C');
   const json = g.serialize();
   const g2 = Grid.deserialize(json);
   assert(g2.get(0, 0)?.building?.id === 'barn', 'edificio sobrevive round-trip');
+  assert(g2.get(0, 0)?.building?.housingCapacity === 5, 'capacidad de parcela sobrevive round-trip');
   assert(g2.get(-2, -2)?.prop?.variant === 42, 'prop sobrevive round-trip');
   assert(g2.get(3, -2)?.zone === 'C', 'zone sobrevive round-trip');
   assert(g2.serialize() === json, 'serialize es estable tras round-trip');

@@ -82,6 +82,7 @@ function coverageGrid(): WorldIndex {
       id: data.id,
       rot: 0,
       data,
+      capacity: data.capacity ?? 0,
       entrance: null,
       cx: i + data.w / 2,
       cz: data.d / 2,
