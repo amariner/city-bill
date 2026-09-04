@@ -384,7 +384,7 @@ reconoce el rumbo real.
 2. [ ] **Arranque en día 0** — la fundación (`townFounded`) es el primer beat de la
    Crónica; `?seed=N` fuerza mundo; semilla visible/compartible y acción "nueva
    semilla"; `?days=N` funciona en la escena normal como puerta trasera.
-3. [ ] **Sonido generativo (T5.3)**: viento, pájaros, campana lejana, murmullo al
+3. [x] **Sonido generativo (T5.3)**: viento, pájaros, campana lejana, murmullo al
    acercarse a charlas; volumen ligado al zoom; mute (tecla M); arranca tras el primer
    gesto del usuario (política de autoplay).
 4. [x] **Onboarding mínimo (T6.3)**: 3-5 tooltips contextuales de una sola vez (qué es
