@@ -658,6 +658,10 @@ tractores (residuo T3.9), página itch.io.
   el problema principal es el corredor de 12 celdas que dispersa hogares y crea
   necesidades públicas reales demasiado pronto. La siguiente sonda debe abrir
   una calle corta, parcelable por fases, antes de volver a tocar la demanda.
+  La prueba posterior de cuatro celdas, incluso con un máximo global de una
+  vía, aún produjo 73 edificios: no es la longitud del corredor, sino el cambio
+  de orden en `findParcel` al aparecer cualquier acceso nuevo. La solución debe
+  estabilizar esa selección, no solo restringir la geometría que la alimenta.
 
 - 2026-09-04 — **H1, contrato único de calle autónoma.** La extensión que usa
   el crecimiento dejó de duplicar un pintor simplificado: delega en
