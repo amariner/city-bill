@@ -55,13 +55,14 @@ export class ConstructionSites {
   }
 
   /** Empieza la obra de un edificio recién colocado en el grid (T4.2). */
-  start(id: string, cx: number, cz: number, rot: 0 | 1 | 2 | 3, onDone: () => void): boolean {
+  start(id: string, cx: number, cz: number, rot: 0 | 1 | 2 | 3, onDone: () => void, footprintId = id): boolean {
     const key = `${cx},${cz}`;
     if (this.active.has(key)) return false; // ya en obra (no duplicar)
     const it = catalogItem(id);
-    if (!it) return false;
+    const footprint = catalogItem(footprintId);
+    if (!it || !footprint) return false;
 
-    const [fw, fd] = rotatedFootprint(it.w, it.d, rot);
+    const [fw, fd] = rotatedFootprint(footprint.w, footprint.d, rot);
     const group = new THREE.Group();
     group.position.set((cx + fw / 2) * CELL_SIZE, 0, (cz + fd / 2) * CELL_SIZE);
 

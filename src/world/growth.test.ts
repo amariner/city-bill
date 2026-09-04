@@ -2,7 +2,7 @@
 import { Grid, rotatedFootprint } from './grid';
 import { createRng } from '../rng';
 import { catalogData } from './catalogData';
-import { demandLevels, findParcel, growthCenter, itemForDemand, paintYard, residentialChoices, townAttractiveness, zoneForRole } from './growth';
+import { demandLevels, findParcel, growthCenter, itemForDemand, paintYard, residentialChoices, residentialVisualId, townAttractiveness, zoneForRole } from './growth';
 
 let passed = 0;
 let failed = 0;
@@ -82,6 +82,12 @@ function footprintIsZone(grid: Grid, id: string, p: { cx: number; cz: number; ro
   assert(itemForDemand('residential', 1) === 'cottage', 'tier 1 no ofrece residenciales futuros');
   assert(itemForDemand('residential', 2) === 'row-houses', 'tier 2 ofrece el residencial desbloqueado más alto');
   assert(itemForDemand('residential', 3) !== 'brick-block', 'tier 3 no salta al tier 4');
+  const visuals = new Set(Array.from({ length: 24 }, (_, x) => residentialVisualId('apartment-slab', x, x * 3, 0, 91)));
+  assert(visuals.size > 1, 'las fachadas residenciales muestran mezcla determinista');
+  assert([...visuals].every((id) => {
+    const item = catalogData(id)!;
+    return item.w <= 10 && item.d <= 4 && item.tier <= 3;
+  }), 'cada fachada cabe en la parcela estructural y no adelanta tier');
 }
 
 // --- Demanda continua R/C/I -------------------------------------------------

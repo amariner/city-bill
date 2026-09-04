@@ -29,7 +29,7 @@ import { AgentState, ActivityKind, activityId, AGENT_STRIDE, AlertBit, BUILDING_
 import {
   computeDemand, demandLevels, itemForDemand, findParcel, townCenter, townAttractiveness,
   householdHardship, updateEmigrationPressure, EMIGRATE_POP_FLOOR, EMIGRATE_PRESSURE_LIMIT,
-  extendRoad, GrowthPlacement, CARRYING_CAPACITY, fertilityFactor, growthCenter,
+  extendRoad, GrowthPlacement, CARRYING_CAPACITY, fertilityFactor, growthCenter, residentialVisualId,
   upgradeCandidate, UPGRADE_LAND_VALUE,
 } from '../world/growth';
 import { lifeYear, ADULT_AGE, OLD_AGE, RETIREMENT_AGE } from './lifecycle';
@@ -122,6 +122,8 @@ export interface SimEvent {
 
 export interface BuiltChange {
   id: string;
+  /** Tipología que anima/dibuja el render; `id` conserva la estructura lógica. */
+  visualId?: string;
   cx: number;
   cz: number;
   rot: 0 | 1 | 2 | 3;
@@ -1455,7 +1457,8 @@ export class Simulation {
       if (this.growthPolicy !== 'zonesOnly') this.maybeExtendRoad(center);
       return;
     }
-    if (!this.applyGrowth(p, demand === 'residential' ? it.capacity ?? 1 : undefined)) return;
+    const visualId = demand === 'residential' ? residentialVisualId(id, p.cx, p.cz, p.rot, this.seed) : undefined;
+    if (!this.applyGrowth(p, demand === 'residential' ? it.capacity ?? 1 : undefined, visualId)) return;
     if (publicService) {
       if (cost > 0 && !this.economy.spendPublic(cost, 'build')) throw new Error('tesoro incoherente al cobrar un servicio autónomo');
       this.serviceNeedsReported.delete(id);
@@ -1546,10 +1549,10 @@ export class Simulation {
 
   /** Coloca el edificio, reindexa y aloja/contrata. Emite `cityGrew` para que
    * el main replique la colocación en el grid de render. */
-  private applyGrowth(p: GrowthPlacement, housingCapacity?: number): boolean {
+  private applyGrowth(p: GrowthPlacement, housingCapacity?: number, visualId?: string): boolean {
     const it = catalogData(p.id);
-    if (!it || !this.grid.placeBuilding(p.id, it.w, it.d, p.cx, p.cz, p.rot, housingCapacity)) return false;
-    this.pendingBuilt.push({ id: p.id, cx: p.cx, cz: p.cz, rot: p.rot });
+    if (!it || !this.grid.placeBuilding(p.id, it.w, it.d, p.cx, p.cz, p.rot, housingCapacity, visualId)) return false;
+    this.pendingBuilt.push({ id: p.id, ...(visualId === undefined || visualId === p.id ? {} : { visualId }), cx: p.cx, cz: p.cz, rot: p.rot });
     this.index.rebuild();
     this.economy.rebuild(this.index, this.citizens);
     if (it.role === 'residential') {

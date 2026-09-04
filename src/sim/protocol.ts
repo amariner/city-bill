@@ -216,7 +216,7 @@ export interface InitMsg {
 export interface GridPatchMsg {
   type: 'gridPatch';
   cells: Array<[number, number, Cell]>;
-  built: Array<{ id: string; cx: number; cz: number; rot: Rot }>;
+  built: Array<{ id: string; visualId?: string; cx: number; cz: number; rot: Rot }>;
   razed: Array<{ cx: number; cz: number }>;
 }
 

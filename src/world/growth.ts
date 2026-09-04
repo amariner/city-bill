@@ -215,6 +215,35 @@ export function residentialChoices(tier: Tier): string[] {
     .map((item) => item.id);
 }
 
+/**
+ * Elige una tipología VISIBLE que cabe dentro de la parcela estructural. La
+ * vivienda lógica (capacidad, acceso y pathfinding) conserva su `id`; la
+ * fachada aporta la mezcla de alturas/volúmenes del pueblo sin alterar la
+ * simulación. La semilla deriva solo de mundo y coordenada: no consume RNG de
+ * ciudadanos ni cambia al guardar/cargar.
+ */
+export function residentialVisualId(id: string, cx: number, cz: number, rot: Rot, seed: number): string {
+  const structural = catalogData(id);
+  if (!structural || structural.role !== 'residential') return id;
+  const [fw, fd] = rotatedFootprint(structural.w, structural.d, rot);
+  const choices = CATALOG_DATA
+    .filter((item) => {
+      if (item.role !== 'residential' || item.tier > structural.tier) return false;
+      const [vw, vd] = rotatedFootprint(item.w, item.d, rot);
+      return vw <= fw && vd <= fd;
+    })
+    .sort((a, b) => b.tier - a.tier || a.id.localeCompare(b.id));
+  if (choices.length < 2) return id;
+  const rng = createRng((seed ^ Math.imul(cx, 73856093) ^ Math.imul(cz, 19349663) ^ Math.imul(rot + 1, 83492791)) | 0);
+  const weights = choices.map((item) => item.id === id ? 0.5 : Math.pow(0.7, structural.tier - item.tier));
+  let roll = rng.next() * weights.reduce((sum, weight) => sum + weight, 0);
+  for (let i = 0; i < choices.length; i++) {
+    roll -= weights[i];
+    if (roll <= 0) return choices[i].id;
+  }
+  return choices.at(-1)?.id ?? id;
+}
+
 /** Escalera de densificación que cabe en una parcela existente. El salto a la
  * losa queda fuera: su huella exige reparcelación, no un simple reemplazo. */
 export const DENSITY_LADDER = ['cottage', 'town-house', 'low-block'] as const;

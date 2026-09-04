@@ -33,6 +33,8 @@ export interface BuildingRef {
   /** Familias autorizadas en ESTA parcela. Por defecto usa el catálogo; el
    * crecimiento autónomo puede preservar la oferta al elegir otra tipología. */
   housingCapacity?: number;
+  /** Tipología exclusivamente visual; la geometría lógica sigue usando `id`. */
+  visualId?: string;
 }
 
 export interface PropRef {
@@ -187,11 +189,12 @@ export class Grid {
     return this.get(cx, cz)?.building;
   }
 
-  placeBuilding(id: string, w: number, d: number, cx: number, cz: number, rot: Rot = 0, housingCapacity?: number): boolean {
+  placeBuilding(id: string, w: number, d: number, cx: number, cz: number, rot: Rot = 0, housingCapacity?: number, visualId?: string): boolean {
     if (!this.canPlace(w, d, cx, cz, rot)) return false;
     const [fw, fd] = rotatedFootprint(w, d, rot);
     const ref: BuildingRef = { id, rot, anchorX: cx, anchorZ: cz, fw, fd };
     if (Number.isFinite(housingCapacity) && housingCapacity! > 0) ref.housingCapacity = Math.floor(housingCapacity!);
+    if (visualId && visualId !== id) ref.visualId = visualId;
     for (let x = cx; x < cx + fw; x++) {
       for (let z = cz; z < cz + fd; z++) this.ensureCell(x, z).building = ref;
     }
@@ -316,6 +319,7 @@ export class Grid {
             ...(b.fd === undefined ? {} : { fd: b.fd }),
             ...(b.abandoned === undefined ? {} : { abandoned: b.abandoned }),
             ...(b.housingCapacity === undefined ? {} : { housingCapacity: b.housingCapacity }),
+            ...(b.visualId === undefined ? {} : { visualId: b.visualId }),
           };
         }
         if (cell.prop) normalized.prop = { id: cell.prop.id, variant: cell.prop.variant };

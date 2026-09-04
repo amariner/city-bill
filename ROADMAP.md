@@ -420,10 +420,12 @@ tractores (residuo T3.9), página itch.io.
   todo lo demás).
 
 **H1 — El pueblo se ve pueblo**
-- [ ] Portar al main actual: trama 2D proactiva (`eeeaab4`: `STREET_EVERY`,
-  `buildingsSinceRoad`), mezcla de densidades (`43f2719`: `residentialChoices` +
-  fallback por huella en `maybeGrow`) y jardín de hierba (`3f731a2`: `paintYard`
-  en el grid de RENDER, nunca en el de sim — cambiaría el pathfinding).
+- [~] Portar al main actual: la **mezcla residencial visual** ya está: cada
+  parcela conserva `id`, huella y capacidad lógicos, y lleva un `visualId`
+  determinista que solo puede ser una vivienda del tier actual o menor que cabe
+  en esa huella. Faltan la trama 2D proactiva (`eeeaab4`: `STREET_EVERY`,
+  `buildingsSinceRoad`) y el jardín de hierba (`3f731a2`: `paintYard` en el grid
+  de RENDER, nunca en el de sim — cambiaría el pathfinding).
 - [ ] Rematar T4.2 (etapas de densidad) si la mezcla no basta para el done nº 5.
 - [ ] Playtest 30 min a ×8 (residuo T4.4): el arco aldea→pueblo→villa se sostiene.
 - [ ] **Gate H1**: screenshots del arco (d0 / ~d30 / ~d80) + checklist §4 + Crónica
@@ -559,6 +561,18 @@ tractores (residuo T3.9), página itch.io.
   332 contratos. Esta base separa por fin la oferta lógica de la tipología que
   se renderice, condición necesaria para reintroducir variedad residencial sin
   desestabilizar escuela, clínica, economía o contagios.
+
+- 2026-09-04 — **H1, mezcla residencial sin desestabilizar la vida.** Se usó
+  esa separación para introducir `visualId`: al crecer, una parcela elige de
+  forma determinista (semilla + coordenadas, sin consumir el RNG de la sim) una
+  tipología residencial de igual o menor tier que cabe en su huella. La capa
+  lógica conserva el `id`, capacidad, ocupación, acceso y pathfinding; render,
+  construcción, parches de worker y serialización transportan solo la fachada
+  alternativa. La sonda larga completa siguió en **332/332** y typecheck/build
+  quedaron limpios. En navegador real, `?seed=4242&days=80&stress=500` mostró
+  la mezcla a 60 fps, 109 draw calls, 233.2k triángulos, 82 geometrías y 2
+  texturas. Sigue pendiente la trama 2D real: no se da por resuelta con esta
+  capa visual.
 
 - 2026-07-05 (sesión merge) — **RECONCILIACIÓN de dos líneas divergentes de
   `main`**. El `main` local (18 commits: duelo visual, jubilación, guardado

@@ -120,7 +120,7 @@ let hoverCell: [number, number] = [0, 0];
  * del bucle de render). La fija `buildRenderAndUi`. */
 let activeSeed = 0;
 
-type BuiltPatch = { id: string; cx: number; cz: number; rot: 0 | 1 | 2 | 3 };
+type BuiltPatch = { id: string; visualId?: string; cx: number; cz: number; rot: 0 | 1 | 2 | 3 };
 
 /** Jardines cosméticos del grid de RENDER. La sim ya se aisló en el worker:
  * pintar hierba aquí no cambia walkCost ni puede alterar una trayectoria. */
@@ -219,7 +219,7 @@ function buildRenderAndUi(grid: Grid, worldSeed: number): void {
     districtsLayer?.refreshCells(patch.cells);
     overlayLayer?.refreshCells(patch.cells);
     for (const built of patch.built) {
-      const started = construction?.start(built.id, built.cx, built.cz, built.rot, () => atmosphere?.invalidate());
+      const started = construction?.start(built.visualId ?? built.id, built.cx, built.cz, built.rot, () => atmosphere?.invalidate(), built.id);
       if (!started) {
         worldView?.refreshChunkAt(built.cx, built.cz);
         atmosphere?.invalidate();

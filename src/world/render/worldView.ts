@@ -167,10 +167,11 @@ export class WorldView {
         // En obra (T4.2): un FX de construcción lo anima aparte; el chunk lo omite
         // hasta que la obra termina (endConstruction) → aparición sin costura.
         if (this.underConstruction.has(`${cx},${cz}`)) return;
-        const it = catalogItem(cell.building.id);
-        if (!it) return;
+        const structural = catalogItem(cell.building.id);
+        const it = catalogItem(cell.building.visualId ?? cell.building.id);
+        if (!structural || !it) return;
         const rot = cell.building.rot;
-        const [fw, fd] = rotatedFootprint(it.w, it.d, rot);
+        const [fw, fd] = rotatedFootprint(structural.w, structural.d, rot);
         const mesh = it.build();
         if (cell.building.abandoned) mesh.userData.abandoned = true;
         if (it.role === 'residential') {
