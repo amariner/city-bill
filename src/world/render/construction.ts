@@ -69,12 +69,15 @@ export class ConstructionSites {
     // Copia standalone del edificio, con la MISMA pose que tendrá en el chunk.
     const building = it.build();
     building.rotation.y = (-rot * Math.PI) / 2;
+
+    // Mide la altura ANTES de aplanarlo: medir tras scale.y=0.001 dejaría el
+    // andamio en el mínimo fijo y no acompañaría fachadas de varias plantas.
+    const box = new THREE.Box3().setFromObject(building);
+    const top = Math.max(1.5, box.max.y);
     building.scale.y = 0.001; // arranca aplastado contra el suelo
     group.add(building);
 
     // Altura real del edificio → dimensiona el andamio.
-    const box = new THREE.Box3().setFromObject(building);
-    const top = Math.max(1.5, box.max.y);
     const frame = scaffold(fw * CELL_SIZE, fd * CELL_SIZE, top);
     group.add(frame);
 
