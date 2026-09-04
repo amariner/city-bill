@@ -20,6 +20,9 @@ npm test           # tests headless de la simulación (grid + sim, sin navegador
 npx tsc --noEmit   # type-check
 ```
 
+Al hacer push a `main`, GitHub Actions construye y publica el sitio en GitHub
+Pages. La URL prevista del repositorio es `https://amariner.github.io/city-bill/`.
+
 ## Modos (query params)
 
 | URL | Qué muestra |

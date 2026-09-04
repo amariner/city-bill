@@ -355,9 +355,11 @@ repetido, arbolado automático en márgenes de carretera (rasgo de identidad).
   modales: recorrer la aldea, Crónica, inspector de vecino y velocidad. Avanzan
   con los primeros gestos sin interceptarlos y quedan marcadas en localStorage.
   *(En el MVP: hito H4, done nº 4 de §3.)*
-- [ ] **T6.4 Build + deploy.** `npm run build` limpio, deploy estático a **GitHub Pages**
-  (workflow de Actions, `base` de Vite configurada). *(En el MVP: hito H4, done nº 1 de
-  §3. La página itch.io pasa a POST-MVP.)*
+- [~] **T6.4 Build + deploy.** Workflow de GitHub Pages creado (`.github/workflows/
+  deploy-pages.yml`) y `base` dinámico de Vite configurado para `/city-bill/` en CI;
+  el artefacto de prueba referencia correctamente esa ruta. Falta el primer push que
+  ejecute Actions y confirmar la URL pública. *(En el MVP: hito H4, done nº 1 de §3.
+  La página itch.io pasa a POST-MVP.)*
 
 ---
 
@@ -447,8 +449,9 @@ tractores (residuo T3.9), página itch.io.
   semilla"; `?days=N` en la escena normal. Cuatro pistas no modales y persistentes
   (`src/ui/onboarding.ts`); `?seed=4242&days=2` verificado en preview (día 2,
   ciudad renderizada desde el `worldReady` del worker).
-- [ ] `npm run build` limpio + deploy GitHub Pages (Actions, `base`) + README/hero
-  al día.
+- [~] `npm run build` limpio + deploy GitHub Pages (Actions, `base`) + README/hero
+  al día. Workflow y base de `/city-bill/` listos; README actualizado. Queda el
+  despliegue efectivo y su validación en frío.
 - [ ] **Gate H4**: recorrer el DONE de §3.1 punto por punto **en la URL pública, en
   frío** (otra máquina/navegador), con el usuario delante.
 
@@ -510,6 +513,13 @@ tractores (residuo T3.9), página itch.io.
   de dos meshes por chunk y cero draw calls extra. `?seed=4242&days=2` confirmó
   visualmente tejados claros en invierno; pruebas puras cubren el factor continuo
   y sus límites.
+
+- 2026-09-04 — **Preparo de GitHub Pages.** Con remoto confirmado como
+  `amariner/city-bill`, Vite usa `/city-bill/` solo en Actions y `/` en desarrollo.
+  Se añadió workflow con checkout, Node 22, `npm ci`, suite, build, upload de
+  `dist` y deploy oficial de Pages. El build simulado de CI verificó que el
+  `index.html` referencia `/city-bill/assets/...`; queda a propósito sin publicar
+  hasta cerrar las verificaciones finales del MVP.
 
 - 2026-07-05 (sesión merge) — **RECONCILIACIÓN de dos líneas divergentes de
   `main`**. El `main` local (18 commits: duelo visual, jubilación, guardado
