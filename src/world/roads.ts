@@ -1,5 +1,6 @@
 /** Planificación y pintado puro de vías. No conoce THREE ni el worker. */
 import { Grid, RoadKind as GridRoadKind } from './grid';
+import { hashCoord, hashCoord01 } from '../rng';
 import type { CellXZ } from '../sim/geometry';
 import type { RoadKind } from '../sim/protocol';
 
@@ -309,12 +310,5 @@ function addSidePreview(
   }
 }
 
-function hash(x: number, z: number, seed: number): number {
-  let n = Math.imul(x ^ seed, 0x45d9f3b) ^ Math.imul(z + seed, 0x27d4eb2d);
-  n = Math.imul(n ^ (n >>> 16), 0x45d9f3b);
-  return (n ^ (n >>> 16)) >>> 0;
-}
-
-function hash01(x: number, z: number, seed: number): number {
-  return hash(x, z, seed) / 0x100000000;
-}
+const hash = hashCoord;
+const hash01 = hashCoord01;

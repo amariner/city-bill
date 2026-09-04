@@ -29,6 +29,9 @@ jobs:
         env:
           GITHUB_ACTIONS: 'true'
       - uses: actions/configure-pages@v5
+        with:
+          # Crea el sitio de Pages (fuente: GitHub Actions) si aún no existe.
+          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

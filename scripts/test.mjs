@@ -1,12 +1,13 @@
 // Runner de la suite: ejecuta TODOS los *.test.ts de src/ (no se detiene en el
 // primer fallo) y resume al final. `npm test` = todo; `npm run test:fast`
-// omite la sonda larga (sim.test.ts, ~3 min).
+// omite las sondas largas (sim.test.ts y growthLadder.test.ts, varios minutos).
 import { spawnSync } from 'node:child_process';
 import { readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 const fast = process.argv.includes('--fast');
-const SLOW = new Set(['src/sim/sim.test.ts']);
+// Sondas de días de juego (lentas): fuera de --fast, al final de la suite completa.
+const SLOW = new Set(['src/sim/sim.test.ts', 'src/sim/growthLadder.test.ts']);
 
 function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {

@@ -16,7 +16,7 @@ import { PathQueue, pathLength } from './pathfinding';
 import { CellXZ, manhattan } from './geometry';
 import { WorldIndex, isUrban } from './worldIndex';
 import type { SimBuilding } from './worldIndex';
-import { coverageRates } from './coverage';
+import { coverageRates, COVERAGE_BITS } from './coverage';
 import { householdHappiness } from './happiness';
 import { computeLandValue } from './landValue';
 import { Economy, EconomySaveState } from './economy';
@@ -27,14 +27,14 @@ import { ACTIVITY_BY_KIND, SimContext, activityLabel, EDU_PER_HOUR, CLINIC_FEE, 
 import { SocialSystem, SocialSaveState } from './citizens/social';
 import { AgentState, ActivityKind, activityId, AGENT_STRIDE, AlertBit, BUILDING_STRIDE, BUS_STOP_STRIDE, VEHICLE_STRIDE, TravelModeCode, VehicleKindCode, CityStats, CitizenInfoMsg, settlementLevel, SETTLEMENT_CLASSES, PlayerAction, RecordedAction, GrowthPolicy, PublicAutobuildPolicy, BudgetHistoryPoint, RoadKind, DistrictPolicy, DistrictPolicyState, emptyDistrictPolicy } from './protocol';
 import {
-  computeDemand, demandLevels, itemForDemand, findParcel, townCenter, townAttractiveness,
+  computeDemands, demandLevels, itemForDemand, findParcel, townCenter, townAttractiveness,
   householdHardship, updateEmigrationPressure, EMIGRATE_POP_FLOOR, EMIGRATE_PRESSURE_LIMIT,
-  extendRoad, GrowthPlacement, CARRYING_CAPACITY, fertilityFactor, growthCenter, residentialVisualId,
+  extendRoad, GrowthPlacement, carryingCapacityFor, fertilityFactor, growthCenter, residentialVisualId,
   upgradeCandidate, UPGRADE_LAND_VALUE, tierForPopulation,
 } from '../world/growth';
 import { lifeYear, ADULT_AGE, OLD_AGE, RETIREMENT_AGE } from './lifecycle';
 import { STARTING_MONEY, PENSION_PER_DAY, RENT_PER_DAY, RENT_TIER_FACTOR, SEASON_YIELD_SWING } from './economy';
-import { catalogData, Tier } from '../world/catalogData';
+import { catalogData, Tier, ServiceKind } from '../world/catalogData';
 import { healthTick, CLINIC_RECOVERY_PER_HOUR, WORK_BLOCK_HEALTH } from './health';
 import { griefTick, consoleGrief, bereave, GRIEF_PARTNER, GRIEF_FRIEND, GRIEF_FRIEND_AFFINITY } from './grief';
 import { sickenTick, treatSick, SICK_ONSET, VACCINE_IMMUNITY } from './contagion';
@@ -160,6 +160,8 @@ export interface SimSaveState {
   publicAutobuild?: PublicAutobuildPolicy;
   /** Necesidades de servicio ya notificadas, para no repetir avisos cada tick. */
   serviceNeedsReported?: string[];
+  /** Obras autónomas levantadas en el día en curso (tope diario, H7.2). */
+  buildsToday?: number;
   noAccessSince: Array<[string, number]>;
   /** Edificios que ya estuvieron conectados; evita castigar una semilla antigua
    * hasta que realmente pierda su acceso. */
@@ -218,6 +220,14 @@ function restorePhase(phase: CitizenPhase): CitizenPhase {
 
 /** Distancia (Manhattan, celdas) a la que dos hogares se conocen de vista. */
 const NEIGHBOUR_RANGE = 40;
+/** Viviendas por cada proveedor de un mismo servicio autónomo (H7.2). */
+const SERVICE_HOMES_PER_UNIT = 8;
+/** Obras autónomas como máximo por día (H7.2): crecer despacio es parte de la
+ * estética, y una calle nueva no debe llenarse en una tarde. */
+export const MAX_BUILDS_PER_DAY = 3;
+/** Probabilidad diaria máxima de que una familia forastera ocupe una vivienda
+ * vacía en un pueblo plenamente atractivo (T4.3, H7.2). */
+const IMMIGRATION_RATE = 0.7;
 
 export class Simulation {
   readonly clock = new GameClock();
@@ -321,6 +331,7 @@ export class Simulation {
   private landValue = new Map<string, number>();
   /** Avisos de servicio pendientes ya emitidos; se limpian al construirlo. */
   private readonly serviceNeedsReported = new Set<string>();
+  private buildsToday = 0;
   /** Día en que cada edificio activo perdió acceso a la red vial. */
   private noAccessSince = new Map<string, number>();
   /** Accesos conocidos para detectar cortes, no solo edificios nacidos lejos. */
@@ -389,6 +400,7 @@ export class Simulation {
     this.publicAutobuild = state.publicAutobuild ?? 'paid';
     this.serviceNeedsReported.clear();
     for (const id of state.serviceNeedsReported ?? []) this.serviceNeedsReported.add(id);
+    this.buildsToday = state.buildsToday ?? 0;
     this.roadsExtended = state.roadsExtended;
     this.carTrips = state.carTrips;
     this.traffic.clear();
@@ -521,6 +533,7 @@ export class Simulation {
       growthPolicy: this.growthPolicy,
       publicAutobuild: this.publicAutobuild,
       serviceNeedsReported: [...this.serviceNeedsReported].sort(),
+      buildsToday: this.buildsToday,
       actions: this.actions.map((a) => ({ ...a, action: { ...a.action } as PlayerAction })),
       budgetHistory: this.budgetHistory.map((point) => ({ ...point })),
       rngState: this.rng.state,
@@ -738,7 +751,9 @@ export class Simulation {
   private freeHousing(): number {
     let free = 0;
     for (const b of this.index.ofRole('residential')) {
-      if (b.abandoned) continue;
+      // Una vivienda sin acceso a vía no recibe a nadie: contarla como hueco
+      // libre apagaba la demanda residencial durante 50 días (H7.2).
+      if (b.abandoned || !b.roadAccess) continue;
       free += b.capacity - (this.households.get(`${b.ax},${b.az}`) ?? 0);
     }
     return free;
@@ -995,6 +1010,7 @@ export class Simulation {
       if (this.budgetHistory.length > 30) this.budgetHistory.shift();
       this.economy.rollBudgetDay();
       this.lastDay = this.clock.day;
+      this.buildsToday = 0;
       this.stepLife();
       this.economy.endOfDay();
       this.chargeUpkeep(); // H3.1: mantenimiento antes de alquileres y pensiones
@@ -1007,6 +1023,7 @@ export class Simulation {
       this.economy.payPublicDividend([...this.households.keys()], this.citizens.size); // ciclo 32: el tesoro no atesora sin fin — reparte su superávit
       this.economy.updateBankruptcy(this.citizens.size);
       this.stepOutbreak(); // ciclo 25: en invierno, algún resfriado prende y se propaga
+      this.stepImmigration(); // T4.3/H7.2: una familia forastera ocupa una vivienda vacía si el pueblo atrae
       this.stepEmigration(); // ciclo 14: tras la red de pensiones (última bala)
       this.stepAbandonment(); // H2.6: una vía cortada cierra tras diez días, no de golpe
       this.recalculateLandValue(); // H4.4: snapshot de ubicación, solo al cerrar el día
@@ -1072,7 +1089,7 @@ export class Simulation {
     // Natalidad denso-dependiente (ciclo 30): cerca del techo se tienen menos
     // hijos — el freno vegetativo que, junto al corte de inmigración, aplana el
     // crecimiento en meseta estable en vez de una exponencial caótica.
-    const life = lifeYear(this.citizens, this.rng, fertilityFactor(this.citizens.size));
+    const life = lifeYear(this.citizens, this.rng, fertilityFactor(this.citizens.size, this.carryingCapacity()));
     for (const d of life.deaths) {
       const partner = d.partnerId !== null ? this.citizens.get(d.partnerId) : undefined;
       if (partner) partner.partnerId = null;
@@ -1119,6 +1136,49 @@ export class Simulation {
   /** Cierre de año: acumula la penuria de cada hogar; si alguno lleva años sin
    * salida (y tras la red de pensiones), UNA familia decide marcharse (despacio,
    * como el crecimiento). No se despawnea: se marca para caminar a la salida. */
+  /** Atractividad migratoria de HOY (ciclo 12): empleo, salud, comida, fama,
+   * felicidad, impuestos, quiebra y tren. Acotada en [0.5, 1]. */
+  private attractivenessNow(): number {
+    const s = this.economy.stats(this.citizens);
+    return townAttractiveness({
+      employment: s.adults > 0 ? s.employed / s.adults : 1,
+      avgHealth: this.avgHealth(),
+      avgFood: this.avgFood(),
+      avgPrestige: this.avgPrestige(),
+      avgHappiness: this.averageHappiness(),
+      taxBurden: this.economy.taxBurden(),
+      bankrupt: this.economy.bankrupt,
+      railService: this.train !== null,
+    });
+  }
+
+  /** T4.3 (H7.2): las familias no solo llegan con la obra nueva — una vivienda
+   * VACÍA en un pueblo atractivo y con empleo recibe forasteros. Sin esto la
+   * población solo crecía por nacimientos y la demanda de vivienda nunca
+   * volvía a dispararse: el pueblo se paraba a los 40 edificios. */
+  private stepImmigration(): void {
+    if (this.citizens.size >= this.carryingCapacity()) return;
+    const s = this.economy.stats(this.citizens);
+    const openJobs = s.jobs - s.employed;
+    const unemployment = s.adults > 0 ? (s.adults - s.employed) / s.adults : 0;
+    if (openJobs < 1 && unemployment >= 0.1) return; // sin trabajo no viene nadie
+    const a = this.attractivenessNow(); // [0.5, 1]
+    if (this.rng.next() >= IMMIGRATION_RATE * Math.max(0, (a - 0.5) / 0.5)) return;
+    const anchors = this.index.buildings.filter((b) => isUrban(b.data.role)).map((b): [number, number] => [b.ax, b.az]);
+    const center = growthCenter(this.grid, anchors);
+    let best: SimBuilding | null = null;
+    let bestD = Infinity;
+    for (const b of this.index.ofRole('residential')) {
+      if (b.abandoned || !b.roadAccess) continue;
+      if (b.capacity - (this.households.get(`${b.ax},${b.az}`) ?? 0) <= 0) continue;
+      const d = Math.abs(b.ax - center[0]) + Math.abs(b.az - center[1]);
+      if (d < bestD) { bestD = d; best = b; }
+    }
+    if (!best) return;
+    this.fillHome(best.ax, best.az, best.id, 1, true);
+    this.hireAndAcquaint();
+  }
+
   private stepEmigration(): void {
     interface Agg { workingAdults: number; employed: number; anyLeaving: boolean }
     const byHome = new Map<string, Agg>();
@@ -1406,7 +1466,7 @@ export class Simulation {
     for (const s of shops) avgProsperity += this.economy.prosperity.get(`${s.building.ax},${s.building.az}`) ?? 0.5;
     avgProsperity = shops.length > 0 ? avgProsperity / shops.length : 0;
 
-    const demand = computeDemand({
+    const demands = computeDemands({
       // Para el mercado laboral cuentan los adultos (los niños no son "paro").
       population: stats.adults,
       employed: stats.employed,
@@ -1420,48 +1480,94 @@ export class Simulation {
       avgHealth: this.avgHealth(),
       hasClinic: this.index.buildings.some((b) => b.id === 'clinic' && !b.abandoned),
       totalPopulation: this.citizens.size,
-      carryingCapacity: CARRYING_CAPACITY,
+      carryingCapacity: this.carryingCapacity(),
       policeCoverage: coverage.police,
       fireCoverage: coverage.fire,
       parkCoverage: coverage.park,
       avgHappiness: this.averageHappiness(),
     });
-    if (!demand) return;
+    if (demands.length === 0) return;
+    if (this.buildsToday >= MAX_BUILDS_PER_DAY) return;
 
-    const id = itemForDemand(demand, this.tier);
-    const it = catalogData(id);
-    if (!it) return;
-    const publicService = demand === 'school' || demand === 'clinic' || demand === 'police' || demand === 'fire' || demand === 'park';
-    const cost = publicService ? it.cost ?? 0 : 0;
-    if (publicService && this.publicAutobuild === 'off') {
-      this.reportServiceNeeded(id, it.name, cost, 'disabled');
-      return;
-    }
-    if (publicService && cost > this.economy.treasury) {
-      this.reportServiceNeeded(id, it.name, cost, 'noMoney');
-      return;
-    }
     const center = growthCenter(this.grid,
       this.index.buildings.filter((b) => isUrban(b.data.role)).map((b) => [b.ax, b.az]),
     );
-    const p = findParcel(this.grid, id, center, this.rng, this.growthPolicy, {
-      searchRadius: 60,
-      allow: (cx, cz) => this.growthAllowed(id, cx, cz),
-      scoreAdjustment: (cx, cz) => demand === 'park' && this.policyForDistrict(this.districtAt(cx, cz)).parksPriority ? -12 : 0,
-    });
-    if (!p) {
-      // T4.4: hay demanda pero NO queda frente construible junto a una vía →
-      // la ciudad se traza una CALLE nueva hacia campo abierto. El siguiente
-      // intento de crecer ya encontrará parcela en ella.
-      if (this.growthPolicy !== 'zonesOnly') this.maybeExtendRoad(center);
+    // H7.2: se atiende la PRIMERA demanda que puede materializarse. Una demanda
+    // pública sin dinero o sin parcela útil se salta (avisando una vez), no
+    // bloquea la vivienda ni el empleo que vienen detrás.
+    let privateBlocked = false;
+    for (const demand of demands) {
+      const id = itemForDemand(demand, this.tier, Math.max(0, stats.adults - stats.employed));
+      const it = catalogData(id);
+      if (!it) continue;
+      const publicService = demand === 'school' || demand === 'clinic' || demand === 'police' || demand === 'fire' || demand === 'park';
+      const cost = publicService ? it.cost ?? 0 : 0;
+      if (publicService && this.publicAutobuild === 'off') {
+        this.reportServiceNeeded(id, it.name, cost, 'disabled');
+        continue;
+      }
+      if (publicService && cost > this.economy.treasury) {
+        this.reportServiceNeeded(id, it.name, cost, 'noMoney');
+        continue;
+      }
+      // Un servicio autónomo solo se levanta donde CUBRE hogares que hoy carecen
+      // de él (y prefiere donde cubre más): nunca en una calle vacía "por si
+      // acaso" — así se acaba la lluvia de parques en el borde del pueblo.
+      const service = it.service;
+      const gainAt = (cx: number, cz: number) => (service ? this.serviceGain(service, cx + it.w / 2, cz + it.d / 2) : 0);
+      // Tope por tipo de servicio proporcional al pueblo: una comisaría o un
+      // parque por cada SERVICE_HOMES_PER_UNIT viviendas. Sin esto, una cobertura
+      // que no llega al 50 % por dispersión producía una lluvia de parques.
+      if (service && this.serviceCount(service.kind) >= Math.ceil(this.index.ofRole('residential').length / SERVICE_HOMES_PER_UNIT)) continue;
+      const p = findParcel(this.grid, id, center, this.seed, this.growthPolicy, {
+        searchRadius: 60,
+        allow: (cx, cz) => this.growthAllowed(id, cx, cz) && (!service || gainAt(cx, cz) >= 1),
+        scoreAdjustment: (cx, cz) => {
+          const parks = demand === 'park' && this.policyForDistrict(this.districtAt(cx, cz)).parksPriority ? -12 : 0;
+          return parks - (service ? 2 * Math.min(8, gainAt(cx, cz)) : 0);
+        },
+      });
+      if (!p) {
+        if (!publicService) privateBlocked = true;
+        continue;
+      }
+      const visualId = demand === 'residential' ? residentialVisualId(id, p.cx, p.cz, p.rot, this.seed) : undefined;
+      if (!this.applyGrowth(p, demand === 'residential' ? it.capacity ?? 1 : undefined, visualId)) continue;
+      this.buildsToday++;
+      if (publicService) {
+        if (cost > 0 && !this.economy.spendPublic(cost, 'build')) throw new Error('tesoro incoherente al cobrar un servicio autónomo');
+        this.serviceNeedsReported.delete(id);
+      }
       return;
     }
-    const visualId = demand === 'residential' ? residentialVisualId(id, p.cx, p.cz, p.rot, this.seed) : undefined;
-    if (!this.applyGrowth(p, demand === 'residential' ? it.capacity ?? 1 : undefined, visualId)) return;
-    if (publicService) {
-      if (cost > 0 && !this.economy.spendPublic(cost, 'build')) throw new Error('tesoro incoherente al cobrar un servicio autónomo');
-      this.serviceNeedsReported.delete(id);
+    // T4.4: hay demanda PRIVADA pero no queda frente construible junto a una
+    // vía → la ciudad se traza una CALLE nueva hacia campo abierto. Los
+    // servicios nunca abren calle: se levantan donde ya vive gente.
+    if (privateBlocked && this.growthPolicy !== 'zonesOnly') this.maybeExtendRoad(center);
+  }
+
+  /** Techo poblacional de HOY: una meseta por tier alcanzado (`carryingCapacityFor`). */
+  private carryingCapacity(): number {
+    return carryingCapacityFor(this.tier);
+  }
+
+  /** Proveedores activos de un servicio. */
+  private serviceCount(kind: ServiceKind): number {
+    let n = 0;
+    for (const b of this.index.buildings) if (!b.abandoned && b.data.service?.kind === kind) n++;
+    return n;
+  }
+
+  /** Viviendas activas que un servicio nuevo centrado en (cx, cz) cubriría y
+   * que hoy carecen de él. Cero significa "aquí no sirve a nadie". */
+  private serviceGain(service: { kind: ServiceKind; radius: number }, cx: number, cz: number): number {
+    const bit = COVERAGE_BITS[service.kind];
+    let gain = 0;
+    for (const b of this.index.ofRole('residential')) {
+      if (b.abandoned || !b.roadAccess || (b.coverage & bit) !== 0) continue;
+      if (Math.abs(b.cx - cx) + Math.abs(b.cz - cz) <= service.radius) gain++;
     }
+    return gain;
   }
 
   /** Emite una sola señal por tipo de servicio hasta que la necesidad se resuelva. */
@@ -2373,7 +2479,7 @@ export class Simulation {
         railService: this.train !== null,
       }),
       totalPopulation: this.citizens.size,
-      carryingCapacity: CARRYING_CAPACITY,
+      carryingCapacity: this.carryingCapacity(),
     });
     let totalWealth = 0;
     for (const k of this.households.keys()) totalWealth += this.economy.walletOf(k);

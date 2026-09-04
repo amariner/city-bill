@@ -1,8 +1,7 @@
 /** Tests puros de zonas y selección de parcelas autónomas. */
 import { Grid, rotatedFootprint } from './grid';
-import { createRng } from '../rng';
 import { catalogData } from './catalogData';
-import { demandLevels, extendRoad, findParcel, growthCenter, itemForDemand, paintYard, residentialChoices, residentialVisualId, tierForPopulation, townAttractiveness, zoneForRole } from './growth';
+import { carryingCapacityFor, CARRYING_CAPACITY, layoutMetrics, demandLevels, extendRoad, findParcel, growthCenter, itemForDemand, paintYard, residentialChoices, residentialVisualId, tierForPopulation, townAttractiveness, zoneForRole } from './growth';
 
 let passed = 0;
 let failed = 0;
@@ -39,29 +38,45 @@ function footprintIsZone(grid: Grid, id: string, p: { cx: number; cz: number; ro
   assert(zoneForRole('civic') === 'P', 'cívico se orienta a zona P');
 
   const noZones = roadGrid();
-  assert(findParcel(noZones, 'cottage', [0, 0], createRng(1), 'zonesOnly', 30) === null, 'zonesOnly no construye sin zona compatible');
+  assert(findParcel(noZones, 'cottage', [0, 0], 1, 'zonesOnly', 30) === null, 'zonesOnly no construye sin zona compatible');
 
   const residential = roadGrid();
   residential.forEachInRect(-30, -30, 30, 30, (cell, cx, cz) => {
     if (cell.terrain !== 'road') residential.setZone(cx, cz, 'R');
   });
-  const home = findParcel(residential, 'cottage', [0, 0], createRng(1), 'zonesOnly', 30);
+  const home = findParcel(residential, 'cottage', [0, 0], 1, 'zonesOnly', 30);
   assert(home !== null && footprintIsZone(residential, 'cottage', home!, 'R'), 'zonesOnly coloca toda la huella residencial en R');
 
   const commerce = roadGrid();
   commerce.forEachInRect(-30, -30, 30, 30, (cell, cx, cz) => {
     if (cell.terrain !== 'road') commerce.setZone(cx, cz, 'C');
   });
-  const shop = findParcel(commerce, 'shop', [0, 0], createRng(2), 'zonesOnly', 30);
+  const shop = findParcel(commerce, 'shop', [0, 0], 2, 'zonesOnly', 30);
   assert(shop !== null && footprintIsZone(commerce, 'shop', shop!, 'C'), 'la demanda comercial encuentra una tienda en C');
+}
+
+// --- H7.1: findParcel no consume el RNG vital -------------------------------
+{
+  const grid = roadGrid();
+  const a = findParcel(grid, 'cottage', [0, 0], 4242, 'free', 30);
+  const b = findParcel(grid, 'cottage', [0, 0], 4242, 'free', 30);
+  assert(a !== null && b !== null && a.cx === b.cx && a.cz === b.cz && a.rot === b.rot, 'findParcel: misma semilla y grid ⇒ misma parcela (sin estado)');
+  // El desempate depende de la semilla: en un frente con muchos candidatos
+  // equidistantes, alguna semilla elige otra parcela.
+  const picks = new Set<string>();
+  for (let seed = 1; seed <= 12; seed++) {
+    const p = findParcel(grid, 'cottage', [0, 0], seed, 'free', 30);
+    if (p) picks.add(`${p.cx},${p.cz},${p.rot}`);
+  }
+  assert(picks.size > 1, `findParcel: el desempate por hash varía con la semilla (${picks.size} parcelas distintas)`);
 }
 
 // --- Preferencia zonificada y centro de zonas ------------------------------
 {
   const grid = roadGrid();
   for (let cx = 12; cx <= 18; cx++) for (let cz = 2; cz <= 5; cz++) grid.setZone(cx, cz, 'R');
-  const free = findParcel(grid, 'cottage', [0, 0], createRng(1), 'free', 30);
-  const preferred = findParcel(grid, 'cottage', [0, 0], createRng(1), 'preferZones', 30);
+  const free = findParcel(grid, 'cottage', [0, 0], 1, 'free', 30);
+  const preferred = findParcel(grid, 'cottage', [0, 0], 1, 'preferZones', 30);
   const freeDist = free ? Math.abs(free.cx) + Math.abs(free.cz) : -1;
   const preferredDist = preferred ? Math.abs(preferred.cx) + Math.abs(preferred.cz) : -1;
   assert(free !== null && preferred !== null && preferredDist >= freeDist + 6, 'preferZones elige la zona aunque esté al menos seis celdas más lejos');
@@ -168,3 +183,67 @@ function footprintIsZone(grid: Grid, id: string, p: { cx: number; cz: number; ro
 
 console.log(`\ngrowth.test: ${passed} passed, ${failed} failed`);
 if (failed > 0) throw new Error(`${failed} test(s) failed`);
+
+// --- H7: layoutMetrics -------------------------------------------------------
+{
+  // Una sola calle recta con casas a un lado: tira (aspect alto), 1 tramo, 0 manzanas.
+  const ribbon = new Grid();
+  ribbon.fillTerrain(-20, -10, 40, 10, 'field');
+  extendRoad(ribbon, [-18, 0], { dx: 1, dz: 0 }, 36, 1);
+  for (let x = -15; x <= 30; x += 4) ribbon.placeBuilding('cottage', 3, 3, x, 2, 0);
+  const r = layoutMetrics(ribbon);
+  assert(r.streets === 1, `tira: 1 tramo (fue ${r.streets})`);
+  assert(r.blocks === 0, `tira: 0 manzanas (fue ${r.blocks})`);
+  assert(r.aspect > 3, `tira: aspect alto (fue ${r.aspect.toFixed(2)})`);
+  assert(r.buildings === 12, `tira: cuenta 12 casas (fue ${r.buildings})`);
+
+  // Una retícula de 2×2 calles cerrando una manzana con casas alrededor.
+  const mesh = new Grid();
+  mesh.fillTerrain(-20, -20, 20, 20, 'field');
+  extendRoad(mesh, [-18, -8], { dx: 1, dz: 0 }, 36, 1);
+  extendRoad(mesh, [-18, 8], { dx: 1, dz: 0 }, 36, 1);
+  extendRoad(mesh, [-8, -18], { dx: 0, dz: 1 }, 36, 1);
+  extendRoad(mesh, [8, -18], { dx: 0, dz: 1 }, 36, 1);
+  const m = layoutMetrics(mesh);
+  assert(m.streets === 4, `trama: 4 tramos (fue ${m.streets})`);
+  assert(m.blocks === 1, `trama: 1 manzana cerrada (fue ${m.blocks})`);
+  assert(m.aspect === 1, `sin edificios el aspect es 1 (fue ${m.aspect})`);
+}
+
+// --- H7.2: findParcel no tapa los extremos de una vía --------------------------
+{
+  const grid = new Grid();
+  grid.fillTerrain(-30, -30, 30, 30, 'field');
+  extendRoad(grid, [-8, 0], { dx: 1, dz: 0 }, 17, 1); // vía recta de x=-8..8, z=-1..1
+  let capped = false;
+  for (let i = 0; i < 40; i++) {
+    const p = findParcel(grid, 'cottage', [0, 0], 7, 'free', 30);
+    if (!p) break;
+    // Un cabo tapado = huella que pisa la prolongación de la calzada (z ∈ [-1,1]) más allá de x=8 o antes de x=-8.
+    const [fw, fd] = rotatedFootprint(3, 3, p.rot);
+    for (let x = p.cx; x < p.cx + fw; x++) for (let z = p.cz; z < p.cz + fd; z++) if (z >= -1 && z <= 1 && (x > 8 || x < -8)) capped = true;
+    grid.placeBuilding('cottage', 3, 3, p.cx, p.cz, p.rot);
+  }
+  assert(!capped, 'findParcel: ninguna parcela tapa la prolongación de la calle');
+  assert(grid.get(-11, 0)?.building === undefined && grid.get(11, 0)?.building === undefined, 'los cabos de la vía quedan libres para extenderla');
+}
+
+// --- H7.2: capacidad de carga escalonada por tier -------------------------------
+{
+  assert(carryingCapacityFor(1) === CARRYING_CAPACITY, 'K: la aldea conserva el techo clásico');
+  assert(carryingCapacityFor(2) > tierThreshold(3) && carryingCapacityFor(3) > tierThreshold(4), 'K: cada meseta queda por encima del umbral del tier siguiente (la escalera no se atasca)');
+  assert(carryingCapacityFor(4) > carryingCapacityFor(3) && carryingCapacityFor(3) > carryingCapacityFor(2), 'K: monótono con el tier');
+}
+function tierThreshold(tier: number): number {
+  let pop = 0;
+  while (tierForPopulation(pop) < tier) pop++;
+  return pop;
+}
+
+// --- H7.2: el lugar de trabajo se dimensiona al paro ---------------------------
+{
+  assert(itemForDemand('work', 4, 1) === 'shop', 'trabajo: un parado ⇒ una tienda (3 puestos)');
+  assert(catalogData(itemForDemand('work', 4, 10))!.jobs! >= 10, 'trabajo: diez parados ⇒ un lugar con ≥ 10 puestos');
+  assert(itemForDemand('work', 4, 35) === 'factory', 'trabajo: mucho paro ⇒ fábrica');
+  assert(catalogData(itemForDemand('work', 1, 35))!.tier <= 1, 'trabajo: nunca por encima del tier');
+}

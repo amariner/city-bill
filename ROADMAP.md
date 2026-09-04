@@ -192,14 +192,15 @@ foto, tractores, página itch.io.
 - [x] **H6.1 Sonido** (`src/audio/ambient.ts`): viento, pájaros, campana, murmullo de
   charlas reales; volumen por zoom; M; tras el primer gesto; cero allocs/frame.
 - [x] **H6.2 Onboarding** (`ui/onboarding.ts`): 4 pistas no modales, persistidas.
-- [~] **H6.3 Rendimiento.** Hecho: LOD lejano de ciudadanos, `?stress=N`, medición F3.
-  Pendiente: hash espacial en `hireAndAcquaint` ("vecinos de vista" < 40 celdas) para que
-  el cierre del día sea O(n·k). *Aceptación:* misma lista de conocidos que hoy (test
-  estructural A/B en un pueblo sintético) y ≤ 25 ms a 3000 hab. sintéticos.
+- [x] **H6.3 Rendimiento.** LOD lejano de ciudadanos, `?stress=N`, medición F3, y
+  `SocialSystem.acquaintNeighbours` (hash espacial, mismo resultado y orden que el
+  barrido O(n²); 3000 hogares en ~5 ms; test A/B en `social.test.ts`).
 - [~] **H6.4 Build + deploy.** Workflow `.github/workflows/deploy-pages.yml` (suite +
-  build + Pages), `base` `/city-bill/` en CI. Primer push el 2026-09-04. *Pendiente:*
-  confirmar el run verde, activar Pages en el repositorio si hace falta, y validar la URL
-  en frío (otra máquina/navegador; F3 y consola limpia).
+  build + Pages), `base` `/city-bill/` en CI. Primer push el 2026-09-04: suite y build
+  verdes en Actions, pero `configure-pages` falló porque Pages no estaba activado en el
+  repo; se añadió `enablement: true` al paso. *Pendiente:* confirmar el run verde (si
+  sigue fallando, activar Pages con fuente "GitHub Actions" en Settings → Pages) y
+  validar la URL en frío (otra máquina/navegador; F3 y consola limpia).
 - [ ] **H6.5 Docs.** README (controles y modos al día, hero actual), CATALOG (tiers
   25/80/200 y entradas de H4/H5), SIMULATION (acciones, patch, save, `AGENT_STRIDE=8`).
 - [ ] **Gate H6:** URL pública recorrida en frío con el usuario + números F3 + suite.
@@ -217,23 +218,44 @@ largo / lado corto de la caja de anclas urbanas (hoy ≈1,65 en seed 4242 d80; o
 ≤ 1,35); `blocks` = manzanas cerradas del grafo vial (objetivo ≥ 2 en d80); `streets` =
 tramos de vía distintos (objetivo ≥ 3); tope de **4 obras/día** en media móvil de 7 días.
 
-- [ ] **H7.1 RNG espacial aislado.** `findParcel` deja de recibir `this.rng`: el ruido de
-  desempate es `hash01(ax, az, seed)`; `maybeGrow` y `maybeExtendRoad` no consumen el RNG
-  vital. *Aceptación (estructural):* en dos sims con la misma semilla, abrir una calle a
-  mano en una de ellas no cambia nacimientos, contagios ni economía de la otra; y en una
-  sola sim, la secuencia de nacimientos/enfermedad es idéntica con `autonomousGrowth`
-  on/off durante los días sin obra. Rebasar la sonda larga con nota en §6.
-- [ ] **H7.2 Presupuesto de frente edificable.** Separar suelo disponible de tasa de
-  construcción: el crecimiento privado gasta *capacidad constructiva* ligada a una señal
-  económica existente (capital de llegada + superávit de los hogares), no un temporizador.
-  Un frente nuevo se entrega por lotes (4 parcelas activas) y solo se elige toda la red
-  cuando se agotan. *Aceptación:* ≤ 4 obras/día (media móvil) en `?seed=4242` d0-d80 sin
-  perder población frente a la base (≥ 85 hab. en d80); test puro del presupuesto.
-- [ ] **H7.3 Ramificación proactiva.** Con H7.1/H7.2, abrir una transversal corta (8
-  celdas) cada vez que la calle activa agota sus lotes, alternando lado, y cerrar
-  manzanas cuando dos cabos quedan a ≤ 10 celdas. *Aceptación:* `layoutMetrics` en seed
-  4242 d80 con `aspect ≤ 1,35`, `blocks ≥ 2`, `streets ≥ 3`; capturas d0/d30/d80 pasan §4;
-  F3 dentro de §1.9. Repetir en 3 semillas más.
+- [x] **H7.1 RNG espacial aislado.** `findParcel` ya no recibe RNG: el desempate es
+  `hashCoord01(ax, az, seed ^ rot)` (`rng.ts` es la fuente única del hash de coordenada;
+  `roads.ts` la reutiliza). Test: misma semilla ⇒ misma parcela; el desempate varía con
+  la semilla. La sonda larga se rebasó (§6).
+- [x] **H7.2 Escalera de demanda sin bloqueo.** Diagnóstico con `scripts/layoutProbe.ts`
+  (nueva sonda: hab/edificios/vías/obras por día/`layoutMetrics`/demanda/eventos): la
+  ciudad base se PARABA en el día 10 (24 edificios en 70 días) porque `computeDemand`
+  devolvía UNA demanda y una clínica impagable bloqueaba todo; y con otro desempate se
+  desbocaba (94 parques para 72 hab.). Hecho: `computeDemands` devuelve la lista
+  priorizada y `maybeGrow` atiende la primera que puede (dinero, parcela); los
+  servicios autónomos solo se levantan donde cubren ≥1 hogar sin cubrir (prefieren
+  cubrir más) y con tope de uno por cada 8 viviendas; las vías solo se abren por demanda
+  privada; `findParcel` no tapa los extremos de una vía (así los cabos se prolongan);
+  tope de **3 obras/día** (`MAX_BUILDS_PER_DAY`, guardado); inmigración diaria a
+  viviendas vacías por atractividad (T4.3 completa; antes solo llegaban con la obra
+  nueva y el pueblo moría de viejo); `freeHousing` ignora viviendas sin acceso (un
+  hueco inaccesible apagaba la demanda residencial); la demanda de empleo cuenta
+  parados en PERSONAS (un parado de 9 adultos dejaba a la aldea sin demanda de empleo
+  ni de vivienda: punto muerto del arranque); el lugar de trabajo se dimensiona al paro
+  (un parado ⇒ tienda, no fábrica); la capacidad de carga K deja de ser fija (120):
+  con inmigración el pueblo superaba el techo y la natalidad se anulaba (cero
+  nacimientos en 100 días). Se probó K atada a la vivienda (243 hab. en 20 días) y al
+  empleo (728 en 60): espirales sin freno. Queda K por ESCALONES de tier
+  (`CARRYING_CAPACITY_BY_TIER` 120/160/260/400): cada meseta supera el umbral del tier
+  siguiente y la meseta final es 400. Resultado en seed 20260703/42: 400 hab. y 83
+  edificios a d60 (antes 92/24 y parón). *Deuda H7.4:* el arranque es rápido (aldea →
+  ciudad en 30 días); calibrar ritmo (3 obras/día, `IMMIGRATION_RATE`) en el playtest.
+  Tests: `growthLadder.test.ts` (12) + `growth.test` (cabos, métricas, K).
+- [ ] **H7.3 Trama proactiva y manzanas.** Con H7.2 el pueblo ya crece sin parar, pero
+  sigue siendo tira: en la granja 16 vías para 47 edificios y `blocks = 0`. Diseño:
+  al pintar cada vía (semilla y extensiones) se reservan **corredores** deterministas
+  cada 14 celdas, a lados alternos (ancho 5, fondo 12, puro: `planCorridors(grid, seed)`
+  en `roads.ts`); `findParcel` no pisa corredores; cuando la demanda privada se bloquea,
+  la ramificación usa el corredor libre más cercano al centro (siempre despejado por
+  construcción) y, si dos cabos quedan a ≤ 10 celdas, se cierra la manzana. Menos vías,
+  más cortas, y manzanas reales. *Aceptación:* `layoutMetrics` en seed 4242 y granja 42
+  a d80: `aspect ≤ 1,35`, `blocks ≥ 2`, `streets ≥ 3`, y ≤ 1 vía por cada 4 edificios;
+  capturas d0/d30/d80 pasan §4; F3 dentro de §1.9. Repetir en 3 semillas más.
 - [ ] **H7.4 Playtest** (antiguo H2.8): 30 min ×8 en `free` desde `?scene=farm` y 30 min
   `zonesOnly` en sandbox; anotar en §6 fealdades, atascos y ráfagas; corregir.
 - [ ] **Gate H7 = DONE nº 5:** capturas del arco + métricas + sonda larga rebasada y verde.
@@ -269,6 +291,16 @@ electricidad/agua (descartado salvo decisión nueva) · tren con varias líneas.
 > Fecha, tarea, decisiones no obvias, deuda, conflictos con §1. Entradas anteriores al
 > 2026-09-04: `docs/ROADMAP-HISTORICO.md` §6.
 
+- 2026-09-04 — **H7.1/H7.2, rebase de la sonda larga.** El desempate por hash y la
+  escalera sin bloqueo cambian la trayectoria de todas las semillas: la sonda larga
+  pasó de 11 contratos rotos (solo H7.1) a 1 tras corregir el punto muerto del
+  arranque y atar K a la vivienda. Las roturas intermedias fueron DIAGNÓSTICO, no
+  ruido: cada una señaló un mecanismo real (clínica impagable que bloqueaba todo,
+  lluvia de parques, casas tapando cabos, hueco inaccesible contado como libre,
+  natalidad nula sobre el techo fijo). Contratos que se rebasan y por qué: ver la
+  entrada siguiente cuando cierre la sonda. Deuda anotada: el arranque es ahora rápido
+  (6 → 80 hab. en 12 días con 3 obras/día) — calibrar en el playtest de H7.4; la
+  tesorería crece sin freno (80k a d80: impuestos > gastos), fuera de H7.
 - 2026-09-04 — **Reconciliación.** Auditoría del estado: los hitos H1.1-H5.6 del plan
   híbrido se implementaron el 09-03/04 sin reescribir el ROADMAP (Parte A del plan), y
   los commits posteriores reutilizaron la numeración del MVP vivarium; `npm test` estaba

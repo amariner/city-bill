@@ -25,3 +25,19 @@ export function createRng(seed: number, initialState?: number) {
 }
 
 export type Rng = ReturnType<typeof createRng>;
+
+/**
+ * Hash entero determinista de una coordenada de celda + semilla (sin estado:
+ * no consume ningún RNG). Es la aleatoriedad "estructural" del mundo: arbolado
+ * de márgenes, desempates de parcela… Lo que depende de DÓNDE, no de CUÁNDO.
+ */
+export function hashCoord(x: number, z: number, seed: number): number {
+  let n = Math.imul(x ^ seed, 0x45d9f3b) ^ Math.imul(z + seed, 0x27d4eb2d);
+  n = Math.imul(n ^ (n >>> 16), 0x45d9f3b);
+  return (n ^ (n >>> 16)) >>> 0;
+}
+
+/** `hashCoord` normalizado a [0, 1). */
+export function hashCoord01(x: number, z: number, seed: number): number {
+  return hashCoord(x, z, seed) / 0x100000000;
+}

@@ -10,9 +10,9 @@
  * El worker aplica la colocación a SU grid y emite un `gridPatch`; el main
  * aplica ese diff al grid de render sin repetir ninguna decisión.
  */
-import { Grid, Rot, rotatedFootprint } from './grid';
+import { Grid, Rot, rotatedFootprint, cellKey, cellFromKey } from './grid';
 import { catalogData, CATALOG_DATA, SimRole, Tier } from './catalogData';
-import { createRng, Rng } from '../rng';
+import { hashCoord01, createRng } from '../rng';
 import { placementCheck } from './placement';
 import { extendRoad as paintRoadExtension } from './roads';
 import type { SimBuilding } from '../sim/worldIndex';
@@ -153,41 +153,54 @@ export function zoneForRole(role: SimRole): ZoneKind | null {
 }
 
 /**
- * T4.1 — ¿Qué pide la ciudad AHORA? Una sola cosa por vez (crecer despacio
- * es parte de la estética). Prioridad: techo > empleo > comercio.
+ * T4.1/H7.2 — ¿Qué pide la ciudad AHORA? Devuelve TODAS las demandas vivas en
+ * orden de prioridad (escuela > sanidad > seguridad > parque > empleo >
+ * vivienda > comercio). La simulación atiende la primera que PUEDE (dinero,
+ * parcela, cobertura) en vez de bloquearse en una que no puede: antes, una
+ * clínica impagable dejaba 70 días sin levantar una sola casa.
  */
-export function computeDemand(d: DemandInput): DemandKind {
+export function computeDemands(d: DemandInput): Array<Exclude<DemandKind, null>> {
+  const out: Array<Exclude<DemandKind, null>> = [];
   const openJobs = d.jobs - d.employed;
   const unemployment = d.population > 0 ? (d.population - d.employed) / d.population : 0;
   // Niños sin plaza escolar → escuela (antes que nada: la escuela es sagrada).
-  if (d.children > d.studentSlots && d.children >= 3) return 'school';
+  if (d.children > d.studentSlots && d.children >= 3) out.push('school');
   // Salud media baja → clínica reactiva; pero con la mortalidad (ciclo 11) los
   // frágiles MUEREN y la media de los vivos ya no baja, así que un pueblo que
   // crece también se dota de sanidad de forma PROACTIVA (infraestructura
   // pública) — la clínica existe justamente para PREVENIR esas muertes.
-  if (!d.hasClinic && d.population >= 10 && (d.avgHealth < 0.88 || d.population >= 20)) return 'clinic';
+  if (!d.hasClinic && d.population >= 10 && (d.avgHealth < 0.88 || d.population >= 20)) out.push('clinic');
   // La infraestructura pública escala con la ciudad. Se mira la cobertura,
   // no solo la existencia nominal: una comisaría aislada no resuelve el mapa.
-  if (d.tier >= 2 && d.totalPopulation >= 60 && (d.policeCoverage ?? 1) < 0.5) return 'police';
-  if (d.tier >= 2 && d.totalPopulation >= 80 && (d.fireCoverage ?? 1) < 0.5) return 'fire';
+  if (d.tier >= 2 && d.totalPopulation >= 60 && (d.policeCoverage ?? 1) < 0.5) out.push('police');
+  if (d.tier >= 2 && d.totalPopulation >= 80 && (d.fireCoverage ?? 1) < 0.5) out.push('fire');
   // El parque aparece cuando ya hay un barrio que mantener: así una aldea no
   // gasta su primera caja en dos amenidades antes de poder sostener vivienda,
   // empleo y sanidad. La felicidad sigue siendo el disparador, no un guion.
-  if (d.tier >= 1 && d.totalPopulation >= 40 && d.avgHappiness !== undefined && d.avgHappiness < 0.5 && (d.parkCoverage ?? 1) < 0.5) return 'park';
-  // Paro alto, o parados sin ninguna vacante → un lugar de trabajo.
-  if (unemployment > 0.35 || (openJobs <= 0 && unemployment >= 0.15)) return 'work';
+  if (d.tier >= 1 && d.totalPopulation >= 40 && d.avgHappiness !== undefined && d.avgHappiness < 0.5 && (d.parkCoverage ?? 1) < 0.5) out.push('park');
+  // Paro alto, o parados sin ninguna vacante → un lugar de trabajo. Se cuenta
+  // en PERSONAS, no en tasa: en una aldea de 9 adultos, un solo parado sin
+  // vacante (11 %) dejaba a la vez sin demanda de empleo (< 15 %) y sin demanda
+  // de vivienda (paro ≥ 10 %) — un punto muerto que congelaba el arranque (H7.2).
+  const jobless = d.population - d.employed;
+  if (unemployment > 0.35 || (openJobs <= 0 && jobless >= 1)) out.push('work');
   // Gente queriendo venir (hay trabajo, o la ciudad va bien) y sin casas → vivienda.
   // Freno denso-dependiente (ciclo 30): por encima del techo el pueblo ya no
   // tira de forasteros — deja de construir vivienda de inmigración y se aplana.
-  if (d.freeHousing <= 0 && d.totalPopulation < d.carryingCapacity && (openJobs >= 1 || unemployment < 0.1)) return 'residential';
+  if (d.freeHousing <= 0 && d.totalPopulation < d.carryingCapacity && (openJobs >= 1 || unemployment < 0.1)) out.push('residential');
   // Tiendas saturadas (prosperidad alta sostenida) o pueblo sin tienda.
-  if (d.shops === 0 && d.population >= 8) return 'commerce';
-  if (d.shops > 0 && d.avgProsperity > 0.75 && d.population / d.shops > 14) return 'commerce';
-  return null;
+  if (d.shops === 0 && d.population >= 8) out.push('commerce');
+  else if (d.shops > 0 && d.avgProsperity > 0.75 && d.population / d.shops > 14) out.push('commerce');
+  return out;
+}
+
+/** La demanda más urgente (compatibilidad): primera de `computeDemands`. */
+export function computeDemand(d: DemandInput): DemandKind {
+  return computeDemands(d)[0] ?? null;
 }
 
 /** Ítem del catálogo que materializa cada demanda, por tier. Determinista. */
-export function itemForDemand(kind: Exclude<DemandKind, null>, tier: Tier): string {
+export function itemForDemand(kind: Exclude<DemandKind, null>, tier: Tier, jobless = 0): string {
   const pool = CATALOG_DATA.filter((it) => it.tier <= tier && it.tier > 0);
   const byRole = (roles: string[]) => pool.filter((it) => roles.includes(it.role));
   switch (kind) {
@@ -200,7 +213,16 @@ export function itemForDemand(kind: Exclude<DemandKind, null>, tier: Tier): stri
       // Los cívicos con `service` se reservan para sus demandas públicas:
       // cuando faltan puestos no debe aparecer una comisaría como fábrica
       // accidental solo porque comparte el rol `civic`.
-      return byRole(['commerce', 'work', 'civic']).filter((it) => !it.students && !it.service).sort((a, b) => b.tier - a.tier)[0]?.id ?? 'shop';
+      {
+        // H7.2: el puesto de trabajo se dimensiona al PARO real. Un parado no
+        // justifica una fábrica de 40 puestos: eso multiplicaba la base económica
+        // (y con ella el techo poblacional) en cada cierre. Se elige el lugar de
+        // trabajo más pequeño que absorbe a los parados; solo con mucho paro
+        // aparecen oficinas y fábricas.
+        const pool = byRole(['commerce', 'work', 'civic']).filter((it) => !it.students && !it.service)
+          .sort((a, b) => (a.jobs ?? 0) - (b.jobs ?? 0) || a.id.localeCompare(b.id));
+        return pool.find((it) => (it.jobs ?? 0) >= Math.max(1, jobless))?.id ?? pool.at(-1)?.id ?? 'shop';
+      }
     case 'school':
       return 'school';
     case 'clinic':
@@ -346,6 +368,18 @@ export function townAttractiveness(a: {
 /** Techo poblacional hacia el que se estabiliza el pueblo (media saturación de
  * la natalidad e inmigración cortada por encima). */
 export const CARRYING_CAPACITY = 120;
+/** Techo poblacional por tier alcanzado (T0/T1 aldea … T4 ciudad Zlín). */
+export const CARRYING_CAPACITY_BY_TIER: Record<Tier, number> = { 0: 120, 1: 120, 2: 160, 3: 260, 4: 400 };
+
+/** H7.2 — K por ESCALONES: el techo clásico de 120 para la aldea y, con cada tier
+ * desbloqueado (25/80/200 hab.), una meseta más alta que queda por encima del
+ * umbral siguiente, de modo que aldea → pueblo → villa → ciudad se encadena como
+ * una logística escalonada y acotada (meseta final: 400). Se descartaron K atados
+ * a la vivienda (243 hab. en 20 días) y al empleo (728 en 60): ambos realimentan
+ * sin freno porque vivienda y empleo crecen con la propia población. Pura. */
+export function carryingCapacityFor(tier: Tier): number {
+  return CARRYING_CAPACITY_BY_TIER[tier] ?? CARRYING_CAPACITY;
+}
 
 /** Factor de natalidad por saturación [0,1]: 1 con el pueblo vacío, baja lineal
  * y llega a 0 en K (la vida se encarece, se tienen menos hijos). Pura. */
@@ -398,7 +432,7 @@ export function findParcel(
   grid: Grid,
   itemId: string,
   center: [number, number],
-  rng: Rng,
+  seed: number,
   policy: GrowthPolicy = 'free',
   options: number | FindParcelOptions = 60,
 ): GrowthPlacement | null {
@@ -436,6 +470,16 @@ export function findParcel(
           { dx: -1 - it.w, dz: 0, rot: 3 }, // vía al este → mira +X
         ];
         for (const t of tries) {
+          // H7.2: nunca se construye TAPANDO el extremo de una vía — la celda de
+          // frente debe tener vía a ambos lados en el eje perpendicular a la
+          // fachada (es decir, la calle CONTINÚA por delante del edificio). Así
+          // los cabos quedan libres para prolongarse y el pueblo no se encierra.
+          const alongX = t.dz !== 0; // fachada mira ±Z → la calle corre en X
+          let continues = true;
+          for (const k of [-2, -1, 1, 2]) {
+            if (!isWay(grid.get(alongX ? cx + k : cx, alongX ? cz : cz + k)?.terrain)) { continues = false; break; }
+          }
+          if (!continues) continue;
           const ax = cx + t.dx;
           const az = cz + t.dz;
           if (!clearForGrowth(grid, it.w, it.d, ax, az, t.rot)) continue;
@@ -446,7 +490,10 @@ export function findParcel(
           // Un frente zonificado gana con claridad en preferZones, aunque esté
           // algo más lejos; la pizca de ruido solo rompe empates locales.
           const zoneBonus = policy === 'preferZones' && zoned ? -20 : 0;
-          const score = d + zoneBonus + (scoreAdjustment?.(ax, az) ?? 0) + rng.next() * 4;
+          // Desempate ESTRUCTURAL (H7.1): hash de la parcela + semilla, no el RNG
+          // vital de la sim — evaluar más o menos candidatos (una calle nueva)
+          // ya no altera nacimientos, contagios ni economía.
+          const score = d + zoneBonus + (scoreAdjustment?.(ax, az) ?? 0) + hashCoord01(ax, az, seed ^ Math.imul(t.rot + 1, 0x9e3779b1)) * 4;
           if (score < bestScore) {
             bestScore = score;
             bestDist = d;
@@ -460,6 +507,10 @@ export function findParcel(
     if (best !== null && (policy === 'free' || bestIsZoned) && r > bestDist + 6) break;
   }
   return best;
+}
+
+function isWay(terrain: string | undefined): boolean {
+  return terrain === 'road' || terrain === 'path';
 }
 
 function footprintHasZone(grid: Grid, w: number, d: number, ax: number, az: number, rot: Rot, zone: ZoneKind): boolean {
@@ -563,4 +614,120 @@ export function townCenter(anchors: Array<[number, number]>): [number, number] {
     sz += z;
   }
   return [Math.round(sx / anchors.length), Math.round(sz / anchors.length)];
+}
+
+// --- H7: métricas de trazado (puras) ------------------------------------------
+
+export interface LayoutMetrics {
+  /** Edificios urbanos (no naturaleza) contados. */
+  buildings: number;
+  /** Lado largo / lado corto de la caja de anclas urbanas (1 = cuadrado). */
+  aspect: number;
+  /** Tramos rectos de vía (≥ 8 celdas), una vez por banda de calzada. */
+  streets: number;
+  /** Manzanas: regiones de suelo (≥ `MIN_BLOCK_AREA` celdas) totalmente
+   * rodeadas de vía dentro de la caja del pueblo. */
+  blocks: number;
+}
+
+export const MIN_BLOCK_AREA = 25;
+const MIN_STREET_RUN = 8;
+
+/**
+ * Mide la forma del pueblo — lo que el ojo llama "trama" o "tira". Puro y sin
+ * RNG; sirve de criterio de paso para H7 (`aspect ≤ 1,35`, `blocks ≥ 2`,
+ * `streets ≥ 3` en seed 4242 d80) y de test de regresión estética barato.
+ */
+export function layoutMetrics(grid: Grid): LayoutMetrics {
+  const roads = new Set<number>();
+  const anchors: Array<[number, number]> = [];
+  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+  grid.forEachChunk((chunk) => chunk.cells.forEach((cell, key) => {
+    const [cx, cz] = cellFromKey(key);
+    if (cell.terrain === 'road') {
+      roads.add(key);
+      minX = Math.min(minX, cx); maxX = Math.max(maxX, cx);
+      minZ = Math.min(minZ, cz); maxZ = Math.max(maxZ, cz);
+    }
+    const b = cell.building;
+    if (b && b.anchorX === cx && b.anchorZ === cz) {
+      const it = catalogData(b.id);
+      if (it && it.role !== 'nature') anchors.push([cx, cz]);
+    }
+  }));
+
+  let aspect = 1;
+  if (anchors.length >= 2) {
+    let ax0 = Infinity, ax1 = -Infinity, az0 = Infinity, az1 = -Infinity;
+    for (const [x, z] of anchors) { ax0 = Math.min(ax0, x); ax1 = Math.max(ax1, x); az0 = Math.min(az0, z); az1 = Math.max(az1, z); }
+    const w = ax1 - ax0 + 1, d = az1 - az0 + 1;
+    aspect = Math.max(w, d) / Math.max(1, Math.min(w, d));
+  }
+
+  const isRoad = (x: number, z: number) => roads.has(cellKey(x, z));
+  // Tramos: en cada fila se recorre la tirada continua de vía (los cruces no
+  // la cortan) y se cuenta si su fila es el BORDE superior de una banda de
+  // calzada (vía debajo, no encima) durante ≥ MIN_STREET_RUN celdas; así cada
+  // banda de cualquier anchura cuenta una vez por fila (una avenida con
+  // mediana de hierba cuenta sus dos calzadas). Igual por columnas.
+  let streets = 0;
+  if (roads.size > 0) {
+    for (let z = minZ; z <= maxZ; z++) {
+      let run = 0, edge = 0;
+      for (let x = minX; x <= maxX + 1; x++) {
+        if (isRoad(x, z)) {
+          run++;
+          if (isRoad(x, z + 1) && !isRoad(x, z - 1)) edge++;
+        } else {
+          if (run > 0 && edge >= MIN_STREET_RUN) streets++;
+          run = 0; edge = 0;
+        }
+      }
+    }
+    for (let x = minX; x <= maxX; x++) {
+      let run = 0, edge = 0;
+      for (let z = minZ; z <= maxZ + 1; z++) {
+        if (isRoad(x, z)) {
+          run++;
+          if (isRoad(x + 1, z) && !isRoad(x - 1, z)) edge++;
+        } else {
+          if (run > 0 && edge >= MIN_STREET_RUN) streets++;
+          run = 0; edge = 0;
+        }
+      }
+    }
+  }
+
+  // Manzanas: relleno desde el borde de la caja (ampliada en 1) por celdas
+  // no-vía; lo que queda sin alcanzar y es grande está rodeado de calles.
+  let blocks = 0;
+  if (roads.size > 0) {
+    const x0 = minX - 1, x1 = maxX + 1, z0 = minZ - 1, z1 = maxZ + 1;
+    const W = x1 - x0 + 1, D = z1 - z0 + 1;
+    const seen = new Uint8Array(W * D);
+    const idx = (x: number, z: number) => (z - z0) * W + (x - x0);
+    const flood = (sx: number, sz: number): number => {
+      const stack = [sx, sz];
+      let area = 0;
+      seen[idx(sx, sz)] = 1;
+      while (stack.length > 0) {
+        const z = stack.pop()!, x = stack.pop()!;
+        area++;
+        for (const [nx, nz] of [[x + 1, z], [x - 1, z], [x, z + 1], [x, z - 1]] as const) {
+          if (nx < x0 || nx > x1 || nz < z0 || nz > z1 || isRoad(nx, nz) || seen[idx(nx, nz)]) continue;
+          seen[idx(nx, nz)] = 1;
+          stack.push(nx, nz);
+        }
+      }
+      return area;
+    };
+    for (let x = x0; x <= x1; x++) { if (!isRoad(x, z0) && !seen[idx(x, z0)]) flood(x, z0); if (!isRoad(x, z1) && !seen[idx(x, z1)]) flood(x, z1); }
+    for (let z = z0; z <= z1; z++) { if (!isRoad(x0, z) && !seen[idx(x0, z)]) flood(x0, z); if (!isRoad(x1, z) && !seen[idx(x1, z)]) flood(x1, z); }
+    for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) {
+      if (isRoad(x, z) || seen[idx(x, z)]) continue;
+      if (flood(x, z) >= MIN_BLOCK_AREA) blocks++;
+    }
+  }
+
+  return { buildings: anchors.length, aspect, streets, blocks };
 }
