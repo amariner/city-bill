@@ -7,7 +7,7 @@
 import * as THREE from 'three';
 import { PALETTE, SEASON_PALETTES } from '../../palette';
 import { createRng } from '../../rng';
-import { Season } from '../../sim/weather';
+import { Season, SeasonBlend } from '../../sim/weather';
 import { Grid, Chunk, CELL_SIZE, Cell } from '../grid';
 import { mat } from '../../props';
 
@@ -88,18 +88,26 @@ function collect(cell: Cell, key: number, blobs: TreeInstance[], cypresses: Tree
   else blobs.push(inst);
 }
 
-function assemble(blobs: TreeInstance[], cypresses: TreeInstance[], season: Season): THREE.Group {
+function normalizeBlend(season: Season | SeasonBlend): SeasonBlend {
+  return typeof season === 'string' ? { from: season, to: season, mix: 0 } : season;
+}
+
+function assemble(blobs: TreeInstance[], cypresses: TreeInstance[], season: Season | SeasonBlend): THREE.Group {
   const geo = makeGeometries();
   const group = new THREE.Group();
   group.name = 'vegetation';
   const base = new THREE.Color();
-  const seasonColors = SEASON_PALETTES[season];
+  const blend = normalizeBlend(season);
+  const from = SEASON_PALETTES[blend.from];
+  const to = SEASON_PALETTES[blend.to];
+  const target = new THREE.Color();
 
   if (blobs.length) {
     group.add(trunkMesh(geo.trunk, blobs));
     group.add(
       crownMesh(geo.blobCrown, blobs, (t, rand) => {
-        base.set(t.alt ? seasonColors.treeBlobAlt : seasonColors.treeBlob);
+        base.set(t.alt ? from.treeBlobAlt : from.treeBlob);
+        if (blend.mix > 0 && blend.to !== blend.from) base.lerp(target.set(t.alt ? to.treeBlobAlt : to.treeBlob), blend.mix);
         return base.clone().multiplyScalar(0.9 + rand() * 0.2);
       }),
     );
@@ -118,7 +126,7 @@ function assemble(blobs: TreeInstance[], cypresses: TreeInstance[], season: Seas
 }
 
 /** Vegetación de todo el grid. */
-export function buildVegetation(grid: Grid, season: Season = 'verano'): THREE.Group {
+export function buildVegetation(grid: Grid, season: Season | SeasonBlend = 'verano'): THREE.Group {
   const blobs: TreeInstance[] = [];
   const cypresses: TreeInstance[] = [];
   grid.forEachChunk((chunk) => chunk.cells.forEach((cell, key) => collect(cell, key, blobs, cypresses)));
@@ -126,7 +134,7 @@ export function buildVegetation(grid: Grid, season: Season = 'verano'): THREE.Gr
 }
 
 /** Vegetación de un solo chunk (o null si no tiene árboles). */
-export function buildVegetationForChunk(chunk: Chunk, season: Season = 'verano'): THREE.Group | null {
+export function buildVegetationForChunk(chunk: Chunk, season: Season | SeasonBlend = 'verano'): THREE.Group | null {
   const blobs: TreeInstance[] = [];
   const cypresses: TreeInstance[] = [];
   chunk.cells.forEach((cell, key) => collect(cell, key, blobs, cypresses));

@@ -7,7 +7,7 @@
 import * as THREE from 'three';
 import { PALETTE, SEASON_PALETTES } from '../../palette';
 import { createRng } from '../../rng';
-import { Season } from '../../sim/weather';
+import { Season, SeasonBlend } from '../../sim/weather';
 import { Grid, Chunk, Terrain, CELL_SIZE, Cell } from '../grid';
 
 const LAYER_Y: Record<Terrain, number> = {
@@ -20,13 +20,14 @@ const LAYER_Y: Record<Terrain, number> = {
   rail: 0.13,
 };
 
-function baseColor(terrain: Terrain, rng: ReturnType<typeof createRng>, season: Season): number {
+function paletteColor(terrain: Terrain, roll: number, season: Season): number {
   const sp = SEASON_PALETTES[season];
+  const pick = (colors: readonly number[]) => colors[Math.min(colors.length - 1, Math.floor(roll * colors.length))];
   switch (terrain) {
     case 'field':
-      return rng.pick(sp.fields);
+      return pick(sp.fields);
     case 'grass':
-      return rng.pick(sp.grassPatches);
+      return pick(sp.grassPatches);
     case 'water':
       return PALETTE.pond;
     case 'path':
@@ -40,6 +41,18 @@ function baseColor(terrain: Terrain, rng: ReturnType<typeof createRng>, season: 
   }
 }
 
+const blendTarget = new THREE.Color();
+const cultivatedTarget = new THREE.Color();
+function blendPaletteColor(out: THREE.Color, terrain: Terrain, roll: number, blend: SeasonBlend): void {
+  out.set(paletteColor(terrain, roll, blend.from));
+  if (blend.mix > 0 && blend.to !== blend.from) {
+    // La misma semilla escoge la misma mancha en ambas paletas: cambia el tono,
+    // no aparece ruido nuevo a mitad de estación.
+    blendTarget.set(paletteColor(terrain, roll, blend.to));
+    out.lerp(blendTarget, blend.mix);
+  }
+}
+
 interface QuadBuffers {
   positions: number[];
   normals: number[];
@@ -50,13 +63,13 @@ function cellFromKey(key: number): [number, number] {
   return [Math.floor(key / 65536) - 32768, (key % 65536) - 32768];
 }
 
-function emitCell(buf: QuadBuffers, cx: number, cz: number, cell: Cell, c: THREE.Color, cultivation: number, season: Season): void {
+function emitCell(buf: QuadBuffers, cx: number, cz: number, cell: Cell, c: THREE.Color, cultivation: number, blend: SeasonBlend): void {
   if (cell.terrain === 'none') return;
 
   // Color base por región (parches grandes) + jitter fino por celda.
   const shift = cell.terrain === 'field' ? 4 : cell.terrain === 'grass' ? 2 : 8;
   const regionRng = createRng(((cx >> shift) * 73856093) ^ ((cz >> shift) * 19349663));
-  c.set(baseColor(cell.terrain, regionRng, season));
+  blendPaletteColor(c, cell.terrain, regionRng.next(), blend);
   if (cell.terrain === 'road') {
     // Los tipos comparten la misma familia de color, pero la jerarquía se lee
     // también desde lejos: camino claro, calle algo más marcada y avenida más
@@ -71,8 +84,12 @@ function emitCell(buf: QuadBuffers, cx: number, cz: number, cell: Cell, c: THREE
     // Faena reciente (economy.cultivation): el barbecho vira a tonos de
     // cultivo, con franjas por fila (surcos) que se marcan más cuanto más
     // trabajado está el campo — cero horario fijo, solo el nivel agregado.
-    const worked = new THREE.Color(regionRng.pick(SEASON_PALETTES[season].fieldsCultivated));
-    c.lerp(worked, cultivation);
+    const from = SEASON_PALETTES[blend.from].fieldsCultivated;
+    const to = SEASON_PALETTES[blend.to].fieldsCultivated;
+    const index = Math.floor(regionRng.next() * from.length);
+    cultivatedTarget.set(from[index]);
+    if (blend.mix > 0 && blend.to !== blend.from) cultivatedTarget.lerp(blendTarget.set(to[index]), blend.mix);
+    c.lerp(cultivatedTarget, cultivation);
     if (((cz % 2) + 2) % 2 === 1) c.multiplyScalar(1 - cultivation * 0.12);
   }
   const cellRng = createRng((cx * 83492791) ^ (cz * 29874321));
@@ -128,25 +145,25 @@ function finish(buf: QuadBuffers): THREE.Mesh {
 /** Malla de terreno de un solo chunk (o null si no tiene terreno). `cultivation`
  * [0,1]: cuánta faena agrícola reciente hay en la ciudad (economy.cultivation).
  * `season` (T5.1): qué paleta de terreno usar. */
-export function buildTerrainMeshForChunk(chunk: Chunk, cultivation = 0, season: Season = 'verano'): THREE.Mesh | null {
+export function buildTerrainMeshForChunk(chunk: Chunk, cultivation = 0, blend: SeasonBlend = { from: 'verano', to: 'verano', mix: 0 }): THREE.Mesh | null {
   const buf: QuadBuffers = { positions: [], normals: [], colors: [] };
   const c = new THREE.Color();
   chunk.cells.forEach((cell, key) => {
     const [cx, cz] = cellFromKey(key);
-    emitCell(buf, cx, cz, cell, c, cultivation, season);
+    emitCell(buf, cx, cz, cell, c, cultivation, blend);
   });
   if (buf.positions.length === 0) return null;
   return finish(buf);
 }
 
 /** Malla de terreno de todo el grid (una sola geometría). */
-export function buildTerrainMesh(grid: Grid, cultivation = 0, season: Season = 'verano'): THREE.Mesh {
+export function buildTerrainMesh(grid: Grid, cultivation = 0, blend: SeasonBlend = { from: 'verano', to: 'verano', mix: 0 }): THREE.Mesh {
   const buf: QuadBuffers = { positions: [], normals: [], colors: [] };
   const c = new THREE.Color();
   grid.forEachChunk((chunk) => {
     chunk.cells.forEach((cell, key) => {
       const [cx, cz] = cellFromKey(key);
-      emitCell(buf, cx, cz, cell, c, cultivation, season);
+      emitCell(buf, cx, cz, cell, c, cultivation, blend);
     });
   });
   return finish(buf);

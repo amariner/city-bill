@@ -11,7 +11,7 @@ import { buildTerrainMeshForChunk } from './terrain';
 import { buildVegetationForChunk } from './instances';
 import { mergeBuildingsForChunk, roofSnowAmount } from './buildings';
 import { homeGarden, festivalDecor } from '../../props';
-import { Season } from '../../sim/weather';
+import { SeasonBlend } from '../../sim/weather';
 
 interface ChunkVisual {
   group: THREE.Group;
@@ -31,8 +31,8 @@ export class WorldView {
   private cultivation = 0;
   /** Fiesta de barrio en curso (ciclo 10) — decora los edificios cívicos. */
   private festivalActive = false;
-  /** Estación actual (T5.1) — colorea terreno y vegetación. */
-  private season: Season = 'verano';
+  /** Cruce continuo de paletas (T5.1) para terreno y caducifolios. */
+  private seasonBlend: SeasonBlend = { from: 'verano', to: 'verano', mix: 0 };
   /** Nieve continua de cubiertas; se hornea junto al edificio sin draw calls extra. */
   private roofSnow = 0;
   /** Anclas de edificios EN OBRA (T4.2): el chunk las omite mientras un FX de
@@ -120,10 +120,12 @@ export class WorldView {
     this.rebuildAllChunks();
   }
 
-  /** Cambia la estación (T5.1) y repinta terreno + vegetación de todo el mapa. */
-  setSeason(season: Season): void {
-    if (season === this.season) return;
-    this.season = season;
+  /** Cruza las paletas sin saltos. Cuantizar evita reconstruir todos los chunks
+   * en cada frame durante el cambio estacional. */
+  setSeasonBlend(blend: SeasonBlend): void {
+    if (blend.from === this.seasonBlend.from && blend.to === this.seasonBlend.to
+      && Math.abs(blend.mix - this.seasonBlend.mix) < 0.07) return;
+    this.seasonBlend = blend;
     this.rebuildAllChunks();
   }
 
@@ -147,10 +149,10 @@ export class WorldView {
     const group = new THREE.Group();
     group.name = `chunk_${chunk.chx}_${chunk.chz}`;
 
-    const terrain = buildTerrainMeshForChunk(chunk, this.cultivation, this.season);
+    const terrain = buildTerrainMeshForChunk(chunk, this.cultivation, this.seasonBlend);
     if (terrain) group.add(terrain);
 
-    const veg = buildVegetationForChunk(chunk, this.season);
+    const veg = buildVegetationForChunk(chunk, this.seasonBlend);
     if (veg) group.add(veg);
 
     // Edificios anclados en este chunk: se posicionan/rotan/decoran igual que

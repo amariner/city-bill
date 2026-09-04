@@ -304,13 +304,12 @@ repetido, arbolado automático en márgenes de carretera (rasgo de identidad).
   aditivo y sin rebuild de malla; factor 0.85 calibrado para que lea sin borrar las
   sombras). Colores en `palette.ts` (`skyWinter/Summer`, `ambientWinter/Summer`, `snow`).
   (B) **paleta estacional del terreno y la vegetación** — las 4 variantes de
-  `SEASON_PALETTES` (`palette.ts`: campos/hierba/copas por estación), aplicadas vía
-  `worldView.setSeason(...)` desde el bucle de render. Esta segunda capa es un CORTE
-  discreto al reconstruir los chunks (como `cultivation`/`festivalActive`), no un
-  crossfade. **Tejados resuelto (2026-09-04):** el horneado de edificios detecta
+  `SEASON_PALETTES` (`palette.ts`: campos/hierba/copas por estación), mezcladas por
+  `seasonalPaletteBlend(...)` y cuantizadas a 0,07 antes de reconstruir chunks.
+  **Tejados resuelto (2026-09-04):** el horneado de edificios detecta
   los cuatro tonos de cubierta de la paleta y los funde hacia `snow` siguiendo
   la misma calidez continua del terreno, sin crear mallas ni draw calls. *Pulido
-  pendiente:* fundir la paleta discreta de capa (B) como la (A).
+  pendiente:* verificar visualmente el cruce de la capa (B) a lo largo de una estación.
 - [ ] **T5.2 Tren. [POST-MVP]** Vía + estación + tren con 3-5 vagones en circuito, humo
   de la locomotora con sprites de esferas. *Fuera del done del MVP (2026-08-14, §6);
   primer candidato del hito de continuación.*
@@ -389,7 +388,7 @@ reconoce el rumbo real.
 6. [ ] **Contrato §1.5 verificado en la escena real** (F3): ≤200 draw calls,
    ≤16 ms/frame, tick ≤50 ms con 1000 ciudadanos; T3.6 saldado (LOD lejano + estrés
    500 a 60 fps).
-7. [ ] **Invierno de apertura rematado (T5.1)**: crossfade de la capa estacional (B) +
+7. [x] **Invierno de apertura rematado (T5.1)**: crossfade de la capa estacional (B) +
    nieve en los tejados (la primera impresión de cada visita es el invierno).
 8. [ ] **Higiene**: `tsc` limpio, suite completa verde, hallazgos menores saldados
    (duelo duplicado en inspector, grid fantasma de `neighborhood.ts`, comentario
@@ -447,7 +446,7 @@ tractores (residuo T3.9), página itch.io.
   de 500 peatones F3 sostuvo 60 fps (2026-09-04), sin regresión observable.
 
 **H4 — Puertas abiertas** *(gate = done final)*
-- [ ] T5.1 rematado (crossfade capa B + nieve en tejados).
+- [x] T5.1 rematado (crossfade capa B + nieve en tejados).
 - [x] Onboarding (3-5 tooltips) + línea de título; semilla visible + acción "nueva
   semilla"; `?days=N` en la escena normal. Cuatro pistas no modales y persistentes
   (`src/ui/onboarding.ts`); `?seed=4242&days=2` verificado en preview (día 2,
@@ -542,6 +541,15 @@ tractores (residuo T3.9), página itch.io.
   60 fps con 109 draw calls. Es una validación de integración (no una medición
   aislada por fuente): satisface que el ambiente generativo no introduzca una
   regresión observable de fluidez en la escena de estrés.
+
+- 2026-09-04 — **T5.1, paleta estacional continua.** Terreno y copas de árbol
+  pasan ahora de una paleta a la siguiente mediante `seasonalPaletteBlend`, una
+  función pura, periódica y continua por fracción de día. `WorldView` cuantiza
+  el progreso a 0,07 para que el render no reconstruya chunks en cada frame; el
+  índice de manchas se conserva entre ambas paletas, por lo que el cambio es de
+  tono y no un parpadeo de patrones. Preview `?seed=4242&days=10&stress=500`:
+  60 fps, 109 draw calls, 82 geometrías y 2 texturas; pruebas cubren el límite
+  de estación y el período anual.
 
 - 2026-07-05 (sesión merge) — **RECONCILIACIÓN de dos líneas divergentes de
   `main`**. El `main` local (18 commits: duelo visual, jubilación, guardado

@@ -25,7 +25,7 @@ import { OVERLAY_LABELS, OVERLAY_MODES, OverlayLayer } from './world/render/over
 import { AlertsLayer } from './world/render/alerts';
 import { Atmosphere, lampFactor } from './world/render/atmosphere';
 import { DAY_GAME_SECONDS } from './sim/clock';
-import { seasonalWarmth, weatherAt } from './sim/weather';
+import { seasonalPaletteBlend, seasonalWarmth, weatherAt } from './sim/weather';
 import { isFestivalDay } from './sim/citizens/activities';
 import { updateTerrainSeason } from './world/render/terrain';
 import { Speed } from './sim/protocol';
@@ -521,11 +521,12 @@ loop.onUpdate((dt) => {
     const t = simClient.gameTime;
     updateSun(stage.sun, (t % DAY_GAME_SECONDS) / DAY_GAME_SECONDS); // ciclo de luz T1.8
     const day = Math.floor(t / DAY_GAME_SECONDS);
-    const warmth = seasonalWarmth(day);
+    const yearDay = t / DAY_GAME_SECONDS;
+    const warmth = seasonalWarmth(yearDay);
     updateSeason(stage, warmth); // tinte estacional de luz/cielo (T5.1 paso 1)
     // Render rico: paleta estacional del terreno/vegetación (T5.1) y decoración
     // de fiesta en los edificios cívicos (ciclo 10) — se recomponen los chunks.
-    worldView?.setSeason(weatherAt(activeSeed, day).season);
+    worldView?.setSeasonBlend(seasonalPaletteBlend(yearDay));
     worldView?.setFestivalActive(isFestivalDay(day));
     const h = (t % DAY_GAME_SECONDS) / 3600;
     updateNight(stage, lampFactor(h)); // hora azul: atenúa/enfría al anochecer (T5.4)

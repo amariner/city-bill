@@ -18,6 +18,13 @@ const SEASONS: Season[] = ['invierno', 'primavera', 'verano', 'otoño'];
 /** Días de juego por estación (año de 4 estaciones iguales). */
 export const DAYS_PER_SEASON = 20;
 
+/** Dos paletas estacionales y su cruce continuo [0,1] para el render. */
+export interface SeasonBlend {
+  from: Season;
+  to: Season;
+  mix: number;
+}
+
 export interface Weather {
   season: Season;
   /** [0,1]: 0 templado, 1 crudo (frío en invierno, bochorno en verano). */
@@ -45,6 +52,23 @@ export function seasonalWarmth(day: number): number {
   const p = ((day % DAYS_PER_YEAR) + DAYS_PER_YEAR) % DAYS_PER_YEAR / DAYS_PER_YEAR; // [0,1)
   const winterCenter = (0.5 * DAYS_PER_SEASON) / DAYS_PER_YEAR; // centro del invierno
   return -Math.cos(2 * Math.PI * (p - winterCenter));
+}
+
+/**
+ * Cruce continuo de las paletas de suelo y caducifolios (T5.1 capa B). A lo
+ * largo de cada estación viaja hacia la siguiente; al llegar al límite, la
+ * pareja cambia pero el color es idéntico (`mix=1` → nuevo `mix=0`). Acepta
+ * fracciones de día, por eso el render no pega un salto a medianoche.
+ */
+export function seasonalPaletteBlend(day: number): SeasonBlend {
+  const yearDay = ((day % DAYS_PER_YEAR) + DAYS_PER_YEAR) % DAYS_PER_YEAR;
+  const index = Math.floor(yearDay / DAYS_PER_SEASON);
+  const from = SEASONS[index];
+  return {
+    from,
+    to: SEASONS[(index + 1) % SEASONS.length],
+    mix: (yearDay % DAYS_PER_SEASON) / DAYS_PER_SEASON,
+  };
 }
 
 /** Nombre de la fiesta según la ESTACIÓN en que cae (ciclo 22): una fiesta de
