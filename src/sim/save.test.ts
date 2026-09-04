@@ -41,6 +41,21 @@ const b = restored.applyAction(action, 9001);
 check('save: una acción posterior se acepta en ambas ramas', a.ok && b.ok);
 check('save: el replay posterior sigue alineado', original.grid.serialize() === restored.grid.serialize() && original.actions.length === restored.actions.length);
 
+// H1: `visualId` pertenece al grid serializado, pero se comprueba aquí el
+// recorrido completo worker → JSON → worker para que una carga no devuelva la
+// fachada al id estructural de la parcela.
+{
+  const grid = new Grid();
+  grid.fillTerrain(-4, -4, 8, 8, 'field');
+  check('save fachada: coloca la parcela de prueba', grid.placeBuilding('town-house', 4, 3, 0, 0, 0, 6, 'cottage'));
+  const source = new Simulation(grid, 9411);
+  source.autonomousGrowth = false;
+  const state = JSON.parse(JSON.stringify(source.serialize()));
+  const loaded = new Simulation(Grid.deserialize(state.gridJson), 9411, state);
+  check('save fachada: el índice restaurado conserva la tipología visual', loaded.index.at(0, 0)?.visualId === 'cottage');
+  check('save fachada: conserva además la capacidad de parcela', loaded.index.at(0, 0)?.capacity === 6);
+}
+
 console.log(`\nsave.test: ${passed} passed, ${failed} failed`);
 if (failed > 0) throw new Error(`${failed} tests fallidos`);
 
