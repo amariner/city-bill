@@ -11,7 +11,8 @@
 export const CELL_SIZE = 2;
 export const CHUNK = 64;
 
-export type Terrain = 'none' | 'field' | 'grass' | 'water' | 'road' | 'path';
+/** `rail` es infraestructura exclusiva del tren: no es calzada ni sendero. */
+export type Terrain = 'none' | 'field' | 'grass' | 'water' | 'road' | 'path' | 'rail';
 export type Rot = 0 | 1 | 2 | 3;
 export type ZoneKind = 'R' | 'C' | 'I' | 'A' | 'P';
 export type RoadKind = 'path' | 'rural' | 'street' | 'avenue';
@@ -133,7 +134,7 @@ export class Grid {
     const cell = this.ensureCell(cx, cz);
     cell.terrain = terrain;
     if (terrain !== 'road') delete cell.roadKind;
-    if (terrain === 'road' || terrain === 'water') delete cell.zone;
+    if (terrain === 'road' || terrain === 'water' || terrain === 'rail') delete cell.zone;
   }
 
   setRoad(cx: number, cz: number, roadKind: RoadKind = 'rural'): void {
@@ -173,7 +174,7 @@ export class Grid {
       for (let z = cz; z < cz + fd; z++) {
         const cell = this.get(x, z);
         if (cell?.building) return false;
-        if (cell?.terrain === 'water' || cell?.terrain === 'road') return false;
+        if (cell?.terrain === 'water' || cell?.terrain === 'road' || cell?.terrain === 'rail') return false;
       }
     }
     return true;

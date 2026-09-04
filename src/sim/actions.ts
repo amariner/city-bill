@@ -3,7 +3,7 @@ import type { Simulation } from './simulation';
 import type { PlayerAction, RejectReason, RecordedAction, RoadKind } from './protocol';
 import { catalogData } from '../world/catalogData';
 import { placementCheck } from '../world/placement';
-import { paintRoadPlan, planRoad, previewRoad, ROAD_SPECS } from '../world/roads';
+import { paintRailPlan, paintRoadPlan, planRoad, previewRoad, ROAD_SPECS } from '../world/roads';
 import { buildBusLine } from './transit';
 
 export type ActionResult =
@@ -37,6 +37,7 @@ export function applyPlayerAction(sim: Simulation, action: PlayerAction): Action
       // La validación anterior y la colocación ocurren en el mismo hilo: el
       // débito no puede fallar entre ambas operaciones.
       if (!sim.economy.spendPublic(cost, 'build')) throw new Error('tesoro incoherente al cobrar una obra');
+      if (item.id === 'station') sim.refreshTrain();
       return { ok: true, cost };
     }
     case 'bulldoze':
@@ -209,8 +210,27 @@ export function applyPlayerAction(sim: Simulation, action: PlayerAction): Action
       }
       return { ok: true, cost: 0 };
     }
+    case 'rail': {
+      if (sim.economy.bankrupt || sim.economy.updateBankruptcy(sim.citizens.size)) {
+        return { ok: false, reason: 'bankrupt', detail: 'el tesoro está en quiebra' };
+      }
+      if (sim.tier < 4) return { ok: false, reason: 'tierLocked', detail: 'el ferrocarril se desbloquea en T4' };
+      const plan = planRoad(action.from, action.to);
+      if (plan.length === 0) return { ok: false, reason: 'invalid', detail: 'la vía necesita origen y destino distintos' };
+      const painted = paintRailPlan(sim.grid, plan);
+      if (painted.laid.length === 0) {
+        return painted.blocked.length > 0
+          ? { ok: false, reason: 'blocked', detail: 'la vía encuentra un obstáculo al salir' }
+          : { ok: false, reason: 'invalid', detail: 'no hay terreno conocido para trazar la vía' };
+      }
+      sim.index.rebuild();
+      sim.economy.rebuild(sim.index, sim.citizens);
+      sim.refreshTrain();
+      sim.events.push({ name: 'roadBuilt', data: { road: 'rail', cells: painted.laid.length, cost: 0, byPlayer: true } });
+      return { ok: true, cost: 0 };
+    }
     default:
-      return { ok: false, reason: 'invalid', detail: `acción no disponible: ${action.kind}` };
+      return { ok: false, reason: 'invalid', detail: 'acción no disponible' };
   }
 }
 

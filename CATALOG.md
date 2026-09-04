@@ -4,7 +4,7 @@ Catálogo completo de lo construible. Cada entrada define: tamaño en celdas de 
 (1 celda = 2×2 m), tier de desbloqueo, rol en la simulación y notas visuales.
 Los colores SIEMPRE salen de `src/palette.ts` (ampliándola si hace falta, nunca hardcodeando).
 
-**La fuente de verdad de lo implementado es `src/world/catalogData.ts`** (24 ítems; el
+**La fuente de verdad de lo implementado es `src/world/catalogData.ts`** (25 ítems; el
 worker de sim importa ese archivo y `catalog.ts` le añade los `build()` de mesh). Este
 documento es el catálogo de DISEÑO: ✅ = en el código, con su `id` real; sin marca =
 pendiente de modelar. *Sincronizado con el código el 2026-09-03 (H4.5): footprints,
@@ -35,8 +35,8 @@ son deliberadamente legibles y el ledger del tesoro se conserva en el guardado.
 | Avenida | 3 ancho | T3 | Doble sentido, mediana | Mediana verde con cipreses |
 | Plaza | 4×4 | T2 | ✅ `plaza` · servicio `park` | Pavimento claro, bancos, fuente |
 | Puente | 2 ancho | T3 | Cruza agua | Vigas facetadas |
-| Vía de tren | 2 ancho | T4 | Tren decorativo/logístico | Balasto gris, traviesas |
-| Estación de tren | 3×6 | T4 | Hito, atrae comercio | Andén + marquesina, referencia Zlín |
+| Vía de tren | 1 ancho | T4 | ✅ Circuito ferroviario | Balasto gris, vía exclusiva no peatonal |
+| Estación de tren | 3×6 | T4 | ✅ `station` · 3 empleos | Andén + marquesina, referencia Zlín |
 | Poste eléctrico | 1×1 | T1 | Decorativo en carreteras | Poste en T con cables catenaria |
 
 ## Residencial
@@ -95,4 +95,4 @@ son deliberadamente legibles y el ledger del tesoro se conserva en el guardado.
 | Pájaros | T0 | ✅ Bandada del anochecer (T5.4), puro ambiente |
 | Tractor | T1 | Pendiente — residuo de T3.9, **POST-MVP** (recorte 2026-08-14) |
 | Camión | T3 | Pendiente — granja/fábrica → mercado/almacén |
-| Tren | T4 | Pendiente — T5.2, **POST-MVP**: circuito fijo, 3-5 vagones, silbido lejano |
+| Tren | T4 | ✅ Circuito cerrado + estación activa: 1 locomotora y 3-5 vagones, estado guardable |

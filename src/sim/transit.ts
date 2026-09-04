@@ -2,6 +2,7 @@
  * La ruta se construye sobre los puntos de parada en orden X→Z; la validación
  * de que las paradas estén en calzada vive en actions.ts, no aquí. */
 import type { CellXZ } from './geometry';
+import type { Grid } from '../world/grid';
 
 export const BUS_SPEED_FACTOR = 0.8;
 export const BUS_CELLS_PER_TICK = 3.6 * BUS_SPEED_FACTOR;
@@ -26,6 +27,118 @@ export interface Bus {
   x: number;
   z: number;
   heading: number;
+}
+
+/** El tren recorre un circuito de celdas rail. Los vagones se derivan de la
+ * cabeza para mantener el estado de guardado pequeño y canónico. */
+export interface Train {
+  route: CellXZ[];
+  routeIndex: number;
+  x: number;
+  z: number;
+  heading: number;
+  wagonCount: number;
+}
+
+export const TRAIN_CELLS_PER_TICK = 2.4;
+
+function railNeighbors(grid: Grid, cx: number, cz: number): CellXZ[] {
+  const out: CellXZ[] = [];
+  for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as CellXZ[]) {
+    if (grid.get(cx + dx, cz + dz)?.terrain === 'rail') out.push([cx + dx, cz + dz]);
+  }
+  return out;
+}
+
+/** Encuentra el primer componente ferroviario cerrado en orden canónico.
+ * Un circuito válido tiene exactamente dos vecinos de vía en cada celda; así
+ * se evita que un cruce ambiguo haga saltar al tren entre ramas. */
+export function buildRailLoop(grid: Grid): CellXZ[] | null {
+  const rails: CellXZ[] = [];
+  grid.forEachChunk((chunk) => chunk.cells.forEach((cell, key) => {
+    if (cell.terrain === 'rail') rails.push([Math.floor(key / 65536) - 32768, (key % 65536) - 32768]);
+  }));
+  rails.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const visited = new Set<string>();
+  for (const start of rails) {
+    const startKey = `${start[0]},${start[1]}`;
+    if (visited.has(startKey)) continue;
+    const component: CellXZ[] = [];
+    const queue: CellXZ[] = [[...start]];
+    visited.add(startKey);
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      component.push(current);
+      for (const next of railNeighbors(grid, current[0], current[1])) {
+        const key = `${next[0]},${next[1]}`;
+        if (!visited.has(key)) { visited.add(key); queue.push(next); }
+      }
+    }
+    if (component.length < 8 || component.some(([x, z]) => railNeighbors(grid, x, z).length !== 2)) continue;
+    const ordered: CellXZ[] = [[...start]];
+    let previous: CellXZ | null = null;
+    let current = start;
+    while (true) {
+      const candidates = railNeighbors(grid, current[0], current[1])
+        .filter(([x, z]) => !previous || x !== previous[0] || z !== previous[1]);
+      candidates.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+      const next = candidates[0];
+      if (!next) break;
+      if (next[0] === start[0] && next[1] === start[1]) return ordered.length === component.length ? ordered : null;
+      if (ordered.some(([x, z]) => x === next[0] && z === next[1])) break;
+      ordered.push(next);
+      previous = current;
+      current = next;
+    }
+  }
+  return null;
+}
+
+export function createTrain(route: readonly CellXZ[], wagonCount = 3): Train | null {
+  if (route.length < 8) return null;
+  const [x, z] = route[0];
+  return { route: route.map(([cx, cz]) => [cx, cz]), routeIndex: 0, x: x + 0.5, z: z + 0.5, heading: 0, wagonCount: Math.max(3, Math.min(5, wagonCount)) };
+}
+
+/** Avance continuo sobre el lazo; la interpolación del main hace el resto. */
+export function stepTrain(train: Train, speed = TRAIN_CELLS_PER_TICK): void {
+  if (train.route.length < 2) return;
+  let budget = Math.max(0, speed);
+  while (budget > 0) {
+    const nextIndex = (train.routeIndex + 1) % train.route.length;
+    const [tx, tz] = train.route[nextIndex];
+    const targetX = tx + 0.5;
+    const targetZ = tz + 0.5;
+    const dx = targetX - train.x;
+    const dz = targetZ - train.z;
+    const distance = Math.abs(dx) + Math.abs(dz);
+    if (distance <= budget) {
+      train.x = targetX;
+      train.z = targetZ;
+      if (dx !== 0 || dz !== 0) train.heading = Math.atan2(dx, dz);
+      train.routeIndex = nextIndex;
+      budget -= distance;
+    } else {
+      const fraction = budget / distance;
+      train.x += dx * fraction;
+      train.z += dz * fraction;
+      if (dx !== 0 || dz !== 0) train.heading = Math.atan2(dx, dz);
+      budget = 0;
+    }
+  }
+}
+
+/** Posiciones de cola a lo largo de celdas ya recorridas; sin estado por
+ * vagón, por lo que un save nunca puede desincronizar una composición. */
+export function trainWagonPositions(train: Train): Array<{ x: number; z: number; heading: number }> {
+  const out: Array<{ x: number; z: number; heading: number }> = [];
+  for (let wagon = 0; wagon < train.wagonCount; wagon++) {
+    const index = (train.routeIndex - (wagon + 1) * 2 + train.route.length * 8) % train.route.length;
+    const [x, z] = train.route[index];
+    const next = train.route[(index + 1) % train.route.length];
+    out.push({ x: x + 0.5, z: z + 0.5, heading: Math.atan2(next[0] - x, next[1] - z) });
+  }
+  return out;
 }
 
 function appendAxis(route: CellXZ[], from: CellXZ, to: CellXZ): void {

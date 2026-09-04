@@ -8,6 +8,7 @@ import { BUS_STOP_STRIDE, VEHICLE_STRIDE, VehicleKindCode } from '../../sim/prot
 
 const MAX_BUSES = 4096;
 const MAX_STOPS = 4096;
+const MAX_TRAINS = 256;
 
 function busBodyGeometry(): THREE.BufferGeometry {
   const geometry = new THREE.BoxGeometry(1.45, 0.72, 3.25);
@@ -27,6 +28,8 @@ export class VehicleView {
   private readonly glass: THREE.InstancedMesh;
   private readonly stopPads: THREE.InstancedMesh;
   private readonly stopPoles: THREE.InstancedMesh;
+  private readonly locomotives: THREE.InstancedMesh;
+  private readonly wagons: THREE.InstancedMesh;
   private readonly matrix = new THREE.Matrix4();
   private readonly quaternion = new THREE.Quaternion();
   private readonly position = new THREE.Vector3();
@@ -57,6 +60,21 @@ export class VehicleView {
     this.stopPoles.name = 'bus-stop-poles';
     this.stopPoles.frustumCulled = false;
     this.root.add(this.stopPoles);
+
+    const locomotiveMaterial = new THREE.MeshLambertMaterial({ color: PALETTE.rail, flatShading: true });
+    this.locomotives = new THREE.InstancedMesh(new THREE.BoxGeometry(1.45, 0.9, 2.5), locomotiveMaterial, MAX_TRAINS);
+    this.locomotives.name = 'locomotives';
+    this.locomotives.castShadow = true;
+    this.locomotives.frustumCulled = false;
+    this.locomotives.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.root.add(this.locomotives);
+    const wagonMaterial = new THREE.MeshLambertMaterial({ color: PALETTE.brick, flatShading: true });
+    this.wagons = new THREE.InstancedMesh(new THREE.BoxGeometry(1.35, 0.78, 2.25), wagonMaterial, MAX_TRAINS * 5);
+    this.wagons.name = 'train-wagons';
+    this.wagons.castShadow = true;
+    this.wagons.frustumCulled = false;
+    this.wagons.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.root.add(this.wagons);
   }
 
   /** Actualiza la flota y las paradas sin reconstruir geometría. */
@@ -80,6 +98,25 @@ export class VehicleView {
     this.glass.count = buses;
     this.bodies.instanceMatrix.needsUpdate = true;
     this.glass.instanceMatrix.needsUpdate = true;
+
+    let locomotives = 0;
+    let wagons = 0;
+    if (vehicles) {
+      for (let offset = 0; offset + VEHICLE_STRIDE <= vehicles.length; offset += VEHICLE_STRIDE) {
+        const kind = vehicles[offset + 4];
+        if (kind !== VehicleKindCode.Locomotive && kind !== VehicleKindCode.Wagon) continue;
+        const slot = kind === VehicleKindCode.Locomotive ? locomotives++ : wagons++;
+        if ((kind === VehicleKindCode.Locomotive && slot >= MAX_TRAINS) || (kind === VehicleKindCode.Wagon && slot >= MAX_TRAINS * 5)) continue;
+        this.position.set(vehicles[offset + 1] * CELL_SIZE, 0.5, vehicles[offset + 2] * CELL_SIZE);
+        this.quaternion.setFromAxisAngle(this.up, vehicles[offset + 3]);
+        this.matrix.compose(this.position, this.quaternion, this.scale);
+        (kind === VehicleKindCode.Locomotive ? this.locomotives : this.wagons).setMatrixAt(slot, this.matrix);
+      }
+    }
+    this.locomotives.count = Math.min(locomotives, MAX_TRAINS);
+    this.wagons.count = Math.min(wagons, MAX_TRAINS * 5);
+    this.locomotives.instanceMatrix.needsUpdate = true;
+    this.wagons.instanceMatrix.needsUpdate = true;
 
     let stops = 0;
     if (busStops) {

@@ -268,6 +268,8 @@ export function townAttractiveness(a: {
   taxBurden?: number;
   /** Una quiebra municipal resta atractivo, pero no detiene la vida. */
   bankrupt?: boolean;
+  /** Una estación conectada acerca la ciudad al exterior (H5.6). */
+  railService?: boolean;
 }): number {
   // El prestigio sigue impulsando la llegada, pero con peso moderado: la
   // política fiscal puede mover el ahorro y, por tanto, el prestigio. Un peso
@@ -277,7 +279,8 @@ export function townAttractiveness(a: {
   const burden = Math.max(0, a.taxBurden ?? 0);
   const taxFactor = 1 - 0.6 * Math.max(0, burden - 0.2);
   const bankruptcyPenalty = a.bankrupt ? 0.15 : 0;
-  return Math.min(1, Math.max(0.5, raw * taxFactor - bankruptcyPenalty));
+  const railBonus = a.railService ? 0.1 : 0;
+  return Math.min(1, Math.max(0.5, raw * taxFactor - bankruptcyPenalty + railBonus));
 }
 
 // --- Capacidad de carga (ciclo 30 — crecimiento logístico, no exponencial) ----

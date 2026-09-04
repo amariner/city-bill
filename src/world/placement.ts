@@ -48,7 +48,7 @@ export function placementCheck(
         && cell.building?.anchorZ === ignored.cz;
       if (cell.building && !isIgnoredBuilding) return 'blocked';
       if (cell.terrain === 'water') return 'water';
-      if (cell.terrain === 'road') return 'road';
+      if (cell.terrain === 'road' || cell.terrain === 'rail') return 'road';
       if (cell.terrain === 'path' && !allowPath) return 'road';
     }
   }

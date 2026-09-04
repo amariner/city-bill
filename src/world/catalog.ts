@@ -31,6 +31,7 @@ import {
   apartmentSlab,
   brickBlock,
   officeBlock,
+  station,
   blobTree,
   cypress,
 } from '../props';
@@ -64,6 +65,7 @@ const BUILDERS: Record<string, () => THREE.Object3D> = {
   playground: () => playground(),
   office: () => officeBlock(8),
   factory: () => factory(),
+  station: () => station(),
   'tree-blob': () => blobTree(1),
   'tree-cypress': () => cypress(1),
 };

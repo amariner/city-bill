@@ -24,8 +24,14 @@ const poles = view.root.getObjectByName('bus-stop-poles') as THREE.InstancedMesh
 check('render: dibuja solo los vehículos tipo bus', buses.count === 1 && busGlass.count === 1);
 check('render: convierte celdas a metros en la flota', buses.getMatrixAt(0, new THREE.Matrix4()).elements[12] === 5);
 check('render: instancia todas las paradas recibidas', pads.count === 2 && poles.count === 2);
+const train = new Float32Array(VEHICLE_STRIDE * 2);
+train.set([1, 3, 4, 0, VehicleKindCode.Locomotive, 0, 2, 2, 4, 0, VehicleKindCode.Wagon, 0]);
+view.update(train, null);
+const locomotives = view.root.getObjectByName('locomotives') as THREE.InstancedMesh;
+const wagons = view.root.getObjectByName('train-wagons') as THREE.InstancedMesh;
+check('render: distingue locomotora y vagón', locomotives.count === 1 && wagons.count === 1);
 view.update(null, null);
-check('render: limpia la flota y paradas cuando el canal llega vacío', buses.count === 0 && pads.count === 0);
+check('render: limpia la flota y paradas cuando el canal llega vacío', buses.count === 0 && pads.count === 0 && locomotives.count === 0 && wagons.count === 0);
 
 console.log(`\nvehicles.test: ${passed} passed, ${failed} failed`);
 if (failed > 0) throw new Error(`${failed} test(s) failed`);

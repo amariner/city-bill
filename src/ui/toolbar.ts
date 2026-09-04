@@ -147,7 +147,7 @@ export class Toolbar {
       this.catalogSignature = signature;
       this.rebuildMenu(available);
     }
-    const roadSignature = `${tier}:${roads.join(',')}`;
+    const roadSignature = `${tier}:${roads.join(',')}:rail=${tier >= 4}`;
     if (roadSignature !== this.roadSignature) {
       this.roadSignature = roadSignature;
       this.rebuildRoadMenu(roads);
@@ -163,7 +163,7 @@ export class Toolbar {
 
     const active = this.tools.active;
     this.buildButton.classList.toggle('cb-tool-active', active.kind === 'place');
-    this.roadButton.classList.toggle('cb-tool-active', active.kind === 'road');
+    this.roadButton.classList.toggle('cb-tool-active', active.kind === 'road' || active.kind === 'rail');
     this.zoneButton.classList.toggle('cb-tool-active', active.kind === 'zone');
     this.bulldozeButton.classList.toggle('cb-tool-active', active.kind === 'bulldoze');
     this.busButton.classList.toggle('cb-tool-active', active.kind === 'busLine');
@@ -172,6 +172,8 @@ export class Toolbar {
       ? `${available.find((item) => item.id === active.id)?.name ?? active.id} · Tab gira · Esc cancela`
       : active.kind === 'road'
         ? `${ROAD_LABELS[active.road]} · ${active.from ? 'elige destino' : 'clic y arrastra'}${this.roadCost !== null && active.from ? ` · coste ${this.roadCost}` : ''} · Esc cancela`
+        : active.kind === 'rail'
+          ? `ferrocarril · ${active.from ? 'elige destino' : 'clic y arrastra'} · circuito cerrado + estación para activar el tren · Esc cancela`
         : active.kind === 'zone'
           ? `${ZONE_LABELS[active.zone]} · ${active.erase ? 'Shift: borrar' : 'clic y arrastra'} · Esc cancela`
         : active.kind === 'busLine'
@@ -223,6 +225,20 @@ export class Toolbar {
       });
       this.roadMenu.appendChild(button);
     }
+    if ((this.sim.city?.tier ?? 1) >= 4) {
+      const rail = document.createElement('button');
+      rail.className = 'cb-building-option cb-road-option';
+      rail.textContent = 'ferrocarril · circuito cerrado';
+      rail.title = 'Traza una vía ferroviaria; una estación activa el tren';
+      rail.addEventListener('click', (event) => {
+        event.stopPropagation();
+        this.tools.set({ kind: 'rail', from: null });
+        this.roadMenuOpen = false;
+        this.roadMenu.style.display = 'none';
+        this.update();
+      });
+      this.roadMenu.appendChild(rail);
+    }
   }
 
   private rebuildZoneMenu(): void {
@@ -262,7 +278,7 @@ export class Toolbar {
     this.zoneMenuOpen = false;
     this.zoneMenu.style.display = 'none';
     if (this.menuOpen && this.tools.active.kind === 'place') this.tools.cancel();
-    if (this.menuOpen && this.tools.active.kind === 'road') this.tools.cancel();
+    if (this.menuOpen && (this.tools.active.kind === 'road' || this.tools.active.kind === 'rail')) this.tools.cancel();
     if (this.menuOpen && this.tools.active.kind === 'zone') this.tools.cancel();
     if (this.menuOpen && this.tools.active.kind === 'busLine') this.tools.cancel();
     if (this.menuOpen && this.tools.active.kind === 'district') this.tools.cancel();
@@ -276,7 +292,7 @@ export class Toolbar {
     this.menu.style.display = 'none';
     this.zoneMenuOpen = false;
     this.zoneMenu.style.display = 'none';
-    if (this.roadMenuOpen && (this.tools.active.kind === 'place' || this.tools.active.kind === 'road')) this.tools.cancel();
+    if (this.roadMenuOpen && (this.tools.active.kind === 'place' || this.tools.active.kind === 'road' || this.tools.active.kind === 'rail')) this.tools.cancel();
     if (this.roadMenuOpen && this.tools.active.kind === 'zone') this.tools.cancel();
     if (this.roadMenuOpen && this.tools.active.kind === 'busLine') this.tools.cancel();
     if (this.roadMenuOpen && this.tools.active.kind === 'district') this.tools.cancel();
@@ -290,7 +306,7 @@ export class Toolbar {
     this.menu.style.display = 'none';
     this.roadMenuOpen = false;
     this.roadMenu.style.display = 'none';
-    if (this.zoneMenuOpen && (this.tools.active.kind === 'place' || this.tools.active.kind === 'road' || this.tools.active.kind === 'zone' || this.tools.active.kind === 'busLine' || this.tools.active.kind === 'district')) this.tools.cancel();
+    if (this.zoneMenuOpen && (this.tools.active.kind === 'place' || this.tools.active.kind === 'road' || this.tools.active.kind === 'rail' || this.tools.active.kind === 'zone' || this.tools.active.kind === 'busLine' || this.tools.active.kind === 'district')) this.tools.cancel();
     this.update();
   }
 

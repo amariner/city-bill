@@ -11,7 +11,7 @@ import { DebugHud } from './core/debugHud';
 import { Pointer } from './core/pointer';
 import { ToolState } from './core/tools';
 import { WorldView } from './world/render/worldView';
-import { seedWorld, seedFarm, seedSandbox } from './world/seed';
+import { seedWorld, seedFarm, seedRail, seedSandbox } from './world/seed';
 import { buildShowcase } from './showcase';
 import { SimClient, AgentView } from './sim/client';
 import { CitizenView } from './world/render/citizens';
@@ -320,9 +320,9 @@ if (sceneName === 'buildings') {
   }
   const grid = savedGrid ?? (sceneName === 'sandbox'
     ? seedSandbox(worldSeed)
-    : sceneName === 'farm' ? seedFarm(worldSeed) : seedWorld(worldSeed));
-  camera.setTarget(sceneName === 'sandbox' || sceneName === 'farm' ? 0 : 20, sceneName === 'sandbox' ? 0 : sceneName === 'farm' ? 2 : 20);
-  simClient = new SimClient(worldSeed, grid.serialize(), 0, sceneName !== 'sandbox', initialSave?.seed === worldSeed ? initialSave.saveBlob : undefined);
+    : sceneName === 'farm' ? seedFarm(worldSeed) : sceneName === 'rail' ? seedRail(worldSeed) : seedWorld(worldSeed));
+  camera.setTarget(sceneName === 'sandbox' || sceneName === 'farm' || sceneName === 'rail' ? 0 : 20, sceneName === 'sandbox' ? 0 : sceneName === 'farm' ? 2 : sceneName === 'rail' ? 0 : 20);
+  simClient = new SimClient(worldSeed, grid.serialize(), 0, sceneName !== 'sandbox' && sceneName !== 'rail', initialSave?.seed === worldSeed ? initialSave.saveBlob : undefined);
   if (saveEnabled) {
     simClient.onSaveReady = (msg) => writeSave({ seed: worldSeed, saveBlob: msg.saveBlob });
     window.setInterval(() => simClient?.save('auto'), 10_000);

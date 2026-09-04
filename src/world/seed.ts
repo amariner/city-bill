@@ -206,3 +206,26 @@ export function seedSandbox(seed: number = SEED): Grid {
   scatterTrees(grid, rng, -R, -R, R, R, 72, 0.45);
   return grid;
 }
+
+/** Escena de comprobación H5.6: anillo ferroviario, estación Zlín y paisaje
+ * sobrio de hora azul. No es una excepción de la sim: usa el mismo grid y por
+ * eso el tren solo arranca si el detector de circuito lo acepta. */
+export function seedRail(seed: number = SEED): Grid {
+  const grid = new Grid();
+  const rng = createRng(seed ^ 0x7261696c);
+  const R = 36;
+  grid.fillTerrain(-R, -R, R, R, 'field');
+  for (let x = -20; x <= 20; x++) {
+    grid.setTerrain(x, -16, 'rail');
+    grid.setTerrain(x, 16, 'rail');
+  }
+  for (let z = -16; z <= 16; z++) {
+    grid.setTerrain(-20, z, 'rail');
+    grid.setTerrain(20, z, 'rail');
+  }
+  grid.fillTerrain(-12, -8, 12, 10, 'grass');
+  place(grid, 'station', -2, -5, 0);
+  for (let x = -14; x <= 14; x++) grid.setTerrain(x, 12, 'path');
+  scatterTrees(grid, rng, -R, -R, R, R, 42, 0.42);
+  return grid;
+}

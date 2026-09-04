@@ -17,6 +17,7 @@ const LAYER_Y: Record<Terrain, number> = {
   water: 0.07,
   path: 0.09,
   road: 0.11,
+  rail: 0.13,
 };
 
 function baseColor(terrain: Terrain, rng: ReturnType<typeof createRng>, season: Season): number {
@@ -32,6 +33,8 @@ function baseColor(terrain: Terrain, rng: ReturnType<typeof createRng>, season: 
       return PALETTE.path;
     case 'road':
       return PALETTE.road;
+    case 'rail':
+      return PALETTE.ballast;
     default:
       return sp.groundBase;
   }

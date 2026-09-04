@@ -35,6 +35,10 @@ export class Ghost {
       this.updateRoad(tool, cell);
       return;
     }
+    if (tool.kind === 'rail') {
+      this.updateRail(tool, cell);
+      return;
+    }
     if (tool.kind === 'zone') {
       this.updateZone(tool, cell);
       return;
@@ -95,6 +99,41 @@ export class Ghost {
     }
     this.onRoadCost?.(preview.cost);
     this.root.visible = preview.cells.length > 0;
+  }
+
+  private updateRail(tool: Extract<Tool, { kind: 'rail' }>, cell: [number, number]): void {
+    this.onRoadCost?.(null);
+    if (!tool.from) { this.root.visible = false; return; }
+    this.root.clear();
+    this.footprint = null;
+    this.building = null;
+    const plan = planRoad(tool.from, cell);
+    const seen = new Set<string>();
+    let count = 0;
+    for (const axis of plan) {
+      const start = axis.axis === 'x' ? axis.from[0] : axis.from[1];
+      const end = axis.axis === 'x' ? axis.to[0] : axis.to[1];
+      const step = start <= end ? 1 : -1;
+      for (let along = start; ; along += step) {
+        const [cx, cz] = axis.axis === 'x' ? [along, axis.from[1]] : [axis.from[0], along];
+        const key = `${cx},${cz}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          const current = this.grid.get(cx, cz);
+          const blocked = !current || !!current.building || current.terrain === 'water' || current.terrain === 'road' || current.terrain === 'path';
+          const plane = new THREE.Mesh(
+            new THREE.PlaneGeometry(CELL_SIZE * 0.8, CELL_SIZE * 0.8),
+            new THREE.MeshBasicMaterial({ color: blocked ? PALETTE.ghostBad : PALETTE.rail, transparent: true, opacity: blocked ? 0.56 : 0.48, depthWrite: false, side: THREE.DoubleSide }),
+          );
+          plane.rotation.x = -Math.PI / 2;
+          plane.position.set((cx + 0.5) * CELL_SIZE, 0.22, (cz + 0.5) * CELL_SIZE);
+          this.root.add(plane);
+          count++;
+        }
+        if (along === end) break;
+      }
+    }
+    this.root.visible = count > 0;
   }
 
   private updateZone(tool: Extract<Tool, { kind: 'zone' }>, cell: [number, number]): void {

@@ -12,13 +12,16 @@ const TERRAIN_COST: Record<string, number> = {
   path: 1.05,
   grass: 1.6,
   field: 2.4,
+  // La vía es una barrera física para peatones; los pasos a nivel llegarán con
+  // una futura pieza de infraestructura, no se finge que sea una calle lenta.
+  rail: Number.POSITIVE_INFINITY,
 };
 
 export function walkCost(cell: Cell | undefined): number | null {
   if (!cell) return null;
   if (cell.building) return null;
   const c = TERRAIN_COST[cell.terrain];
-  return c ?? null;
+  return c === undefined || !Number.isFinite(c) ? null : c;
 }
 
 export function isWalkable(grid: Grid, cx: number, cz: number): boolean {

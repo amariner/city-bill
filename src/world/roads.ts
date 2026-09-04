@@ -56,6 +56,11 @@ export interface RoadPreviewResult {
   cost: number;
 }
 
+export interface RailPaintResult {
+  laid: CellXZ[];
+  blocked: CellXZ[];
+}
+
 /** Plan ortogonal en L, primero X y después Z para que sea reproducible. */
 export function planRoad(from: CellXZ, to: CellXZ): RoadAxis[] {
   if (from[0] === to[0] && from[1] === to[1]) return [];
@@ -136,6 +141,38 @@ export function paintRoadPlan(grid: Grid, plan: RoadAxis[], kind: RoadKind, seed
     if (result.blocked.length > 0) break;
   }
   return { laid, blocked, cost: laid.length * ROAD_SPECS[kind].costPerCell };
+}
+
+/** Pinta una vía ferroviaria de una celda. No comparte el perfil de carretera:
+ * no crea aceras, árboles ni tránsito peatonal. Una línea ya existente puede
+ * cruzarse a sí misma, pero nunca reemplaza agua, edificios o calzada. */
+export function paintRailPlan(grid: Grid, plan: RoadAxis[]): RailPaintResult {
+  const laid: CellXZ[] = [];
+  const blocked: CellXZ[] = [];
+  const seen = new Set<string>();
+  for (const axis of plan) {
+    const start = axis.axis === 'x' ? axis.from[0] : axis.from[1];
+    const end = axis.axis === 'x' ? axis.to[0] : axis.to[1];
+    const step = start <= end ? 1 : -1;
+    for (let along = start; ; along += step) {
+      const cell: CellXZ = axis.axis === 'x' ? [along, axis.from[1]] : [axis.from[0], along];
+      const current = grid.get(cell[0], cell[1]);
+      if (!current || current.building || current.terrain === 'water' || current.terrain === 'road' || current.terrain === 'path') {
+        blocked.push(cell);
+        break;
+      }
+      const key = `${cell[0]},${cell[1]}`;
+      if (current.terrain !== 'rail' && !seen.has(key)) {
+        grid.setProp(cell[0], cell[1], undefined);
+        grid.setTerrain(cell[0], cell[1], 'rail');
+        seen.add(key);
+        laid.push(cell);
+      }
+      if (along === end) break;
+    }
+    if (blocked.length > 0) break;
+  }
+  return { laid, blocked };
 }
 
 /** Calcula el mismo resultado espacial que `paintRoadPlan` sin mutar el grid.

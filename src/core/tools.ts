@@ -11,6 +11,7 @@ export type Tool =
   | { kind: 'place'; id: string; rot: Rot }
   | { kind: 'bulldoze' }
   | { kind: 'road'; road: 'path' | 'rural' | 'street' | 'avenue'; from: CellXZ | null }
+  | { kind: 'rail'; from: CellXZ | null }
   | { kind: 'zone'; zone: ZoneKind; from: CellXZ | null; erase: boolean }
   | { kind: 'district'; district: number; from: CellXZ | null; erase: boolean }
   | { kind: 'busLine'; stops: CellXZ[] };
@@ -115,6 +116,13 @@ export class ToolState {
       }
       action = { kind: 'road', road: this.tool.road, from: [...this.tool.from], to: [...cell] };
       this.set({ ...this.tool, from: null });
+    } else if (this.tool.kind === 'rail') {
+      if (!this.tool.from) {
+        this.set({ ...this.tool, from: [...cell] });
+        return null;
+      }
+      action = { kind: 'rail', from: [...this.tool.from], to: [...cell] };
+      this.set({ ...this.tool, from: null });
     } else if (this.tool.kind === 'zone') {
       if (!this.tool.from) {
         this.set({ ...this.tool, from: [...cell] });
@@ -164,7 +172,7 @@ export class ToolState {
   }
 
   handleDragStart(cell: [number, number], button: PointerButton): void {
-    if (button !== 'left' || (this.tool.kind !== 'road' && this.tool.kind !== 'zone' && this.tool.kind !== 'district') || this.tool.from) return;
+    if (button !== 'left' || (this.tool.kind !== 'road' && this.tool.kind !== 'rail' && this.tool.kind !== 'zone' && this.tool.kind !== 'district') || this.tool.from) return;
     this.set({ ...this.tool, from: [...cell] });
   }
 
@@ -174,9 +182,11 @@ export class ToolState {
   }
 
   handleDragEnd(cell: [number, number], button: PointerButton): number | null {
-    if (button !== 'left' || (this.tool.kind !== 'road' && this.tool.kind !== 'zone' && this.tool.kind !== 'district') || !this.tool.from) return null;
+    if (button !== 'left' || (this.tool.kind !== 'road' && this.tool.kind !== 'rail' && this.tool.kind !== 'zone' && this.tool.kind !== 'district') || !this.tool.from) return null;
     const action: PlayerAction = this.tool.kind === 'road'
       ? { kind: 'road', road: this.tool.road, from: [...this.tool.from], to: [...cell] }
+      : this.tool.kind === 'rail'
+        ? { kind: 'rail', from: [...this.tool.from], to: [...cell] }
       : this.tool.kind === 'zone' ? {
         kind: 'zone',
         zone: this.tool.erase ? null : this.tool.zone,

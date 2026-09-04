@@ -415,10 +415,10 @@ trampas**. Los tests nuevos se añaden al script `"test"` de `package.json`.
 - Tests: capa de grid, acciones/replay, efectos de las cuatro políticas y overlay headless.
 
 **H5.6 Tren**
-- Archivos: M `grid.ts` (`Terrain 'rail'`, bloqueante), M `roads.ts` (`paintRail`), M `catalogData.ts` (`station` 3×6 T4 rol `infra`, `service: transit` radio 20), M `props.ts` (estación + loco + vagón), M `transit.ts` (`Train` sobre circuito cerrado, 1 loco + 3-5 vagones), M `growth.ts` (+0.1 atractividad), M `render/terrain.ts` (`LAYER_Y.rail`, `PALETTE.rail/ballast`), M `render/vehicles.ts`.
-- Tests: `rail` no transitable; circuito cerrado detectado; el tren completa una vuelta.
-- Visual: estación Zlín + tren a la hora azul.
-- Trampas: revisar `LAYER_Y`, `baseColor`, `walkCost`, `canPlace`, `placementCheck`.
+- **✅ implementado** — Archivos: M `grid.ts` (`Terrain 'rail'`, bloqueante), M `roads.ts` (`paintRailPlan`), M `catalogData.ts`/`catalog.ts`/`props.ts` (estación Zlín 3×6 T4), M `transit.ts` (detector de circuito y tren guardable), M `render/terrain.ts`/`vehicles.ts` (balasto, locomotora y vagones), M `tools.ts`/`toolbar.ts` (ferrocarril en menú de vías), C `src/sim/rail.test.ts`.
+- Tests: `rail` no transitable ni edificable, circuito cerrado detectado, tren completa una vuelta, snapshot/render y guardado conservan la composición.
+- Visual: `?scene=rail` entrega estación Zlín + tren funcional sobre un circuito cerrado.
+- Trampas saldadas: `LAYER_Y`, `baseColor`, `walkCost`, `canPlace` y `placementCheck` tratan la vía como infraestructura exclusiva.
 
 **Gate H5:** capturas tráfico/bus/distrito/tren; tick ≤ 50 ms con 1000 hab.
 

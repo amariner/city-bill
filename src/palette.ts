@@ -18,6 +18,10 @@ export const PALETTE = {
   // Carreteras y caminos
   road: 0xeae0c8,
   path: 0xe6dcc4,
+  // Ferrocarril: balasto frío y carriles oscuros, legibles sin competir con
+  // las vías crema ni romper el lenguaje pastel de la ciudad.
+  ballast: 0xb7b3aa,
+  rail: 0x55545b,
 
   // Zonas RCIAP (overlay opcional, siempre en pastel y con alfa en el render)
   zoneR: 0xd9a6a2,

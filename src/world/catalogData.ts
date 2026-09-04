@@ -71,6 +71,7 @@ export const CATALOG_DATA: CatalogItemData[] = [
   { id: 'playground', name: 'Zona de juegos', w: 2, d: 2, tier: 1, role: 'park', service: { kind: 'park', radius: 7 }, cost: 300, upkeepPerDay: 6, playerPlaceable: true },
   { id: 'office', name: 'Oficinas', w: 5, d: 5, tier: 4, role: 'work', jobs: 30, cost: 5625, playerPlaceable: true },
   { id: 'factory', name: 'Fábrica', w: 8, d: 6, tier: 4, role: 'work', jobs: 40, cost: 10800, playerPlaceable: true },
+  { id: 'station', name: 'Estación Zlín', w: 3, d: 6, tier: 4, role: 'infra', jobs: 3, cost: 8400, upkeepPerDay: 65, playerPlaceable: true },
 
   // --- Naturaleza -----------------------------------------------------------
   { id: 'tree-blob', name: 'Árbol', w: 1, d: 1, tier: 0, role: 'nature', amenity: 1, playerPlaceable: false },

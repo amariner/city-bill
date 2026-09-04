@@ -42,7 +42,7 @@ import { weatherAt, seasonalFestivalName, seasonalWarmth, Weather } from './weat
 import { applyPlayerAction, ActionResult } from './actions';
 import { ROAD_SPECS } from '../world/roads';
 import { congestionFactor, decayTraffic } from './traffic';
-import { BUS_SPEED_FACTOR, Bus, BusLine, buildBusLine, createBuses, stepBuses } from './transit';
+import { BUS_SPEED_FACTOR, Bus, BusLine, Train, buildBusLine, buildRailLoop, createBuses, createTrain, stepBuses, stepTrain, trainWagonPositions } from './transit';
 
 /** Velocidad al caminar, en celdas por tick (0.25 s reales a vel. 1). */
 const WALK_CELLS_PER_TICK = 0.9; // ≈ 7 km/h de juego a escala urbana
@@ -177,6 +177,8 @@ export interface SimSaveState {
   busTrips?: number;
   nextBusLineId?: number;
   nextBusId?: number;
+  /** Progreso del tren; el trazado se deriva del grid, no se duplica. */
+  train?: Pick<Train, 'routeIndex' | 'x' | 'z' | 'heading' | 'wagonCount'>;
   /** Políticas administrativas por distrito; opcional para saves anteriores a H5.5. */
   districtPolicies?: Array<[number, DistrictPolicyState]>;
   emigrations: number;
@@ -293,6 +295,8 @@ export class Simulation {
   busTrips = 0;
   private nextBusLineId = 1;
   private nextBusId = 1;
+  /** Un único servicio regional por circuito cerrado; los vagones se derivan. */
+  train: Train | null = null;
   /** Política local de cada distrito pintado; el mapa solo guarda estados no
    * neutros para que un save siga siendo pequeño y canónico. */
   readonly districtPolicies = new Map<number, DistrictPolicyState>();
@@ -334,6 +338,7 @@ export class Simulation {
     }
     this.spawnPopulation();
     this.economy.rebuild(this.index, this.citizens);
+    this.refreshTrain();
     this.hireAndAcquaint();
     this.recalculateLandValue();
     this.recalculateHappiness();
@@ -404,6 +409,7 @@ export class Simulation {
         this.buses.push(...created);
       }
     }
+    this.refreshTrain(state.train);
     this.districtPolicies.clear();
     for (const [district, raw] of state.districtPolicies ?? []) {
       if (!Number.isInteger(district) || district < 0 || district > 99) continue;
@@ -481,6 +487,13 @@ export class Simulation {
       busTrips: this.busTrips,
       nextBusLineId: this.nextBusLineId,
       nextBusId: this.nextBusId,
+      train: this.train ? {
+        routeIndex: this.train.routeIndex,
+        x: this.train.x,
+        z: this.train.z,
+        heading: this.train.heading,
+        wagonCount: this.train.wagonCount,
+      } : undefined,
       districtPolicies: [...this.districtPolicies]
         .sort(([a], [b]) => a - b)
         .map(([district, policy]) => [district, { ...policy }] as [number, DistrictPolicyState]),
@@ -686,6 +699,7 @@ export class Simulation {
     const next = catalogData(candidate.id);
     if (!next || oldFamilies > (next.capacity ?? 1)) return false;
     if (!this.grid.removeBuilding(building.ax, building.az)) return false;
+    if (building.id === 'station') this.refreshTrain();
     if (!this.grid.placeBuilding(candidate.id, next.w, next.d, candidate.cx, candidate.cz, candidate.rot)) {
       if (!this.grid.placeBuilding(oldId, building.data.w, building.data.d, building.ax, building.az, building.rot)) {
         throw new Error('no se pudo restaurar una vivienda tras fallar su upgrade');
@@ -911,6 +925,7 @@ export class Simulation {
     const hours = TICK_GAME_S / 3600;
     decayTraffic(this.traffic, hours);
     stepBuses(this.busLines, this.buses, (x, z) => this.speedAt(x, z, 'bus'));
+    if (this.train) stepTrain(this.train);
     const ctx = this.context();
 
     this.paths.process();
@@ -1550,6 +1565,7 @@ export class Simulation {
         avgHappiness: this.averageHappiness(),
         taxBurden: this.economy.taxBurden(),
         bankrupt: this.economy.bankrupt,
+        railService: this.train !== null,
       });
       const cap = it.capacity ?? 1;
       const families = Math.max(1, Math.round(cap * attractiveness));
@@ -1587,6 +1603,7 @@ export class Simulation {
         avgHappiness: this.averageHappiness(),
         taxBurden: this.economy.taxBurden(),
         bankrupt: this.economy.bankrupt,
+        railService: this.train !== null,
       });
       this.fillHome(cx, cz, id, Math.max(1, Math.round((it.capacity ?? 1) * attractiveness)), true);
     }
@@ -1768,6 +1785,23 @@ export class Simulation {
       }
     }
     return true;
+  }
+
+  /** Reconstruye el recorrido solo tras una obra/carga. Un tren necesita un
+   * bucle ferroviario cerrado y una estación en la ciudad; sin ambos, la
+   * infraestructura queda como trazado inerte y honesto. */
+  refreshTrain(saved?: SimSaveState['train']): void {
+    const hasStation = this.index.buildings.some((building) => building.id === 'station' && !building.abandoned);
+    const route = hasStation ? buildRailLoop(this.grid) : null;
+    const train = route ? createTrain(route, saved?.wagonCount ?? 3) : null;
+    if (!train) { this.train = null; return; }
+    if (saved && Number.isInteger(saved.routeIndex) && Number.isFinite(saved.x) && Number.isFinite(saved.z) && Number.isFinite(saved.heading)) {
+      train.routeIndex = ((saved.routeIndex % train.route.length) + train.route.length) % train.route.length;
+      train.x = saved.x;
+      train.z = saved.z;
+      train.heading = saved.heading;
+    }
+    this.train = train;
   }
 
   /** Elige la combinación de parada de subida/bajada más cercana. El coste es
@@ -2176,10 +2210,11 @@ export class Simulation {
     return arr;
   }
 
-  /** Estado plano de buses: [id, x, z, heading, kind, lineId]. */
+  /** Estado plano de buses y tren: [id, x, z, heading, kind, lineId]. */
   vehiclesSnapshot(): Float32Array {
     const buses = [...this.buses].sort((a, b) => a.id - b.id);
-    const arr = new Float32Array(buses.length * VEHICLE_STRIDE);
+    const wagons = this.train ? trainWagonPositions(this.train) : [];
+    const arr = new Float32Array((buses.length + (this.train ? 1 : 0) + wagons.length) * VEHICLE_STRIDE);
     let i = 0;
     for (const bus of buses) {
       arr[i++] = bus.id;
@@ -2188,6 +2223,22 @@ export class Simulation {
       arr[i++] = bus.heading;
       arr[i++] = VehicleKindCode.Bus;
       arr[i++] = bus.lineId;
+    }
+    if (this.train) {
+      arr[i++] = -1;
+      arr[i++] = this.train.x;
+      arr[i++] = this.train.z;
+      arr[i++] = this.train.heading;
+      arr[i++] = VehicleKindCode.Locomotive;
+      arr[i++] = 0;
+      wagons.forEach((wagon, index) => {
+        arr[i++] = -2 - index;
+        arr[i++] = wagon.x;
+        arr[i++] = wagon.z;
+        arr[i++] = wagon.heading;
+        arr[i++] = VehicleKindCode.Wagon;
+        arr[i++] = 0;
+      });
     }
     return arr;
   }
@@ -2316,6 +2367,7 @@ export class Simulation {
         avgHappiness: this.averageHappiness(),
         taxBurden: this.economy.taxBurden(),
         bankrupt: this.economy.bankrupt,
+        railService: this.train !== null,
       }),
       totalPopulation: this.citizens.size,
       carryingCapacity: CARRYING_CAPACITY,
@@ -2350,7 +2402,7 @@ export class Simulation {
       congestion: this.averageCongestion(),
       busLines: this.busLines.size,
       busTrips: this.busTrips,
-      trainActive: false,
+      trainActive: this.train !== null,
       districts: districtIds.size,
       districtPolicies: [...this.districtPolicies]
         .sort(([a], [b]) => a - b)

@@ -786,6 +786,34 @@ export function factory(): THREE.Group {
   return g;
 }
 
+/** Estación compacta de ladrillo inspirada en Zlín: andén largo, marquesina
+ * ligera y reloj, para leerse desde la cámara isométrica sin textura. */
+export function station(): THREE.Group {
+  const g = new THREE.Group();
+  const wall = solid(new THREE.BoxGeometry(5.4, 2.5, 8.8), PALETTE.creamWall);
+  wall.position.y = 1.25;
+  g.add(wall);
+  const roof = solid(new THREE.BoxGeometry(6.0, 0.35, 9.4), PALETTE.flatRoof);
+  roof.position.y = 2.65;
+  g.add(roof);
+  const platform = solid(new THREE.BoxGeometry(2.4, 0.22, 11.4), PALETTE.concreteShade);
+  platform.position.set(3.7, 0.11, 0);
+  g.add(platform);
+  for (const z of [-3.2, 0, 3.2]) {
+    const post = solid(new THREE.BoxGeometry(0.14, 2.1, 0.14), PALETTE.houseTrim);
+    post.position.set(3.8, 1.15, z);
+    g.add(post);
+  }
+  const canopy = solid(new THREE.BoxGeometry(2.6, 0.16, 8.4), PALETTE.houseTrim);
+  canopy.position.set(3.8, 2.15, 0);
+  g.add(canopy);
+  const clock = solid(new THREE.CylinderGeometry(0.34, 0.34, 0.08, 12), PALETTE.signYellow);
+  clock.rotation.x = Math.PI / 2;
+  clock.position.set(0, 2.15, 4.46);
+  g.add(clock);
+  return g;
+}
+
 /**
  * Jardín/fachada de estatus (ciclo 9 de RESEARCH.md): decoración plantada en
  * el borde frontal (+Z) de una vivienda cuando su hogar invierte ahorro de
