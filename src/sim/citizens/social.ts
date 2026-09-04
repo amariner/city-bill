@@ -81,6 +81,44 @@ export class SocialSystem {
   }
 
   /**
+   * Presenta a los vecinos cuyos hogares distan < `range` (Manhattan). Hash
+   * espacial por buckets de `range` celdas: cada par se visita UNA sola vez y en
+   * el MISMO orden que el barrido cuadrático (i < j ascendentes), de modo que el
+   * resultado — incluido el orden de inserción en `friends` — es idéntico al de
+   * `for i for j>i`, con coste O(n·k) en vez de O(n²) (H6.3).
+   */
+  static acquaintNeighbours(all: readonly Citizen[], range: number): void {
+    const bkey = (bx: number, bz: number) => (bx + 4096) * 8192 + (bz + 4096);
+    const buckets = new Map<number, number[]>();
+    for (let i = 0; i < all.length; i++) {
+      const h = all[i].home;
+      const k = bkey(Math.floor(h.ax / range), Math.floor(h.az / range));
+      let list = buckets.get(k);
+      if (!list) buckets.set(k, (list = []));
+      list.push(i); // ascendente dentro del bucket
+    }
+    const cand: number[] = [];
+    for (let i = 0; i < all.length; i++) {
+      const a = all[i];
+      const bx = Math.floor(a.home.ax / range);
+      const bz = Math.floor(a.home.az / range);
+      cand.length = 0;
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dz = -1; dz <= 1; dz++) {
+          const list = buckets.get(bkey(bx + dx, bz + dz));
+          if (!list) continue;
+          for (const j of list) if (j > i) cand.push(j);
+        }
+      }
+      cand.sort((p, q) => p - q);
+      for (const j of cand) {
+        const b = all[j];
+        if (Math.abs(a.home.ax - b.home.ax) + Math.abs(a.home.az - b.home.az) < range) SocialSystem.acquaint(a, b);
+      }
+    }
+  }
+
+  /**
    * Detecta cruces entre ciudadanos CAMINANDO al aire libre y arranca charlas.
    * Hash espacial por buckets de 4 celdas: solo se comparan vecinos de bucket
    * (O(n) amortizado; CHAT_RANGE=1.6 < 4 garantiza que no se escapa ninguno).

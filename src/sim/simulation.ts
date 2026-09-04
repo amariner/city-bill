@@ -216,6 +216,9 @@ function restorePhase(phase: CitizenPhase): CitizenPhase {
   return phase.kind === 'waitingPath' ? { kind: 'deciding' } : phase;
 }
 
+/** Distancia (Manhattan, celdas) a la que dos hogares se conocen de vista. */
+const NEIGHBOUR_RANGE = 40;
+
 export class Simulation {
   readonly clock = new GameClock();
   readonly index: WorldIndex;
@@ -889,14 +892,9 @@ export class Simulation {
           if (a && b) SocialSystem.acquaint(a, b, 0.3);
         }
     }
-    // Vecinos a < 12 celdas se conocen de vista.
-    const all = [...this.citizens.values()];
-    for (let i = 0; i < all.length; i++)
-      for (let j = i + 1; j < all.length; j++) {
-        const a = all[i];
-        const b = all[j];
-        if (manhattan([a.home.ax, a.home.az], [b.home.ax, b.home.az]) < 40) SocialSystem.acquaint(a, b);
-      }
+    // Vecinos a < NEIGHBOUR_RANGE celdas se conocen de vista (hash espacial,
+    // H6.3: mismo resultado y orden que el barrido cuadrático).
+    SocialSystem.acquaintNeighbours([...this.citizens.values()], NEIGHBOUR_RANGE);
   }
 
   // --- Tick -------------------------------------------------------------------
