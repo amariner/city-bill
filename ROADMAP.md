@@ -639,6 +639,17 @@ tractores (residuo T3.9), página itch.io.
   solución deberá tener un presupuesto explícito de frente edificable y ser
   común a los caminos proactivo y reactivo, no otro `STREET_EVERY`.
 
+- 2026-09-04 — **H1, reserva de construcción medida y retirada.** Se probó la
+  separación más directa: una reserva inicial de 12 obras y reposición diaria,
+  de modo que una calle no añadiera una obra por cada intento horario. A 0,4/día
+  logró una sola vía y 25 edificios en d80, pero la población bajó a 79 y la
+  sonda larga perdió tres contratos de contagio (pico de 4 enfermos, cuarentena
+  invertida); a 0,8/día quedó en 48 edificios/70 habitantes; a 1,5/día volvió a
+  79 edificios y 4 vías. La cadencia independiente cambia igualmente el orden
+  social temprano, así que no entra en `main`: el presupuesto deberá estar
+  ligado a una señal existente de capacidad económica/constructiva, no ser un
+  temporizador nuevo.
+
 - 2026-09-04 — **H1, contrato único de calle autónoma.** La extensión que usa
   el crecimiento dejó de duplicar un pintor simplificado: delega en
   `roads.ts`, la misma geometría que consume la herramienta manual. Así una
