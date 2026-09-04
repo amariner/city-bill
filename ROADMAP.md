@@ -423,9 +423,9 @@ tractores (residuo T3.9), página itch.io.
 - [~] Portar al main actual: la **mezcla residencial visual** ya está: cada
   parcela conserva `id`, huella y capacidad lógicos, y lleva un `visualId`
   determinista que solo puede ser una vivienda del tier actual o menor que cabe
-  en esa huella. Faltan la trama 2D proactiva (`eeeaab4`: `STREET_EVERY`,
-  `buildingsSinceRoad`) y el jardín de hierba (`3f731a2`: `paintYard` en el grid
-  de RENDER, nunca en el de sim — cambiaría el pathfinding).
+  en esa huella. El jardín de hierba ya está portado como derivación del grid de
+  RENDER al cargar y al recibir parches (nunca en el worker). Falta la trama 2D
+  proactiva (`eeeaab4`: `STREET_EVERY`, `buildingsSinceRoad`).
 - [ ] Rematar T4.2 (etapas de densidad) si la mezcla no basta para el done nº 5.
 - [ ] Playtest 30 min a ×8 (residuo T4.4): el arco aldea→pueblo→villa se sostiene.
 - [ ] **Gate H1**: screenshots del arco (d0 / ~d30 / ~d80) + checklist §4 + Crónica
@@ -573,6 +573,12 @@ tractores (residuo T3.9), página itch.io.
   la mezcla a 60 fps, 109 draw calls, 233.2k triángulos, 82 geometrías y 2
   texturas. Sigue pendiente la trama 2D real: no se da por resuelta con esta
   capa visual.
+
+- 2026-09-04 — **H1, inventario corregido.** La auditoría del main confirmó
+  que `paintYard` ya se había portado en `cb454b3`: `main.ts` lo deriva en el
+  grid de render tras `worldReady` y cada patch, con pruebas que verifican
+  retranqueo, vías y agua. No es trabajo pendiente ni toca el worker; el único
+  bloque funcional restante de la primera línea de H1 es la trama 2D proactiva.
 
 - 2026-07-05 (sesión merge) — **RECONCILIACIÓN de dos líneas divergentes de
   `main`**. El `main` local (18 commits: duelo visual, jubilación, guardado
