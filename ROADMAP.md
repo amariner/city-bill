@@ -387,7 +387,7 @@ reconoce el rumbo real.
 3. [ ] **Sonido generativo (T5.3)**: viento, pájaros, campana lejana, murmullo al
    acercarse a charlas; volumen ligado al zoom; mute (tecla M); arranca tras el primer
    gesto del usuario (política de autoplay).
-4. [ ] **Onboarding mínimo (T6.3)**: 3-5 tooltips contextuales de una sola vez (qué es
+4. [x] **Onboarding mínimo (T6.3)**: 3-5 tooltips contextuales de una sola vez (qué es
    esto, Crónica [C], click en un vecino, velocidades). Nada modal.
 5. [ ] **El pueblo se ve pueblo**: trama 2D de calles + mezcla/etapas de densidad
    (T4.2/T4.4); el arco aldea→villa pasa el checklist §4.
