@@ -443,7 +443,8 @@ tractores (residuo T3.9), página itch.io.
 - [x] T5.3 completo (`src/audio/` nuevo): viento + pájaros + campana + murmullo,
   mezcla por zoom, mute (M), arranque tras primer gesto. Determinismo no aplica
   (FX cosmético, §0.6), pero cero allocaciones por frame.
-- [ ] **Gate H3**: demo con sonido en preview + sin regresión de fps.
+- [x] **Gate H3**: preview con sonido activado y control visible; durante el banco
+  de 500 peatones F3 sostuvo 60 fps (2026-09-04), sin regresión observable.
 
 **H4 — Puertas abiertas** *(gate = done final)*
 - [ ] T5.1 rematado (crossfade capa B + nieve en tejados).
@@ -535,6 +536,12 @@ tractores (residuo T3.9), página itch.io.
   y sostuvo **60 fps, 109 draw calls, 233.2k triángulos, 82 geometrías y 2 texturas**;
   las pruebas cubren URL, límite y ambos niveles de detalle. Falta la captura del
   pueblo denso de H1 para cerrar H2.
+
+- 2026-09-04 — **Gate H3, ambiente sin coste visible.** El control mostraba
+  `SONIDO ON` en el preview durante la medición de `?stress=500`; F3 sostuvo
+  60 fps con 109 draw calls. Es una validación de integración (no una medición
+  aislada por fuente): satisface que el ambiente generativo no introduzca una
+  regresión observable de fluidez en la escena de estrés.
 
 - 2026-07-05 (sesión merge) — **RECONCILIACIÓN de dos líneas divergentes de
   `main`**. El `main` local (18 commits: duelo visual, jubilación, guardado
