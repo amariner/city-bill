@@ -602,7 +602,7 @@ tractores (residuo T3.9), página itch.io.
   la cobertura de etapas/parcelación y a la trama vial 2D, no a la continuidad
   render↔sim de los upgrades.
 
-- 2026-09-04 — **H1, segunda sonda de trama 2D (revertida fuera del main).**
+- 2026-09-04 — **H1, sondas de trama 2D (revertidas fuera del main).**
   En un árbol temporal se probó una ramificación cada 12 obras. Sin freno abrió
   5 vías y 72 edificios en d80, y la sonda larga cayó a 329/332: el crecimiento
   inicial superó 4 obras/día, el tesoro dejó de repartir y la movilidad
@@ -611,8 +611,12 @@ tractores (residuo T3.9), página itch.io.
   las oleadas/efecto de vacuna: 325/332. Conclusión: la solución no es una
   cadencia fija ni un cupo global; necesita separar la disponibilidad de suelo
   de la tasa de construcción y conservar explícitamente la intensidad de
-  encuentros antes de tocar el main. Ninguno de los dos prototipos entró en la
-  rama de trabajo.
+  encuentros antes de tocar el main. Una tercera variante abrió la rama solo
+  DESPUÉS de una obra aceptada: sí produjo 3 vías y 46 edificios en d80, pero
+  también llegó a 20 obras en cuatro días y acabó en 325/332 (sin oleada ni
+  crónica epidémica, cuarentena invertida, sin dividendo y peor encaje
+  vocacional). Posponer la rama no arregla que sus frentes nuevos realimenten el
+  crecimiento; ninguno de los tres prototipos entró en la rama de trabajo.
 
 - 2026-09-04 — **H2, base actualizada tras H1.** En navegador real, la escena
   `?new=1&seed=4242&days=80` volvió a llegar a villa de 92 habitantes y F3 marcó
