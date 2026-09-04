@@ -489,8 +489,11 @@ tractores (residuo T3.9), página itch.io.
   (interruptor cambia de estado) y con `typecheck`, build y pruebas unitarias.
   Durante la exploración de H1 se probó trama vial proactiva; alteraba de forma
   real las oleadas epidémicas integradas, por lo que se retiró en lugar de
-  rebajar los criterios sanitarios. Sigue pendiente para H1 con una solución que
-  conserve o modele explícitamente la dinámica de contactos.
+  rebajar los criterios sanitarios. Una segunda prueba de mezcla residencial
+  ponderada también se retiró: al variar capacidades y el consumo de RNG cambió
+  los repartos de superávit y el encaje vocacional en la sonda larga. H1 sigue
+  pendiente de una solución que conserve o modele explícitamente contactos,
+  capacidad económica y secuencia determinista.
 
 - 2026-09-04 — **T6.3, onboarding de observación.** `Onboarding` presenta
   cuatro notas (cámara, Crónica, inspector, tiempo) como una tarjeta pequeña en
