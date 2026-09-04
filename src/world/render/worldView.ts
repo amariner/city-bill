@@ -178,7 +178,9 @@ export class WorldView {
           const prestige = this.homePrestige.get(`${cx},${cz}`) ?? 0;
           if (prestige > 0) {
             const seed = (cx * 92821 + cz * 68917) | 0;
-            mesh.add(homeGarden(prestige, it.w * CELL_SIZE, it.d * CELL_SIZE, seed));
+            // La fachada puede ser menor que su parcela lógica (H1); el jardín
+            // sigue el solar estructural para no dejar media parcela desnuda.
+            mesh.add(homeGarden(prestige, fw * CELL_SIZE, fd * CELL_SIZE, seed));
           }
         } else if (it.role === 'civic' && this.festivalActive) {
           const seed = (cx * 92821 + cz * 68917) | 0;
