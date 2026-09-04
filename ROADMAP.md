@@ -600,6 +600,18 @@ tractores (residuo T3.9), página itch.io.
   la cobertura de etapas/parcelación y a la trama vial 2D, no a la continuidad
   render↔sim de los upgrades.
 
+- 2026-09-04 — **H1, segunda sonda de trama 2D (revertida fuera del main).**
+  En un árbol temporal se probó una ramificación cada 12 obras. Sin freno abrió
+  5 vías y 72 edificios en d80, y la sonda larga cayó a 329/332: el crecimiento
+  inicial superó 4 obras/día, el tesoro dejó de repartir y la movilidad
+  vocacional empeoró. Al imponer un máximo de 4 obras/día, la escena se quedó
+  en 46 habitantes y 16 edificios en d80, no llegó a abrir vías y desaparecieron
+  las oleadas/efecto de vacuna: 325/332. Conclusión: la solución no es una
+  cadencia fija ni un cupo global; necesita separar la disponibilidad de suelo
+  de la tasa de construcción y conservar explícitamente la intensidad de
+  encuentros antes de tocar el main. Ninguno de los dos prototipos entró en la
+  rama de trabajo.
+
 - 2026-07-05 (sesión merge) — **RECONCILIACIÓN de dos líneas divergentes de
   `main`**. El `main` local (18 commits: duelo visual, jubilación, guardado
   T2.6, perf T6.1 + render rico) y `origin/main` (49 commits: ciclos 11-40 de
