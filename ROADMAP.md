@@ -350,7 +350,9 @@ repetido, arbolado automático en márgenes de carretera (rasgo de identidad).
   herramienta permanente de QA (mismo espíritu que `?scene=buildings`).
 - [ ] **T6.2 PWA + táctil. [POST-MVP]** Instalable, gestos de pan/zoom en tablet.
   *Fuera del done del MVP (2026-08-14, §6): desktop-first.*
-- [ ] **T6.3 Onboarding.** 5 tooltips contextuales máximo. Nada de tutorial modal.
+- [x] **T6.3 Onboarding.** Cuatro pistas contextuales de una sola vez, no
+  modales: recorrer la aldea, Crónica, inspector de vecino y velocidad. Avanzan
+  con los primeros gestos sin interceptarlos y quedan marcadas en localStorage.
   *(En el MVP: hito H4, done nº 4 de §3.)*
 - [ ] **T6.4 Build + deploy.** `npm run build` limpio, deploy estático a **GitHub Pages**
   (workflow de Actions, `base` de Vite configurada). *(En el MVP: hito H4, done nº 1 de
@@ -440,8 +442,10 @@ tractores (residuo T3.9), página itch.io.
 
 **H4 — Puertas abiertas** *(gate = done final)*
 - [ ] T5.1 rematado (crossfade capa B + nieve en tejados).
-- [ ] Onboarding (3-5 tooltips) + línea de título; semilla visible + acción "nueva
-  semilla"; verificar `?days=N` en la escena normal.
+- [~] Onboarding (3-5 tooltips) + línea de título; semilla visible + acción "nueva
+  semilla"; verificar `?days=N` en la escena normal. **Onboarding hecho:** cuatro
+  pistas no modales y persistentes (`src/ui/onboarding.ts`); queda la comprobación
+  de `?days=N` en la escena normal.
 - [ ] `npm run build` limpio + deploy GitHub Pages (Actions, `base`) + README/hero
   al día.
 - [ ] **Gate H4**: recorrer el DONE de §3.1 punto por punto **en la URL pública, en
@@ -481,6 +485,14 @@ tractores (residuo T3.9), página itch.io.
   real las oleadas epidémicas integradas, por lo que se retiró en lugar de
   rebajar los criterios sanitarios. Sigue pendiente para H1 con una solución que
   conserve o modele explícitamente la dinámica de contactos.
+
+- 2026-09-04 — **T6.3, onboarding de observación.** `Onboarding` presenta
+  cuatro notas (cámara, Crónica, inspector, tiempo) como una tarjeta pequeña en
+  esquina inferior derecha. No pausa ni captura los gestos: después de una breve
+  protección contra el clic inicial, cada interacción normal avanza una nota y
+  la cuarta persiste `done` en localStorage. En preview se verificaron la
+  secuencia 1/4→4/4 y la desaparición final; pruebas puras cubren límite,
+  identidad de pistas y clave versionada.
 
 - 2026-07-05 (sesión merge) — **RECONCILIACIÓN de dos líneas divergentes de
   `main`**. El `main` local (18 commits: duelo visual, jubilación, guardado

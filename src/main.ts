@@ -44,6 +44,7 @@ import { Grid, cellFromKey, cellToWorld, rotatedFootprint } from './world/grid';
 import { clearSave, loadSave, writeSave } from './save/save';
 import { StartMenu } from './ui/startMenu';
 import { AmbientAudio } from './audio/ambient';
+import { Onboarding } from './ui/onboarding';
 
 const sceneName = new URLSearchParams(window.location.search).get('scene');
 const query = new URLSearchParams(window.location.search);
@@ -94,6 +95,7 @@ let devPanel: DevPanel | null = null;
 let controlBar: ControlBar | null = null;
 let budgetPanel: BudgetPanel | null = null;
 let startMenu: StartMenu | null = null;
+let onboarding: Onboarding | null = null;
 let skipUnloadSave = false;
 let toolbar: Toolbar | null = null;
 let toolState: ToolState | null = null;
@@ -264,6 +266,9 @@ function buildRenderAndUi(grid: Grid, worldSeed: number): void {
   } : { muted: ambientAudio.muted, onToggleMute: () => { ambientAudio.activate(); ambientAudio.toggle(); } });
   ambientAudio.onMuteChange = (muted) => controlBar?.setMuted(muted);
   budgetPanel = new BudgetPanel(sim);
+  // En la partida normal, cuatro pistas no modales acompañan los primeros
+  // gestos. El banco de pruebas y las escenas técnicas no las necesitan.
+  if (sceneName === null) onboarding = new Onboarding();
   // Panel del banco de pruebas: solo en ?scene=test-dev (fuerza/observa mecánicas).
   if (sceneName === 'test-dev') devPanel = new DevPanel(sim);
 }
@@ -342,7 +347,7 @@ if (sceneName === 'buildings') {
     startMenu = new StartMenu({
       seed: worldSeed,
       saveBlob: initialSave.saveBlob,
-      onContinue: () => simClient?.setSpeed(1),
+      onContinue: () => { simClient?.setSpeed(1); onboarding?.start(); },
       onNewGame: (seed) => {
         skipUnloadSave = true;
         clearSave();
