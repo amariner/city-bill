@@ -674,6 +674,16 @@ tractores (residuo T3.9), página itch.io.
   queda como requisito para la futura política de parcelas, junto a una
   regulación de demanda que conserve el contrato de <4 obras/día.
 
+- 2026-09-04 — **H1, frente parcelado: mejor sonda hasta ahora, aún no main.**
+  Una transversal posterior al día 5 se entregó como cuatro lotes activos: el
+  crecimiento debía agotarlos antes de volver a elegir toda la red. Con calle
+  de 12 pasos quedó en 28 edificios/78 habitantes, superó 331 de 332 contratos
+  (incluidos oleadas y cuarentena), pero el mantenimiento de 36 celdas rurales
+  dejó el tesoro sin dividendo. Reducirla a cuatro pasos mantuvo la caja pero
+  bajó a 62 habitantes y rompió dos contratos de contagio. La política de lotes
+  es válida; falta financiar el CAPITAL de la calle por separado del
+  mantenimiento social diario antes de integrarla.
+
 - 2026-09-04 — **H1, contrato único de calle autónoma.** La extensión que usa
   el crecimiento dejó de duplicar un pintor simplificado: delega en
   `roads.ts`, la misma geometría que consume la herramienta manual. Así una
