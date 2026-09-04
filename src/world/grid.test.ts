@@ -146,6 +146,9 @@ function assert(cond: boolean, msg: string): void {
 // --- T4.4 núcleo: extensión autónoma de vías --------------------------------
 {
   const g = new Grid();
+  // El pintor unificado (roads.ts) solo asfalta celdas que existen: el mundo
+  // debe tener terreno antes de trazar (protege los límites del mapa).
+  g.fillTerrain(-2, -4, 26, 4, 'field');
   g.placeBuilding('barn', 3, 2, 20, 0); // un edificio que la vía NO debe arrasar
   // Extiende hacia +X desde una celda de arranque, 10 celdas.
   const laid = extendRoad(g, [0, 0], { dx: 1, dz: 0 }, 10, 7);
@@ -181,6 +184,8 @@ function assert(cond: boolean, msg: string): void {
 
   const roadA = new Grid();
   const roadB = new Grid();
+  roadA.fillTerrain(-2, -4, 12, 4, 'field');
+  roadB.fillTerrain(-2, -4, 12, 4, 'field');
   extendRoad(roadA, [0, 0], { dx: 1, dz: 0 }, 10, 1234);
   extendRoad(roadB, [0, 0], { dx: 1, dz: 0 }, 10, 1234);
   assert(roadA.serialize() === roadB.serialize(), 'extensión de vía determinista por semilla');
