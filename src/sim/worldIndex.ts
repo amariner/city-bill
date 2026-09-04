@@ -26,6 +26,8 @@ export interface SimBuilding {
   data: CatalogItemData;
   /** Capacidad de familias de la parcela; puede superar la tipología visual. */
   capacity: number;
+  /** Fachada opcional de la parcela; nunca sustituye su estructura lógica. */
+  visualId?: string;
   entrance: CellXZ | null;
   /** Celda central (para distancias). */
   cx: number;
@@ -99,6 +101,7 @@ export class WorldIndex {
           rot: b.rot,
           data,
           capacity: b.housingCapacity ?? data.capacity ?? 0,
+          visualId: b.visualId,
           entrance: buildingEntrance(this.grid, cx, cz, fw, fd),
           cx: cx + fw / 2,
           cz: cz + fd / 2,

@@ -1,7 +1,7 @@
 /** Pruebas de densificación in situ (H4.5). */
 import { Grid } from '../world/grid';
 import { catalogData } from '../world/catalogData';
-import { DENSITY_LADDER, upgradeCandidate } from '../world/growth';
+import { DENSITY_LADDER, residentialVisualId, upgradeCandidate } from '../world/growth';
 import { Simulation } from './simulation';
 import { WorldIndex } from './worldIndex';
 
@@ -56,6 +56,7 @@ function gridWith(id: string, rot: 0 | 1 | 2 | 3 = 0): Grid {
   const originalWallet = sim.economy.walletOf('0,0');
   internals.maybeUpgrade();
   check(sim.index.at(0, 0)?.id === 'town-house', 'upgrade: sustituye la casita por la casa con jardín');
+  check(sim.index.at(0, 0)?.visualId === residentialVisualId('town-house', 0, 0, 0, 4411), 'upgrade: conserva una fachada determinista separada de la estructura');
   check(!sim.index.buildings.some((building) => building.id === 'cottage'), 'upgrade: la vivienda anterior desaparece del índice');
   check(sim.citizens.size > originalIds.length, 'upgrade: llena parte de los huecos con nuevas familias');
   check((internals.households.get('0,0') ?? 0) <= (catalogData('town-house')?.capacity ?? 0), 'upgrade: los hogares nunca superan la capacidad');
@@ -63,7 +64,8 @@ function gridWith(id: string, rot: 0 | 1 | 2 | 3 = 0): Grid {
   check(sim.economy.walletOf('0,0') > originalWallet, 'upgrade: las reservas de las familias nuevas llegan a la misma clave');
   check(sim.events.some((event) => event.name === 'buildingUpgraded' && event.data.from === 'cottage' && event.data.id === 'town-house'), 'upgrade: emite un evento narrable');
   const patch = sim.takeGridChanges();
-  check(patch.built.some((built) => built.id === 'town-house' && built.cx === 0 && built.cz === 0), 'upgrade: el render recibe la obra nueva');
+  check(patch.built.some((built) => built.id === 'town-house' && built.cx === 0 && built.cz === 0
+    && built.visualId === residentialVisualId('town-house', 0, 0, 0, 4411)), 'upgrade: el render recibe la obra nueva con su fachada');
   check(patch.razed.some((razed) => razed.cx === 0 && razed.cz === 0), 'upgrade: el render recibe la huella sustituida');
   internals.maybeUpgrade();
   check(sim.index.at(0, 0)?.id === 'town-house', 'upgrade: no encadena dos obras en el mismo día');

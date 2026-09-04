@@ -700,17 +700,18 @@ export class Simulation {
     const oldFamilies = this.households.get(oldKey) ?? 0;
     const next = catalogData(candidate.id);
     const nextCapacity = Math.max(next?.capacity ?? 1, building.capacity);
+    const visualId = residentialVisualId(candidate.id, candidate.cx, candidate.cz, candidate.rot, this.seed);
     if (!next || oldFamilies > nextCapacity) return false;
     if (!this.grid.removeBuilding(building.ax, building.az)) return false;
     if (building.id === 'station') this.refreshTrain();
-    if (!this.grid.placeBuilding(candidate.id, next.w, next.d, candidate.cx, candidate.cz, candidate.rot, nextCapacity)) {
-      if (!this.grid.placeBuilding(oldId, building.data.w, building.data.d, building.ax, building.az, building.rot, building.capacity)) {
+    if (!this.grid.placeBuilding(candidate.id, next.w, next.d, candidate.cx, candidate.cz, candidate.rot, nextCapacity, visualId)) {
+      if (!this.grid.placeBuilding(oldId, building.data.w, building.data.d, building.ax, building.az, building.rot, building.capacity, building.visualId)) {
         throw new Error('no se pudo restaurar una vivienda tras fallar su upgrade');
       }
       return false;
     }
     this.pendingRazed.push({ cx: building.ax, cz: building.az });
-    this.pendingBuilt.push(candidate);
+    this.pendingBuilt.push({ ...candidate, ...(visualId === candidate.id ? {} : { visualId }) });
     const newKey = `${candidate.cx},${candidate.cz}`;
     this.moveHomeKey(oldKey, newKey, candidate.id);
     this.index.rebuild();

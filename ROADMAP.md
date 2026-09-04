@@ -256,8 +256,10 @@ repetido, arbolado automático en márgenes de carretera (rasgo de identidad).
   chunk revela el edificio ya fundido (relevo invisible; `worldView.beginConstruction/
   endConstruction` lo omite mientras dura la obra). Verificado por screenshot en escena de
   aislamiento (`?scene=fxtest`, temporal, ya retirada): andamio visible rodeando la tienda/
-  escuela que crecen dentro. *Pendiente de T4.2:* las ETAPAS de densidad (parcela→casita→
-  …→bloque) y el trazado más tupido (T4.4 ribbon→trama).
+  escuela que crecen dentro. *Etapas operativas:* la escalera in situ
+  casita→casa con jardín→bloque conserva ancla, giro, hogares, capacidad y
+  fachada visual determinista; falta ampliar esa escalera a los saltos que hoy
+  exigen reparcelación y lograr el trazado más tupido (T4.4 ribbon→trama).
 - [x] **T4.3 Inmigración/emigración.** Familias llegan si hay vivienda+empleo+felicidad;
   se van si no. La población es consecuencia, no un slider. (Inmigración modulada por
   atractividad = ciclo 12; emigración digna por penuria sostenida = ciclo 14, RESEARCH.md.)
@@ -587,6 +589,16 @@ tractores (residuo T3.9), página itch.io.
   banco visual de 500 peatones en d80 sostuvo 60 fps. Estas capturas satisfacen
   la evidencia del arco, aunque el gate H1 permanece abierto hasta resolver la
   trama 2D y el playtest largo.
+
+- 2026-09-04 — **H1/T4.2, continuidad de las etapas.** La escalera in situ
+  `cottage → town-house → low-block` ya existía, pero la renovación no llevaba
+  su `visualId`: un upgrade podía perder la mezcla residencial que usa la obra
+  nueva. `WorldIndex` expone ahora esa fachada y `applyUpgrade` la elige con la
+  misma función determinista, la preserva incluso al deshacer una obra fallida
+  y la manda en el parche `built`. Las 33 pruebas de densificación y la sonda
+  completa de 332 contratos siguen verdes; la deuda de T4.2 se reduce a mejorar
+  la cobertura de etapas/parcelación y a la trama vial 2D, no a la continuidad
+  render↔sim de los upgrades.
 
 - 2026-07-05 (sesión merge) — **RECONCILIACIÓN de dos líneas divergentes de
   `main`**. El `main` local (18 commits: duelo visual, jubilación, guardado
