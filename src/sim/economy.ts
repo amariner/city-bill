@@ -434,12 +434,15 @@ export class Economy {
    * llega, se acuña el resto (fallback: nadie se queda sin cobrar → sin colapso).
    * Los demás sectores (agro, comercio, oficio) se siguen acuñando: cerrarlos del
    * todo (tiendas de su caja, etc.) es el gran pendiente. */
-  payWage(homeKey: string, hours: number, employerTier: number, skill = 0, employerRole?: string): void {
+  payWage(homeKey: string, hours: number, employerTier: number, skill = 0, employerRole?: string, taxDelta = 0): void {
     const skillMult = 1 + WAGE_SKILL_BONUS * Math.min(1, Math.max(0, skill));
     const gross = (WAGE_PER_HOUR + WAGE_TIER_BONUS * employerTier) * skillMult * hours;
-    const incomeTax = gross * this.taxRates.R;
+    const delta = Number.isFinite(taxDelta) ? taxDelta : 0;
+    const incomeRate = Math.max(0, Math.min(0.5, this.taxRates.R + delta));
+    const activityRate = Math.max(0, Math.min(0.5, this.taxRates.I + delta));
+    const incomeTax = gross * incomeRate;
     const activityLevy = employerRole === 'work' || employerRole === 'agriculture'
-      ? gross * this.taxRates.I
+      ? gross * activityRate
       : 0;
     const tax = incomeTax + activityLevy;
     const net = gross - tax;

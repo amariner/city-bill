@@ -28,6 +28,7 @@ export class Toolbar {
   private zoneButton: HTMLButtonElement;
   private bulldozeButton: HTMLButtonElement;
   private busButton: HTMLButtonElement;
+  private districtButton: HTMLButtonElement;
   private menu: HTMLDivElement;
   private roadMenu: HTMLDivElement;
   private zoneMenu: HTMLDivElement;
@@ -70,7 +71,17 @@ export class Toolbar {
       this.tools.set({ kind: 'busLine', stops: [] });
       this.update();
     });
-    row.append(this.buildButton, this.roadButton, this.zoneButton, this.bulldozeButton, this.busButton);
+    this.districtButton = this.actionButton('▤ distritos', 'D · pintar y gobernar distritos', () => {
+      this.menuOpen = false;
+      this.menu.style.display = 'none';
+      this.roadMenuOpen = false;
+      this.roadMenu.style.display = 'none';
+      this.zoneMenuOpen = false;
+      this.zoneMenu.style.display = 'none';
+      this.tools.set({ kind: 'district', district: 1, from: null, erase: false });
+      this.update();
+    });
+    row.append(this.buildButton, this.roadButton, this.zoneButton, this.bulldozeButton, this.busButton, this.districtButton);
     this.root.appendChild(row);
 
     const demand = document.createElement('div');
@@ -156,6 +167,7 @@ export class Toolbar {
     this.zoneButton.classList.toggle('cb-tool-active', active.kind === 'zone');
     this.bulldozeButton.classList.toggle('cb-tool-active', active.kind === 'bulldoze');
     this.busButton.classList.toggle('cb-tool-active', active.kind === 'busLine');
+    this.districtButton.classList.toggle('cb-tool-active', active.kind === 'district');
     this.hint.textContent = active.kind === 'place'
       ? `${available.find((item) => item.id === active.id)?.name ?? active.id} · Tab gira · Esc cancela`
       : active.kind === 'road'
@@ -164,6 +176,8 @@ export class Toolbar {
           ? `${ZONE_LABELS[active.zone]} · ${active.erase ? 'Shift: borrar' : 'clic y arrastra'} · Esc cancela`
         : active.kind === 'busLine'
           ? `bus · ${active.stops.length} parada${active.stops.length === 1 ? '' : 's'} · Enter cierra · clic derecho deshace · Esc cancela`
+        : active.kind === 'district'
+          ? `D${active.district} · ${active.erase ? 'borrar' : 'pintar'} · clic y arrastra · Esc cancela`
         : active.kind === 'bulldoze' ? 'demoler · Esc cancela' : 'B construir · R vías · X demoler';
   }
 
@@ -251,6 +265,7 @@ export class Toolbar {
     if (this.menuOpen && this.tools.active.kind === 'road') this.tools.cancel();
     if (this.menuOpen && this.tools.active.kind === 'zone') this.tools.cancel();
     if (this.menuOpen && this.tools.active.kind === 'busLine') this.tools.cancel();
+    if (this.menuOpen && this.tools.active.kind === 'district') this.tools.cancel();
     this.update();
   }
 
@@ -264,6 +279,7 @@ export class Toolbar {
     if (this.roadMenuOpen && (this.tools.active.kind === 'place' || this.tools.active.kind === 'road')) this.tools.cancel();
     if (this.roadMenuOpen && this.tools.active.kind === 'zone') this.tools.cancel();
     if (this.roadMenuOpen && this.tools.active.kind === 'busLine') this.tools.cancel();
+    if (this.roadMenuOpen && this.tools.active.kind === 'district') this.tools.cancel();
     this.update();
   }
 
@@ -274,7 +290,7 @@ export class Toolbar {
     this.menu.style.display = 'none';
     this.roadMenuOpen = false;
     this.roadMenu.style.display = 'none';
-    if (this.zoneMenuOpen && (this.tools.active.kind === 'place' || this.tools.active.kind === 'road' || this.tools.active.kind === 'zone' || this.tools.active.kind === 'busLine')) this.tools.cancel();
+    if (this.zoneMenuOpen && (this.tools.active.kind === 'place' || this.tools.active.kind === 'road' || this.tools.active.kind === 'zone' || this.tools.active.kind === 'busLine' || this.tools.active.kind === 'district')) this.tools.cancel();
     this.update();
   }
 

@@ -30,7 +30,7 @@ const CONTROLS: Array<[string, string]> = [
   ['F', 'seguir al vecino'],
   ['C', 'abrir la crónica'],
   ['T', 'abrir el presupuesto'],
-  ['B · R · Z · X', 'construir · vías · zonas · demoler'],
+  ['B · R · Z · X · D', 'construir · vías · zonas · demoler · distritos'],
   ['L · clic · Enter', 'crear línea de bus'],
   ['V', 'ciclar overlays de edificios'],
   ['Tab · Esc', 'rotar · cancelar herramienta'],

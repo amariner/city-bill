@@ -56,8 +56,10 @@ export const LOGICS: LogicEntry[] = [
   { id: 'retirement', name: 'jubilación (deja el empleo, pensión, propósito propio)', level: 2, files: ['sim/lifecycle.ts', 'sim/simulation.ts', 'sim/economy.ts'], couples: ['life', 'jobs', 'government', 'needs'] },
   { id: 'building-heatmaps', name: 'heatmaps de edificios (ánimo, suelo, cobertura y zonas)', level: 4, files: ['sim/protocol.ts', 'sim/simulation.ts', 'sim/worker.ts', 'sim/client.ts', 'world/render/overlay.ts'], couples: ['growth', 'government'] },
   { id: 'traffic-overlay', name: 'overlay de tráfico (carga de calzadas por chunk)', level: 4, files: ['sim/protocol.ts', 'sim/simulation.ts', 'sim/worker.ts', 'sim/client.ts', 'world/render/overlay.ts', 'main.ts'], couples: ['traffic', 'building-heatmaps'] },
+  { id: 'transit-render', name: 'render de buses y paradas (flota instanciada)', level: 4, files: ['sim/protocol.ts', 'sim/worker.ts', 'sim/client.ts', 'world/render/vehicles.ts', 'main.ts'], couples: ['transit', 'vehicles'] },
   { id: 'building-alerts', name: 'alertas de edificios (vía, empleo, ánimo, servicios y abandono)', level: 4, files: ['sim/protocol.ts', 'sim/simulation.ts', 'world/render/alerts.ts'], couples: ['building-heatmaps', 'growth', 'government'] },
   { id: 'public-autobuild', name: 'servicios públicos autónomos (coste y política manual/pagados)', level: 2, files: ['world/growth.ts', 'sim/actions.ts', 'sim/simulation.ts', 'sim/economy.ts', 'sim/protocol.ts', 'ui/budgetPanel.ts', 'ui/chronicle.ts'], couples: ['government', 'growth', 'happiness'] },
+  { id: 'districts', name: 'distritos y políticas locales (industria, parques, velocidad e impuestos)', level: 2, files: ['world/grid.ts', 'world/growth.ts', 'sim/actions.ts', 'sim/simulation.ts', 'sim/economy.ts', 'sim/protocol.ts', 'core/tools.ts', 'ui/districtPanel.ts', 'world/render/districts.ts'], couples: ['government', 'growth', 'traffic', 'money'] },
 ];
 
 /** Para la Crónica: nombres ordenados por nivel (básico → superior). */

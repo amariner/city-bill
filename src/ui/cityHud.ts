@@ -60,7 +60,7 @@ export class CityHud {
     ].join(';');
     document.body.appendChild(this.el);
 
-    for (const key of ['time', 'pop', 'treasury', 'jobless', 'season', 'granary', 'health', 'happiness', 'congestion', 'bus', 'wealth', 'abandoned']) {
+    for (const key of ['time', 'pop', 'treasury', 'jobless', 'season', 'granary', 'health', 'happiness', 'congestion', 'bus', 'district', 'wealth', 'abandoned']) {
       const root = document.createElement('div');
       root.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:1px';
       const label = document.createElement('span');
@@ -71,7 +71,7 @@ export class CityHud {
       root.appendChild(value);
       this.el.appendChild(root);
       this.chips[key] = { label, value, root };
-      if (key === 'abandoned' || key === 'bus') root.style.display = 'none';
+      if (key === 'abandoned' || key === 'bus' || key === 'district') root.style.display = 'none';
     }
     this.chips.time.label.textContent = 'tiempo';
     this.chips.pop.label.textContent = 'población';
@@ -83,6 +83,7 @@ export class CityHud {
     this.chips.happiness.label.textContent = 'ánimo';
     this.chips.congestion.label.textContent = 'tráfico';
     this.chips.bus.label.textContent = 'bus';
+    this.chips.district.label.textContent = 'barrios';
     this.chips.wealth.label.textContent = 'riqueza media';
     this.chips.abandoned.label.textContent = 'cerrados';
   }
@@ -106,6 +107,7 @@ export class CityHud {
       Math.round(city.congestion * 100),
       city.busLines,
       city.busTrips,
+      city.districts,
       city.avgWealth | 0,
       city.debt | 0,
       city.bankrupt ? 1 : 0,
@@ -165,6 +167,10 @@ export class CityHud {
     bus.root.style.display = city.busLines > 0 ? 'flex' : 'none';
     bus.value.textContent = `${city.busLines} · ${city.busTrips}`;
     bus.value.title = `${city.busLines} línea${city.busLines === 1 ? '' : 's'} · ${city.busTrips} embarque${city.busTrips === 1 ? '' : 's'}`;
+
+    const district = this.chips.district;
+    district.root.style.display = city.districts > 0 ? 'flex' : 'none';
+    district.value.textContent = String(city.districts);
 
     this.chips.wealth.value.textContent = fmtMoney(city.avgWealth);
 

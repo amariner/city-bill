@@ -12,6 +12,7 @@ export type Tool =
   | { kind: 'bulldoze' }
   | { kind: 'road'; road: 'path' | 'rural' | 'street' | 'avenue'; from: CellXZ | null }
   | { kind: 'zone'; zone: ZoneKind; from: CellXZ | null; erase: boolean }
+  | { kind: 'district'; district: number; from: CellXZ | null; erase: boolean }
   | { kind: 'busLine'; stops: CellXZ[] };
 
 export class ToolState {
@@ -27,6 +28,7 @@ export class ToolState {
         if (!this.shiftDown) {
           this.shiftDown = true;
           if (this.tool.kind === 'zone') this.set({ ...this.tool, erase: true });
+          if (this.tool.kind === 'district') this.set({ ...this.tool, erase: true });
         }
         return;
       }
@@ -45,6 +47,9 @@ export class ToolState {
       } else if (key === 'l') {
         e.preventDefault();
         this.set({ kind: 'busLine', stops: [] });
+      } else if (key === 'd') {
+        e.preventDefault();
+        this.set({ kind: 'district', district: 1, from: null, erase: this.shiftDown });
       } else if (key === 'enter' && this.tool.kind === 'busLine') {
         e.preventDefault();
         this.finishBusLine();
@@ -62,11 +67,11 @@ export class ToolState {
     window.addEventListener('keyup', (e) => {
       if (e.key.toLowerCase() !== 'shift') return;
       this.shiftDown = false;
-      if (this.tool.kind === 'zone') this.set({ ...this.tool, erase: false });
+      if (this.tool.kind === 'zone' || this.tool.kind === 'district') this.set({ ...this.tool, erase: false });
     });
     window.addEventListener('blur', () => {
       this.shiftDown = false;
-      if (this.tool.kind === 'zone' && this.tool.erase) this.set({ ...this.tool, erase: false });
+      if ((this.tool.kind === 'zone' || this.tool.kind === 'district') && this.tool.erase) this.set({ ...this.tool, erase: false });
     });
   }
 
@@ -124,6 +129,21 @@ export class ToolState {
         z1: Math.max(this.tool.from[1], cell[1]),
       };
       this.set({ ...this.tool, from: null });
+    } else if (this.tool.kind === 'district') {
+      if (!this.tool.from) {
+        this.set({ ...this.tool, from: [...cell] });
+        return null;
+      }
+      action = {
+        kind: 'district',
+        op: 'paint',
+        district: this.tool.erase ? null : this.tool.district,
+        x0: Math.min(this.tool.from[0], cell[0]),
+        z0: Math.min(this.tool.from[1], cell[1]),
+        x1: Math.max(this.tool.from[0], cell[0]),
+        z1: Math.max(this.tool.from[1], cell[1]),
+      };
+      this.set({ ...this.tool, from: null });
     } else if (this.tool.kind === 'busLine') {
       if (this.tool.stops.length < 12 && !this.tool.stops.some(([cx, cz]) => cx === cell[0] && cz === cell[1])) {
         this.set({ kind: 'busLine', stops: [...this.tool.stops, [...cell]] });
@@ -144,7 +164,7 @@ export class ToolState {
   }
 
   handleDragStart(cell: [number, number], button: PointerButton): void {
-    if (button !== 'left' || (this.tool.kind !== 'road' && this.tool.kind !== 'zone') || this.tool.from) return;
+    if (button !== 'left' || (this.tool.kind !== 'road' && this.tool.kind !== 'zone' && this.tool.kind !== 'district') || this.tool.from) return;
     this.set({ ...this.tool, from: [...cell] });
   }
 
@@ -154,12 +174,20 @@ export class ToolState {
   }
 
   handleDragEnd(cell: [number, number], button: PointerButton): number | null {
-    if (button !== 'left' || (this.tool.kind !== 'road' && this.tool.kind !== 'zone') || !this.tool.from) return null;
+    if (button !== 'left' || (this.tool.kind !== 'road' && this.tool.kind !== 'zone' && this.tool.kind !== 'district') || !this.tool.from) return null;
     const action: PlayerAction = this.tool.kind === 'road'
       ? { kind: 'road', road: this.tool.road, from: [...this.tool.from], to: [...cell] }
-      : {
+      : this.tool.kind === 'zone' ? {
         kind: 'zone',
         zone: this.tool.erase ? null : this.tool.zone,
+        x0: Math.min(this.tool.from[0], cell[0]),
+        z0: Math.min(this.tool.from[1], cell[1]),
+        x1: Math.max(this.tool.from[0], cell[0]),
+        z1: Math.max(this.tool.from[1], cell[1]),
+      } : {
+        kind: 'district',
+        op: 'paint',
+        district: this.tool.erase ? null : this.tool.district,
         x0: Math.min(this.tool.from[0], cell[0]),
         z0: Math.min(this.tool.from[1], cell[1]),
         x1: Math.max(this.tool.from[0], cell[0]),

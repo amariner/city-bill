@@ -38,6 +38,12 @@ tools.handleClick([6, 2]);
 tools.handleClick([6, 6]);
 const lineSeq = tools.finishBusLine();
 check('la línea: Enter emite busLine y cancela la herramienta', lineSeq === 6 && sent[5]?.kind === 'busLine' && sent[5]?.op === 'create' && !tools.isActive);
+tools.set({ kind: 'district', district: 2, from: null, erase: false });
+tools.handleDragStart([-3, -2], 'left');
+check('distrito: el arrastre fija el origen', tools.active.kind === 'district' && tools.active.from?.join() === '-3,-2');
+check('distrito: emite un rectángulo con id', tools.handleDragEnd([4, 1], 'left') === 7
+  && sent[6]?.kind === 'district' && sent[6]?.op === 'paint' && sent[6]?.district === 2
+  && sent[6]?.x0 === -3 && sent[6]?.z0 === -2 && sent[6]?.x1 === 4 && sent[6]?.z1 === 1);
 
 console.log(`\ntools.test: ${passed} passed, ${failed} failed`);
 if (failed > 0) throw new Error(`${failed} test(s) failed`);

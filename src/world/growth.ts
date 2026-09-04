@@ -26,6 +26,10 @@ export interface GrowthPlacement {
 
 export interface FindParcelOptions {
   searchRadius?: number;
+  /** Filtro administrativo opcional (p.ej. una política de distrito). */
+  allow?: (cx: number, cz: number) => boolean;
+  /** Ajuste determinista de prioridad: negativo = parcela preferida. */
+  scoreAdjustment?: (cx: number, cz: number) => number;
 }
 
 export interface DemandInput {
@@ -350,6 +354,8 @@ export function findParcel(
   const it = catalogData(itemId);
   if (!it) return null;
   const searchRadius = typeof options === 'number' ? options : options.searchRadius ?? 60;
+  const allow = typeof options === 'number' ? undefined : options.allow;
+  const scoreAdjustment = typeof options === 'number' ? undefined : options.scoreAdjustment;
   const [ccx, ccz] = center;
 
   let best: GrowthPlacement | null = null;
@@ -382,13 +388,14 @@ export function findParcel(
           const ax = cx + t.dx;
           const az = cz + t.dz;
           if (!clearForGrowth(grid, it.w, it.d, ax, az, t.rot)) continue;
+          if (allow && !allow(ax, az)) continue;
           const zoned = requiredZone !== null && footprintHasZone(grid, it.w, it.d, ax, az, t.rot, requiredZone);
           if (policy === 'zonesOnly' && !zoned) continue;
           const d = Math.abs(ax - ccx) + Math.abs(az - ccz);
           // Un frente zonificado gana con claridad en preferZones, aunque esté
           // algo más lejos; la pizca de ruido solo rompe empates locales.
           const zoneBonus = policy === 'preferZones' && zoned ? -20 : 0;
-          const score = d + zoneBonus + rng.next() * 4;
+          const score = d + zoneBonus + (scoreAdjustment?.(ax, az) ?? 0) + rng.next() * 4;
           if (score < bestScore) {
             bestScore = score;
             bestDist = d;

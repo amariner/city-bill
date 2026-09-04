@@ -25,7 +25,7 @@ import { decayNeeds, restore, NEED_KEYS } from './citizens/needs';
 import { chooseActivity } from './citizens/brain';
 import { ACTIVITY_BY_KIND, SimContext, activityLabel, EDU_PER_HOUR, CLINIC_FEE, isFestivalDay } from './citizens/activities';
 import { SocialSystem, SocialSaveState } from './citizens/social';
-import { AgentState, ActivityKind, activityId, AGENT_STRIDE, AlertBit, BUILDING_STRIDE, BUS_STOP_STRIDE, VEHICLE_STRIDE, TravelModeCode, VehicleKindCode, CityStats, CitizenInfoMsg, settlementLevel, SETTLEMENT_CLASSES, PlayerAction, RecordedAction, GrowthPolicy, PublicAutobuildPolicy, BudgetHistoryPoint, RoadKind } from './protocol';
+import { AgentState, ActivityKind, activityId, AGENT_STRIDE, AlertBit, BUILDING_STRIDE, BUS_STOP_STRIDE, VEHICLE_STRIDE, TravelModeCode, VehicleKindCode, CityStats, CitizenInfoMsg, settlementLevel, SETTLEMENT_CLASSES, PlayerAction, RecordedAction, GrowthPolicy, PublicAutobuildPolicy, BudgetHistoryPoint, RoadKind, DistrictPolicy, DistrictPolicyState, emptyDistrictPolicy } from './protocol';
 import {
   computeDemand, demandLevels, itemForDemand, findParcel, townCenter, townAttractiveness,
   householdHardship, updateEmigrationPressure, EMIGRATE_POP_FLOOR, EMIGRATE_PRESSURE_LIMIT,
@@ -65,6 +65,10 @@ const MIN_NETWORK_CONGESTION_TO_SLOW = 0.02;
 
 function clamp01(value: number): number {
   return Math.max(0, Math.min(1, value));
+}
+
+function hasDistrictPolicy(policy: DistrictPolicyState): boolean {
+  return policy.taxDelta !== 0 || policy.noIndustry || policy.parksPriority || policy.speed30;
 }
 
 // --- Lógica de estatus y propiedad (ciclo 9) ----------------------------------
@@ -173,6 +177,8 @@ export interface SimSaveState {
   busTrips?: number;
   nextBusLineId?: number;
   nextBusId?: number;
+  /** Políticas administrativas por distrito; opcional para saves anteriores a H5.5. */
+  districtPolicies?: Array<[number, DistrictPolicyState]>;
   emigrations: number;
   vaccinationsGiven: number;
   firstBuildingSeen: string[];
@@ -287,6 +293,9 @@ export class Simulation {
   busTrips = 0;
   private nextBusLineId = 1;
   private nextBusId = 1;
+  /** Política local de cada distrito pintado; el mapa solo guarda estados no
+   * neutros para que un save siga siendo pequeño y canónico. */
+  readonly districtPolicies = new Map<number, DistrictPolicyState>();
   /** Emigraciones acumuladas (ciclo 14 — métrica de tests/Crónica). */
   emigrations = 0;
   /** Tramos de vía trazados por la ciudad sola (T4.4 — métrica de tests). */
@@ -395,6 +404,12 @@ export class Simulation {
         this.buses.push(...created);
       }
     }
+    this.districtPolicies.clear();
+    for (const [district, raw] of state.districtPolicies ?? []) {
+      if (!Number.isInteger(district) || district < 0 || district > 99) continue;
+      const policy = { ...emptyDistrictPolicy(), ...raw };
+      if (hasDistrictPolicy(policy)) this.districtPolicies.set(district, policy);
+    }
     this.emigrations = state.emigrations;
     this.vaccinationsGiven = state.vaccinationsGiven;
     this.firstBuildingSeen.clear();
@@ -466,6 +481,9 @@ export class Simulation {
       busTrips: this.busTrips,
       nextBusLineId: this.nextBusLineId,
       nextBusId: this.nextBusId,
+      districtPolicies: [...this.districtPolicies]
+        .sort(([a], [b]) => a - b)
+        .map(([district, policy]) => [district, { ...policy }] as [number, DistrictPolicyState]),
       emigrations: this.emigrations,
       vaccinationsGiven: this.vaccinationsGiven,
       firstBuildingSeen: [...this.firstBuildingSeen].sort(),
@@ -1318,6 +1336,51 @@ export class Simulation {
 
   // --- Crecimiento autónomo (T4.1-T4.3) ---------------------------------------
 
+  /** Devuelve el distrito administrativo de una parcela, si está pintado. */
+  districtAt(cx: number, cz: number): number | undefined {
+    return this.grid.get(cx, cz)?.district;
+  }
+
+  /** Siempre devuelve un objeto completo para que las reglas no tengan que
+   * distinguir entre un distrito nuevo y uno sin política. */
+  policyForDistrict(district: number | undefined): DistrictPolicyState {
+    const policy = district === undefined ? undefined : this.districtPolicies.get(district);
+    return { ...emptyDistrictPolicy(), ...(policy ?? {}) };
+  }
+
+  /** Actualiza una política y elimina entradas neutras para mantener el save
+   * pequeño. La acción ya valida la entrada; este método también es defensivo
+   * porque los tests y futuras herramientas pueden llamarlo directamente. */
+  setDistrictPolicy(district: number, policy: DistrictPolicy, value: boolean | number): boolean {
+    if (!Number.isInteger(district) || district < 0 || district > 99) return false;
+    const next = this.policyForDistrict(district);
+    if (policy === 'taxDelta') {
+      if (typeof value !== 'number' || !Number.isFinite(value)) return false;
+      next.taxDelta = Math.max(-0.2, Math.min(0.2, value));
+    } else {
+      if (typeof value !== 'boolean') return false;
+      next[policy] = value;
+    }
+    if (hasDistrictPolicy(next)) this.districtPolicies.set(district, next);
+    else this.districtPolicies.delete(district);
+    return true;
+  }
+
+  /** Delta fiscal del barrio donde vive el hogar. Se aplica a la nómina del
+   * residente y evita inventar un segundo sistema tributario paralelo. */
+  districtTaxDelta(cx: number, cz: number): number {
+    return this.policyForDistrict(this.districtAt(cx, cz)).taxDelta;
+  }
+
+  private growthAllowed(itemId: string, cx: number, cz: number): boolean {
+    const item = catalogData(itemId);
+    if (!item) return false;
+    const policy = this.policyForDistrict(this.districtAt(cx, cz));
+    // noIndustry bloquea solo los edificios de trabajo (oficinas/fábricas), no
+    // tiendas ni agricultura: el barrio conserva vida económica sin industria.
+    return item.role !== 'work' || !policy.noIndustry;
+  }
+
   private maybeGrow(): void {
     const stats = this.economy.stats(this.citizens);
     const shops = this.economy.workplaces.filter((w) => w.building.data.role === 'commerce');
@@ -1364,7 +1427,11 @@ export class Simulation {
     const center = growthCenter(this.grid,
       this.index.buildings.filter((b) => isUrban(b.data.role)).map((b) => [b.ax, b.az]),
     );
-    const p = findParcel(this.grid, id, center, this.rng, this.growthPolicy);
+    const p = findParcel(this.grid, id, center, this.rng, this.growthPolicy, {
+      searchRadius: 60,
+      allow: (cx, cz) => this.growthAllowed(id, cx, cz),
+      scoreAdjustment: (cx, cz) => demand === 'park' && this.policyForDistrict(this.districtAt(cx, cz)).parksPriority ? -12 : 0,
+    });
     if (!p) {
       // T4.4: hay demanda pero NO queda frente construible junto a una vía →
       // la ciudad se traza una CALLE nueva hacia campo abierto. El siguiente
@@ -1928,7 +1995,7 @@ export class Simulation {
             }
             // Dinero: cada hora trabajada es salario para el hogar. El sector
             // público (civic) se paga del tesoro, no se acuña (ciclo 37bis).
-            this.economy.payWage(`${c.home.ax},${c.home.az}`, hours, employer?.tier ?? 0, c.education, employer?.role);
+            this.economy.payWage(`${c.home.ax},${c.home.az}`, hours, employer?.tier ?? 0, c.education, employer?.role, this.districtTaxDelta(c.home.ax, c.home.az));
             // Vocación (ciclo 36): trabajar en lo que uno ama COLMA el propósito.
             if (jobFitsVocation(c.personality, employer?.role)) restore(c.needs, 'purpose', VOCATION_PURPOSE_BONUS * hours);
           }
@@ -2016,8 +2083,9 @@ export class Simulation {
   private speedAt(cx: number, cz: number, mode: TravelMode): number {
     if (mode === 'foot') return WALK_CELLS_PER_TICK;
     const onRoad = this.roadKindAt(cx, cz) !== null;
-    if (mode === 'bus') return onRoad ? CAR_CELLS_PER_TICK_ROAD * BUS_SPEED_FACTOR * this.congestionAt(cx, cz) : CAR_CELLS_PER_TICK_OFFROAD;
-    return onRoad ? CAR_CELLS_PER_TICK_ROAD * this.congestionAt(cx, cz) : CAR_CELLS_PER_TICK_OFFROAD;
+    const districtFactor = this.policyForDistrict(this.districtAt(Math.round(cx), Math.round(cz))).speed30 ? 0.6 : 1;
+    if (mode === 'bus') return onRoad ? CAR_CELLS_PER_TICK_ROAD * BUS_SPEED_FACTOR * this.congestionAt(cx, cz) * districtFactor : CAR_CELLS_PER_TICK_OFFROAD;
+    return onRoad ? CAR_CELLS_PER_TICK_ROAD * this.congestionAt(cx, cz) * districtFactor : CAR_CELLS_PER_TICK_OFFROAD;
   }
 
   private stepWalk(c: Citizen): void {
@@ -2263,6 +2331,10 @@ export class Simulation {
       if (c.age < ADULT_AGE) children++;
       else if (c.age >= OLD_AGE) elders++;
     }
+    const districtIds = new Set<number>();
+    this.grid.forEachChunk((chunk) => chunk.cells.forEach((cell) => {
+      if (cell.district !== undefined) districtIds.add(cell.district);
+    }));
     return {
       population: this.citizens.size,
       treasury: this.economy.treasury,
@@ -2279,6 +2351,10 @@ export class Simulation {
       busLines: this.busLines.size,
       busTrips: this.busTrips,
       trainActive: false,
+      districts: districtIds.size,
+      districtPolicies: [...this.districtPolicies]
+        .sort(([a], [b]) => a - b)
+        .map(([district, policy]) => [district, { ...policy }] as [number, DistrictPolicyState]),
       demand,
       coverage: coverageRates(this.index),
       happiness: this.averageHappiness(),

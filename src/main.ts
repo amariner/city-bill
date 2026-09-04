@@ -20,6 +20,7 @@ import { SelectionMarker } from './world/render/selectionMarker';
 import { ConstructionSites } from './world/render/construction';
 import { Ghost } from './world/render/ghost';
 import { ZonesLayer } from './world/render/zones';
+import { DistrictsLayer } from './world/render/districts';
 import { OVERLAY_LABELS, OVERLAY_MODES, OverlayLayer } from './world/render/overlay';
 import { AlertsLayer } from './world/render/alerts';
 import { Atmosphere, lampFactor } from './world/render/atmosphere';
@@ -38,6 +39,7 @@ import { DevPanel } from './ui/devPanel';
 import { ControlBar } from './ui/controlBar';
 import { BudgetPanel } from './ui/budgetPanel';
 import { Toolbar } from './ui/toolbar';
+import { DistrictPanel } from './ui/districtPanel';
 import { Grid, cellFromKey, cellToWorld, rotatedFootprint } from './world/grid';
 import { clearSave, loadSave, writeSave } from './save/save';
 import { StartMenu } from './ui/startMenu';
@@ -96,6 +98,8 @@ let toolbar: Toolbar | null = null;
 let toolState: ToolState | null = null;
 let ghost: Ghost | null = null;
 let zonesLayer: ZonesLayer | null = null;
+let districtsLayer: DistrictsLayer | null = null;
+let districtPanel: DistrictPanel | null = null;
 let overlayLayer: OverlayLayer | null = null;
 let alertsLayer: AlertsLayer | null = null;
 let overlayIndex = 0;
@@ -166,6 +170,8 @@ function buildRenderAndUi(grid: Grid, worldSeed: number): void {
   stage.scene.add(ghost.root);
   zonesLayer = new ZonesLayer(grid);
   stage.scene.add(zonesLayer.root);
+  districtsLayer = new DistrictsLayer(grid);
+  stage.scene.add(districtsLayer.root);
   overlayLayer = new OverlayLayer(grid);
   stage.scene.add(overlayLayer.root);
   alertsLayer = new AlertsLayer(grid);
@@ -173,11 +179,14 @@ function buildRenderAndUi(grid: Grid, worldSeed: number): void {
   // La máquina de herramientas se registra antes que el inspector para que Esc
   // cancele primero la herramienta activa y solo después pueda cerrar la ficha.
   toolState = new ToolState(sim);
+  districtPanel = new DistrictPanel(sim, toolState);
   toolbar = new Toolbar(sim, toolState);
   ghost.onRoadCost = (cost) => toolbar?.setRoadCost(cost);
   toolState.onChange = (tool) => {
     ghost?.update(tool, hoverCell);
     zonesLayer?.setToolActive(tool.kind === 'zone');
+    districtsLayer?.setToolActive(tool.kind === 'district');
+    districtPanel?.setOpen(tool.kind === 'district');
     toolbar?.update();
   };
   chronicle = new Chronicle(worldSeed);
@@ -195,6 +204,7 @@ function buildRenderAndUi(grid: Grid, worldSeed: number): void {
     ];
     worldView?.refreshCells(refreshed);
     zonesLayer?.refreshCells(patch.cells);
+    districtsLayer?.refreshCells(patch.cells);
     overlayLayer?.refreshCells(patch.cells);
     for (const built of patch.built) {
       const started = construction?.start(built.id, built.cx, built.cz, built.rot, () => atmosphere?.invalidate());
@@ -482,6 +492,7 @@ loop.onUpdate((dt) => {
     budgetPanel?.update(simClient.city);
     controlBar?.update(simClient.speed); // resalta la pastilla de velocidad activa
     toolbar?.update();
+    districtPanel?.update();
     devPanel?.update();
     chronicle?.update(t, simClient.population, simClient.buildings);
   }

@@ -410,8 +410,9 @@ trampas**. Los tests nuevos se añaden al script `"test"` de `package.json`.
 - Visual: la flota aparece en el loop; los pasajeros desaparecen al subir; HUD muestra líneas y embarques.
 
 **H5.5 Distritos y políticas**
-- Archivos: M `grid.ts` (`Cell.district?`), M `actions.ts`, M `tools.ts`, M `simulation.ts` (`districtPolicies: Map<number, {taxDelta, noIndustry, parksPriority, speed30}>`), C `src/ui/districtPanel.ts`.
-- Tests: puros por política.
+- **✅ implementado** — Archivos: M `grid.ts` (`Cell.district?`, journal/patch/save), M `actions.ts`, M `tools.ts` (`D`, arrastre y Shift-borrar), M `simulation.ts` (`districtPolicies` persistentes; crecimiento, velocidad y nómina locales), M `economy.ts` (delta fiscal), M `protocol.ts`/`cityHud.ts`, C `src/ui/districtPanel.ts`, C `src/world/render/districts.ts`.
+- Políticas: `noIndustry` filtra oficinas/fábricas del crecimiento autónomo; `parksPriority` adelanta parcelas de parques; `speed30` reduce un 40% la velocidad de vehículos; `taxDelta` aplica un ajuste de −20% a +20% a la nómina de hogares residentes.
+- Tests: capa de grid, acciones/replay, efectos de las cuatro políticas y overlay headless.
 
 **H5.6 Tren**
 - Archivos: M `grid.ts` (`Terrain 'rail'`, bloqueante), M `roads.ts` (`paintRail`), M `catalogData.ts` (`station` 3×6 T4 rol `infra`, `service: transit` radio 20), M `props.ts` (estación + loco + vagón), M `transit.ts` (`Train` sobre circuito cerrado, 1 loco + 3-5 vagones), M `growth.ts` (+0.1 atractividad), M `render/terrain.ts` (`LAYER_Y.rail`, `PALETTE.rail/ballast`), M `render/vehicles.ts`.

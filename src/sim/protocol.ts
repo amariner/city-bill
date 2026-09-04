@@ -62,6 +62,18 @@ export type ZoneKind = 'R' | 'C' | 'I' | 'A' | 'P';
 export type GrowthPolicy = 'free' | 'preferZones' | 'zonesOnly';
 export type PublicAutobuildPolicy = 'off' | 'paid';
 export type TaxSector = 'R' | 'C' | 'I';
+export type DistrictPolicy = 'noIndustry' | 'parksPriority' | 'speed30' | 'taxDelta';
+
+export interface DistrictPolicyState {
+  taxDelta: number;
+  noIndustry: boolean;
+  parksPriority: boolean;
+  speed30: boolean;
+}
+
+export function emptyDistrictPolicy(): DistrictPolicyState {
+  return { taxDelta: 0, noIndustry: false, parksPriority: false, speed30: false };
+}
 export interface TaxRates {
   R: number;
   C: number;
@@ -119,7 +131,8 @@ export type PlayerAction =
   | { kind: 'repayLoan'; id: number }
   | { kind: 'busLine'; op: 'create' | 'delete'; lineId?: number; stops?: Array<[number, number]>
   }
-  | { kind: 'district'; op: 'paint' | 'policy'; x0?: number; z0?: number; x1?: number; z1?: number; district?: number; policy?: string; value?: boolean }
+  | { kind: 'district'; op: 'paint'; x0: number; z0: number; x1: number; z1: number; district: number | null }
+  | { kind: 'district'; op: 'policy'; district: number; policy: DistrictPolicy; value: boolean | number }
   | { kind: 'rail'; from: [number, number]; to: [number, number] };
 
 export type RejectReason =
@@ -358,6 +371,9 @@ export interface CityStats {
   busTrips: number;
   /** Reservado para H5.6; false hasta que exista infraestructura ferroviaria. */
   trainActive: boolean;
+  /** Distritos con al menos una celda pintada y sus políticas activas (H5.5). */
+  districts: number;
+  districtPolicies: Array<[number, DistrictPolicyState]>;
   /** Presión latente por sector, para las barras R/C/I de la toolbar. */
   demand: { R: number; C: number; I: number };
   /** Proporción de viviendas activas cubierta por cada servicio [0,1]. */

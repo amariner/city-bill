@@ -104,6 +104,52 @@ export function applyPlayerAction(sim: Simulation, action: PlayerAction): Action
       sim.economy.rebuild(sim.index, sim.citizens);
       return { ok: true, cost: 0 };
     }
+    case 'district': {
+      if (action.op === 'paint') {
+        const values = [action.x0, action.z0, action.x1, action.z1];
+        if (!values.every((value) => Number.isInteger(value)) || Math.max(...values.map((value) => Math.abs(value))) > 32767) {
+          return { ok: false, reason: 'invalid', detail: 'rectángulo de distrito inválido' };
+        }
+        if (action.district !== null && (!Number.isInteger(action.district) || action.district < 0 || action.district > 99)) {
+          return { ok: false, reason: 'invalid', detail: 'distrito fuera de rango' };
+        }
+        const x0 = Math.min(action.x0, action.x1);
+        const x1 = Math.max(action.x0, action.x1);
+        const z0 = Math.min(action.z0, action.z1);
+        const z1 = Math.max(action.z0, action.z1);
+        let eligible = 0;
+        for (let cx = x0; cx <= x1; cx++) {
+          for (let cz = z0; cz <= z1; cz++) {
+            const cell = sim.grid.get(cx, cz);
+            // No creamos mundo nuevo al pintar: el distrito solo administra
+            // terreno que ya existe y nunca se superpone al agua.
+            if (!cell || cell.terrain === 'water') continue;
+            eligible++;
+            const district = action.district === null ? undefined : action.district;
+            if (cell.district !== district) sim.grid.setDistrict(cx, cz, district);
+          }
+        }
+        if (eligible === 0) return { ok: false, reason: 'blocked', detail: 'no hay terreno conocido para delimitar' };
+        return { ok: true, cost: 0 };
+      }
+      if (!Number.isInteger(action.district) || action.district < 0 || action.district > 99) {
+        return { ok: false, reason: 'invalid', detail: 'distrito fuera de rango' };
+      }
+      if (!['noIndustry', 'parksPriority', 'speed30', 'taxDelta'].includes(action.policy)) {
+        return { ok: false, reason: 'invalid', detail: 'política de distrito desconocida' };
+      }
+      if (action.policy === 'taxDelta') {
+        if (typeof action.value !== 'number' || !Number.isFinite(action.value) || action.value < -0.2 || action.value > 0.2) {
+          return { ok: false, reason: 'invalid', detail: 'el ajuste fiscal debe estar entre -20% y +20%' };
+        }
+      } else if (typeof action.value !== 'boolean') {
+        return { ok: false, reason: 'invalid', detail: 'la política necesita un valor sí/no' };
+      }
+      if (!sim.setDistrictPolicy(action.district, action.policy, action.value)) {
+        return { ok: false, reason: 'invalid', detail: 'no se pudo actualizar la política' };
+      }
+      return { ok: true, cost: 0 };
+    }
     case 'setTax': {
       if (!['R', 'C', 'I'].includes(action.sector)) return { ok: false, reason: 'invalid', detail: 'sector fiscal desconocido' };
       if (!Number.isFinite(action.rate)) return { ok: false, reason: 'invalid', detail: 'tipo fiscal no numérico' };

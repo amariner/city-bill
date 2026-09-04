@@ -25,6 +25,9 @@ export const PALETTE = {
   zoneI: 0xb9a7c9,
   zoneA: 0x9fb9cb,
   zoneP: 0xa9c286,
+  // Distritos administrativos (H5.5): seis tintes suaves que se pueden
+  // repetir de forma determinista cuando el alcalde pinta más barrios.
+  districts: [0xb88f86, 0x8fa7b8, 0xb39bca, 0x8eaf8b, 0xc3a36f, 0x9c9baf] as const,
 
   // Heatmaps de edificios (H4.6): azul frío → amarillo de lectura → rojo de
   // alerta. Desaturados para convivir con el terreno y la arquitectura.

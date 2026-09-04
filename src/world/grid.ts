@@ -43,6 +43,8 @@ export interface Cell {
   building?: BuildingRef;
   prop?: PropRef;
   zone?: ZoneKind;
+  /** Distrito administrativo pintado por el jugador (H5.5). */
+  district?: number;
 }
 
 const HALF = 32768; // offset para empaquetar coords con signo en clave numérica
@@ -155,6 +157,14 @@ export class Grid {
     this.ensureCell(cx, cz).zone = zone;
   }
 
+  /** Pinta o borra el distrito de una celda. Los distritos son una capa
+   * administrativa: sobreviven a carreteras, edificios y al render por chunks. */
+  setDistrict(cx: number, cz: number, district: number | undefined): void {
+    const cell = this.ensureCell(cx, cz);
+    if (district === undefined) delete cell.district;
+    else cell.district = district;
+  }
+
   // --- Edificios ------------------------------------------------------------
   /** ¿Cabe un edificio w×d (celdas base) anclado en (cx,cz) con rotación rot? */
   canPlace(w: number, d: number, cx: number, cz: number, rot: Rot = 0): boolean {
@@ -260,6 +270,7 @@ export class Grid {
       target.building = incoming.building;
       target.prop = incoming.prop;
       target.zone = incoming.zone;
+      target.district = incoming.district;
       const chunk = this.chunkAt(chunkCoord(cx), chunkCoord(cz));
       if (chunk) chunk.dirty = true;
     }
@@ -303,6 +314,7 @@ export class Grid {
         }
         if (cell.prop) normalized.prop = { id: cell.prop.id, variant: cell.prop.variant };
         if (cell.zone !== undefined) normalized.zone = cell.zone;
+        if (cell.district !== undefined) normalized.district = cell.district;
         out.push([cx, cz, normalized]);
       });
     });
@@ -323,6 +335,7 @@ export class Grid {
       target.building = cell.building;
       target.prop = cell.prop;
       target.zone = cell.zone;
+      target.district = cell.district;
     }
     grid.clearJournal();
     return grid;
