@@ -1439,7 +1439,7 @@ export class Simulation {
       this.reportServiceNeeded(id, it.name, cost, 'disabled');
       return;
     }
-    if (publicService && cost > this.economy.treasury) {
+    if (publicService && !this.economy.canSustainPublicWork(cost, it.upkeepPerDay ?? 0)) {
       this.reportServiceNeeded(id, it.name, cost, 'noMoney');
       return;
     }

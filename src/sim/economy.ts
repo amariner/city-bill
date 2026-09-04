@@ -102,6 +102,11 @@ export const DIVIDEND_RATE = 0.25;
 
 export type PublicSpendCategory = 'build' | 'road' | 'upkeep';
 
+/** Días de mantenimiento que una obra autónoma debe poder sostener antes de
+ * inaugurarse. Evita que el ayuntamiento convierta una caja puntual en un
+ * servicio abandonado al día siguiente. */
+export const PUBLIC_WORK_RESERVE_DAYS = 30;
+
 export interface LoanTier {
   amount: number;
   interestRate: number;
@@ -328,6 +333,14 @@ export class Economy {
     this.ledger[category] += amount;
     this.expenseToday += amount;
     return true;
+  }
+
+  /** Una obra pública nace solo si, además de pagarla, queda una reserva para
+   * su primer mes operativo. La reserva es un criterio de autorización: el
+   * dinero sigue en tesorería y se liquida diariamente por el ledger normal. */
+  canSustainPublicWork(cost: number, upkeepPerDay: number, reserveDays = PUBLIC_WORK_RESERVE_DAYS): boolean {
+    if (![cost, upkeepPerDay, reserveDays].every(Number.isFinite) || cost < 0 || upkeepPerDay < 0 || reserveDays < 0) return false;
+    return this.treasury >= cost + upkeepPerDay * reserveDays;
   }
 
   /** Cobra una vez por cierre la suma de mantenimiento de edificios activos y

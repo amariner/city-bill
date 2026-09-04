@@ -94,6 +94,24 @@ function growOnce(sim: Simulation): void {
   check('sin fondos: explica que falta tesoro', needed.length === 1 && needed[0].data.reason === 'noMoney');
 }
 
+// No basta con poder inaugurar: la ciudad deja el primer mes operativo en caja.
+{
+  const scarce = new Simulation(serviceGrid(), 4812);
+  scarce.autonomousGrowth = false;
+  scarce.publicAutobuild = 'paid';
+  scarce.economy.treasury = 1_999; // clínica: 800 + 30 × 40 = 2.000
+  growOnce(scarce);
+  check('reserva: no inaugura un consultorio que no puede sostener un mes', !scarce.index.buildings.some((building) => building.id === 'clinic'));
+  check('reserva: comunica el mismo bloqueo de tesoro', scarce.events.some((event) => event.name === 'serviceNeeded' && event.data.reason === 'noMoney'));
+
+  const solvent = new Simulation(serviceGrid(), 4813);
+  solvent.autonomousGrowth = false;
+  solvent.publicAutobuild = 'paid';
+  solvent.economy.treasury = 2_000;
+  growOnce(solvent);
+  check('reserva: permite la obra cuando cubre coste y primer mes', solvent.index.buildings.some((building) => building.id === 'clinic') && solvent.economy.treasury === 1_200);
+}
+
 // La elección es una acción normal: se registra y sobrevive al save, igual que
 // la política espacial y los impuestos.
 {
