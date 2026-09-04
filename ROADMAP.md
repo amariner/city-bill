@@ -663,6 +663,15 @@ tractores (residuo T3.9), página itch.io.
   de orden en `findParcel` al aparecer cualquier acceso nuevo. La solución debe
   estabilizar esa selección, no solo restringir la geometría que la alimenta.
 
+- 2026-09-04 — **H1, RNG espacial aislado en sonda.** `findParcel` consume el
+  RNG vital por cada candidato; por ello una calle cambiaba también nacimientos,
+  enfermedad y economía. Aislar ese flujo solo después de la primera calle
+  conservó 89 habitantes en el arco de d80 (frente a los 72 de la rama fija),
+  pero la prueba corta aún registró 24 obras: corrige una dependencia accidental
+  sin resolver la demanda que la alimenta. La variante no entra sola en `main`;
+  queda como requisito para la futura política de parcelas, junto a una
+  regulación de demanda que conserve el contrato de <4 obras/día.
+
 - 2026-09-04 — **H1, contrato único de calle autónoma.** La extensión que usa
   el crecimiento dejó de duplicar un pintor simplificado: delega en
   `roads.ts`, la misma geometría que consume la herramienta manual. Así una
