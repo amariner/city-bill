@@ -684,6 +684,13 @@ tractores (residuo T3.9), página itch.io.
   es válida; falta financiar el CAPITAL de la calle por separado del
   mantenimiento social diario antes de integrarla.
 
+  Se ensayó después mantenimiento regional de la calzada hasta el techo de
+  120 habitantes. Preservó crecimiento, oleadas y cuarentena, pero el cierre
+  económico siguió sin repartir dividendo: no es una tarifa de vía aislada, sino
+  la trayectoria productiva que cambia al abrir el frente. Queda descartado
+  compensarlo con una subvención; la integración requerirá un contrato económico
+  explícito para la urbanización y su propia prueba de saldo público.
+
 - 2026-09-04 — **H1, contrato único de calle autónoma.** La extensión que usa
   el crecimiento dejó de duplicar un pintor simplificado: delega en
   `roads.ts`, la misma geometría que consume la herramienta manual. Así una
