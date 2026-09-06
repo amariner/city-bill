@@ -3,6 +3,8 @@
  * "intents" que el controlador de cámara consume. Aquí NO hay lógica de juego:
  * solo estado de dispositivos y deltas acumulados.
  */
+import { ignoreGameKey } from './keyboard';
+
 export class Input {
   private keys = new Set<string>();
   private dragging = false;
@@ -27,6 +29,7 @@ export class Input {
     );
 
     window.addEventListener('keydown', (e) => {
+      if (ignoreGameKey(e)) return;
       const k = e.key.toLowerCase();
       if (k === 'q') this.rotateQueue -= 1;
       else if (k === 'e') this.rotateQueue += 1;

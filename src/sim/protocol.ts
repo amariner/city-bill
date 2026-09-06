@@ -341,6 +341,21 @@ export interface TrafficMsg {
 /** Estado agregado de la ciudad que la sim ya conoce por dentro y el HUD saca
  * a la superficie: tesoro, paro, estación/cosecha, epidemia, riqueza media.
  * Puros números derivados del estado real de la sim (nada de THREE). */
+export type CityNeedAction =
+  | { kind: 'budget' }
+  | { kind: 'build'; itemId: string }
+  | { kind: 'road'; cell: [number, number] };
+
+/** Diagnóstico derivado en el worker; la UI presenta sin decidir reglas de demanda. */
+export interface CityNeed {
+  id: string;
+  title: string;
+  reason: string;
+  status: string;
+  actionLabel: string;
+  action: CityNeedAction;
+}
+
 export interface CityStats {
   population: number;
   /** Caja pública (impuestos − gasto). */
@@ -376,6 +391,8 @@ export interface CityStats {
   districtPolicies: Array<[number, DistrictPolicyState]>;
   /** Presión latente por sector, para las barras R/C/I de la toolbar. */
   demand: { R: number; C: number; I: number };
+  /** Hasta tres necesidades priorizadas, sin estado persistente adicional. */
+  needs: CityNeed[];
   /** Proporción de viviendas activas cubierta por cada servicio [0,1]. */
   coverage: CoverageRates;
   /** Felicidad media por hogar [0,1], actualizada al cierre del día. */

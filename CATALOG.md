@@ -14,12 +14,18 @@ Tiers (`tierForPopulation` en `growth.ts`): **T0/T1** disponibles desde el inici
 **T2** pueblo (pop 25) · **T3** villa (pop 80) · **T4** ciudad (pop 200, estética Zlín).
 
 Economía H3.1: las obras que coloca el jugador tienen `cost` y `playerPlaceable` en
-`catalogData.ts`; el crecimiento autónomo no las carga. Los edificios públicos activos
+`catalogData.ts`; el crecimiento privado autónomo no las carga. Los servicios
+autónomos sí pagan su coste cuando `publicAutobuild` está en `paid`. Los edificios públicos activos
 pueden tener `upkeepPerDay` (escuela 60, consultorio 40, ayuntamiento 80, comisaría y
 bomberos 50, parque 8, plaza 10, zona de juegos 6). Las vías
 se cobran por celda al construir y mantienen estos costes: camino 3, rural 8, calle 14,
 avenida 24; su mantenimiento diario es 0.5, 1, 2 y 3 respectivamente. Los importes
 son deliberadamente legibles y el ledger del tesoro se conserva en el guardado.
+
+La interfaz de construcción muestra todos los `playerPlaceable: true` por categorías,
+con coste, mantenimiento y capacidad antes de colocar. Las fichas bloqueadas explican
+el nivel o dinero que falta. La estación Zlín está en Transporte: nivel 4,
+8400 de obra, 65 diarios y 3 empleos; necesita un circuito ferroviario.
 
 ## Infraestructura
 

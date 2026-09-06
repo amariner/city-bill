@@ -28,6 +28,7 @@ src/sim/
   pathfinding.ts    # A* RESUMIBLE con presupuesto por tick (PathQueue).
   worldIndex.ts     # Índice de edificios por rol + puntos de paseo. rebuild() tras construir.
   economy.ts        # Empleos reales por edificio, visitas a tiendas, prosperidad.
+  cityNeeds.ts      # Diagnósticos priorizados del alcalde, derivados sin RNG ni escrituras.
   citizens/
     citizen.ts      # Datos puros del ciudadano + fases del autómata.
     needs.ts        # 5 necesidades [0,1], decaimiento por personalidad, urgencia().
@@ -89,7 +90,28 @@ Tuning: los números "de juego" viven en pocos sitios — decaimientos en
 `needs.ts` (DECAY_PER_HOUR), restauraciones/duraciones en `activities.ts`,
 velocidad de paseo en `simulation.ts` (WALK_CELLS_PER_TICK = 0.9 celdas/tick).
 
-## 5. Estado actual (2026-07-03, sesión Fable)
+## 5. Estado vigente (2026-09-05)
+
+- Acciones validadas por el worker, `gridPatch` como única escritura espacial del
+  main, replay y guardado completo: contratos de ROADMAP §1.
+- `growthDemandInput()` reúne los datos reales que usan tanto `maybeGrow()` como
+  `cityStats().needs`. `computeDemands()` devuelve las demandas por prioridad;
+  una obra inviable no bloquea las demás. Las escuelas abandonadas no aportan plazas.
+- `cityNeeds.ts` deriva hasta tres avisos: quiebra, edificios abandonados y demanda.
+  Cada aviso contiene causa, estado y destino de interfaz. No calcula parcelas ni
+  promete que una obra se ejecutará. La UI abre herramientas, nunca construye
+  automáticamente al pulsar un aviso. No hay estado nuevo que guardar.
+- `findParcel` desempata con hash espacial; no consume el RNG vital. Presupuesto
+  de tres obras diarias, inmigración a viviendas accesibles y capacidad de carga
+  por tier. Trama urbana y ritmo aún pendientes de H7.3/H7.4.
+- LOD de peatones, vehículos/buses/tren, cobertura, salud, felicidad, suelo y
+  políticas distritales implementados. El trabajo abierto lo decide ROADMAP §3.
+
+### Archivo histórico de la simulación (2026-07-03)
+
+Las notas siguientes conservan el contexto inicial; sus pendientes no sustituyen
+el estado vigente ni el ROADMAP.
+
 
 Hecho y con tests verdes (14/14, `npm test`):
 - **Fase 4 (lógica)**: `world/growth.ts` — demanda desde el estado real
@@ -157,7 +179,7 @@ fractal de investigación + pirámide + bitácora). La Crónica (`ui/chronicle.t
 tecla C) es su memoria visual: si añades eventos/contadores, refléjalos ahí y
 amplía `ACTIVE_LOGICS`.
 
-## 6. Trabajo pendiente, en orden recomendado
+## 6. Desglose histórico de implementación
 
 1. **T3.10 Inspector** (la ventana para VERIFICAR la autonomía): raycast click →
    agente más cercano → `simClient.queryCitizen(id)` → tarjetita DOM (estilo del

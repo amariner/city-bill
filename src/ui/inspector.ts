@@ -1,3 +1,4 @@
+import { ignoreGameKey } from '../core/keyboard';
 /**
  * Inspector de ciudadano (T3.10): click sobre un ciudadano → tarjetita
  * diegética con nombre, actividad y necesidades; tecla F para que la cámara
@@ -45,6 +46,7 @@ export class CitizenInspector {
     private sim: SimClient,
   ) {
     this.el = document.createElement('div');
+    this.el.className = 'cb-inspector';
     this.el.style.cssText = [
       'position:fixed',
       'right:12px',
@@ -71,6 +73,7 @@ export class CitizenInspector {
     };
 
     window.addEventListener('keydown', (e) => {
+      if (ignoreGameKey(e) || e.repeat) return;
       if (e.key === 'f' || e.key === 'F') this.follow = this.selectedId !== null && !this.follow;
       if (e.key === 'Escape') this.deselect();
     });

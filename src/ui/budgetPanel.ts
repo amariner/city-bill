@@ -1,3 +1,4 @@
+import { ignoreGameKey } from '../core/keyboard';
 /** Panel de presupuesto del alcalde (H3.4). Solo presenta `CityStats.budget`
  * y envía acciones fiscales/financieras al worker; no duplica estado de la sim. */
 import { PALETTE } from '../palette';
@@ -188,6 +189,7 @@ export class BudgetPanel {
 
     document.body.appendChild(this.root);
     window.addEventListener('keydown', (event) => {
+      if (ignoreGameKey(event) || event.repeat) return;
       if (event.key.toLowerCase() !== 't') return;
       const target = event.target as HTMLElement | null;
       if (target?.tagName === 'INPUT' || target?.tagName === 'BUTTON') return;
@@ -282,7 +284,7 @@ export class BudgetPanel {
     this.panel.appendChild(heading);
   }
 
-  private setOpen(open: boolean): void {
+  setOpen(open: boolean): void {
     this.open = open;
     this.panel.style.display = open ? 'block' : 'none';
     this.toggle.classList.toggle('cb-budget-toggle-active', open);

@@ -1,3 +1,4 @@
+import { ignoreGameKey } from '../core/keyboard';
 /**
  * La Crónica (tecla C): la MEMORIA VISUAL del algoritmo de investigación
  * (RESEARCH.md §3). Muestra y persiste en localStorage (por semilla):
@@ -254,6 +255,7 @@ export class Chronicle {
     this.data = this.load();
 
     this.el = document.createElement('div');
+    this.el.className = 'cb-chronicle';
     this.el.style.cssText = [
       'position:fixed',
       'top:8px',
@@ -279,6 +281,7 @@ export class Chronicle {
     document.body.appendChild(this.el);
 
     window.addEventListener('keydown', (e) => {
+      if (ignoreGameKey(e) || e.repeat) return;
       if (e.key === 'c' || e.key === 'C') {
         this.visible = !this.visible;
         this.el.style.display = this.visible ? 'block' : 'none';

@@ -59,6 +59,7 @@ export class DevPanel {
 
   constructor(private sim: SimClient) {
     this.el = document.createElement('div');
+    this.el.className = 'cb-dev-panel';
     this.el.style.cssText = [
       'position:fixed',
       'top:10px',

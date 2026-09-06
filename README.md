@@ -38,8 +38,19 @@ Pages. La URL prevista del repositorio es `https://amariner.github.io/city-bill/
 
 Controles: arrastrar/WASD para mover, rueda para zoom, **Q**/**E** para rotar,
 clic en un vecino para inspeccionarlo, **F** para seguirlo, **C** para la crónica,
-**0**–**3** para la velocidad del tiempo (también en la barra de control), **M**
+**0**–**3** para la velocidad del tiempo (también en la barra de control), **U** para distritos, **M**
 para silenciar el ambiente y **F3** para el panel de rendimiento.
+
+Para dirigir la ciudad: **B** abre el catálogo, **R** las vías, **Z** las zonas,
+**X** demuele, **L** dibuja buses y **T** abre el presupuesto. **Tab** rota un
+edificio antes de colocarlo y **Esc** cancela la herramienta. Con una herramienta
+activa, mueve la cámara con WASD o arrastrando con botón central/derecho.
+
+El catálogo se organiza por servicios, viviendas, economía y transporte. Cada
+ficha muestra coste, mantenimiento, capacidad y motivo de bloqueo; la estación
+aparece en transporte y se habilita en el nivel 4. **La ciudad necesita** reúne
+hasta tres prioridades de la simulación y permite consultar una construcción,
+revisar el presupuesto o localizar un edificio cerrado por falta de acceso.
 
 ## Qué lo hace especial
 

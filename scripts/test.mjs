@@ -2,7 +2,8 @@
 // primer fallo) y resume al final. `npm test` = todo; `npm run test:fast`
 // omite las sondas largas (sim.test.ts y growthLadder.test.ts, varios minutos).
 import { spawnSync } from 'node:child_process';
-import { readdirSync, statSync } from 'node:fs';
+import { closeSync, mkdtempSync, openSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const fast = process.argv.includes('--fast');
@@ -23,11 +24,21 @@ const files = walk('src')
   .sort((a, b) => Number(SLOW.has(a)) - Number(SLOW.has(b)) || a.localeCompare(b));
 
 const failed = [];
+const logDir = mkdtempSync(join(tmpdir(), 'city-bill-tests-'));
+console.log(`Logs completos: ${logDir}`);
 const t0 = Date.now();
 for (const file of files) {
   const start = Date.now();
-  const r = spawnSync('npx', ['tsx', file], { encoding: 'utf8' });
-  const out = (r.stdout + r.stderr).trim().split('\n');
+  // El loader no abre el socket IPC del CLI de tsx; funciona también en sandbox.
+  const logPath = join(logDir, file.replaceAll('/', '_') + '.log');
+  if (SLOW.has(file)) console.log(`Sonda larga en marcha: ${file} → ${logPath}`);
+  const logFd = openSync(logPath, 'w');
+  let r;
+  try {
+    r = spawnSync(process.execPath, ['--import', 'tsx', file], { stdio: ['ignore', logFd, logFd] });
+  } finally { closeSync(logFd); }
+  const out = readFileSync(logPath, 'utf8').trim().split('\n');
+  if (r.error) out.push(`Error: ${r.error.message}`);
   const summary = out.filter((l) => /passed|fallos|ok,/.test(l)).at(-1) ?? out.at(-1) ?? '';
   const status = r.status === 0 ? 'ok ' : 'FAIL';
   console.log(`${status} ${file} (${((Date.now() - start) / 1000).toFixed(1)}s) ${summary.trim()}`);

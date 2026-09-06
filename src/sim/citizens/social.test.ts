@@ -46,11 +46,19 @@ for (const [seed, n, spread] of [[1, 60, 30], [2, 400, 120], [3, 1500, 400]] as 
 
 {
   // Rendimiento: 3000 hogares dispersos, muy por debajo del presupuesto del cierre del día.
-  const c = town(9, 3000, 600);
-  const t0 = performance.now();
-  SocialSystem.acquaintNeighbours(c, 40);
-  const ms = performance.now() - t0;
-  check('3000 hogares en ≤ 25 ms', ms <= 25, `→ ${ms.toFixed(1)} ms`);
+  // El worker vive durante toda la partida: medir caliente, con hogares nuevos
+  // en cada muestra. La mediana evita que una pausa del SO/GC decida el test.
+  SocialSystem.acquaintNeighbours(town(9, 3000, 600), 40);
+  const samples: number[] = [];
+  for (let sample = 0; sample < 5; sample++) {
+    const c = town(9, 3000, 600);
+    const t0 = performance.now();
+    SocialSystem.acquaintNeighbours(c, 40);
+    samples.push(performance.now() - t0);
+  }
+  const ms = [...samples].sort((a, b) => a - b)[2];
+  check('3000 hogares en ≤ 25 ms (mediana de 5)', ms <= 25,
+    `→ ${ms.toFixed(1)} ms [${samples.map((n) => n.toFixed(1)).join(', ')}]`);
 }
 
 console.log(`\nsocial.test: ${passed} passed, ${failed} failed`);

@@ -5,6 +5,7 @@ import type { PlayerAction, ZoneKind } from '../sim/protocol';
 import type { Rot } from '../world/grid';
 import type { CellXZ } from '../sim/geometry';
 import type { PointerButton } from './pointer';
+import { ignoreGameKey } from './keyboard';
 
 export type Tool =
   | { kind: 'none' }
@@ -20,10 +21,12 @@ export class ToolState {
   private tool: Tool = { kind: 'none' };
   private shiftDown = false;
   onChange: ((tool: Tool) => void) | null = null;
+  onMenuRequest: ((menu: 'build' | 'road' | 'zone') => void) | null = null;
 
   constructor(private sim: Pick<SimClient, 'act'>) {
     if (typeof window === 'undefined') return;
     window.addEventListener('keydown', (e) => {
+      if (ignoreGameKey(e) || e.repeat) return;
       const key = e.key.toLowerCase();
       if (key === 'shift') {
         if (!this.shiftDown) {
@@ -35,20 +38,23 @@ export class ToolState {
       }
       if (key === 'b') {
         e.preventDefault();
-        this.set({ kind: 'place', id: 'cottage', rot: 0 });
+        if (this.onMenuRequest) this.onMenuRequest('build');
+        else this.set({ kind: 'place', id: 'cottage', rot: 0 });
       } else if (key === 'x') {
         e.preventDefault();
         this.set({ kind: 'bulldoze' });
       } else if (key === 'r') {
         e.preventDefault();
-        this.set({ kind: 'road', road: 'rural', from: null });
+        if (this.onMenuRequest) this.onMenuRequest('road');
+        else this.set({ kind: 'road', road: 'rural', from: null });
       } else if (key === 'z') {
         e.preventDefault();
-        this.set({ kind: 'zone', zone: 'R', from: null, erase: this.shiftDown });
+        if (this.onMenuRequest) this.onMenuRequest('zone');
+        else this.set({ kind: 'zone', zone: 'R', from: null, erase: this.shiftDown });
       } else if (key === 'l') {
         e.preventDefault();
         this.set({ kind: 'busLine', stops: [] });
-      } else if (key === 'd') {
+      } else if (key === 'u') {
         e.preventDefault();
         this.set({ kind: 'district', district: 1, from: null, erase: this.shiftDown });
       } else if (key === 'enter' && this.tool.kind === 'busLine') {

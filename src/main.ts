@@ -1,3 +1,5 @@
+import { ignoreGameKey } from './core/keyboard';
+import { installGameLayout } from './ui/layout';
 /**
  * Punto de entrada: ensambla stage (renderer + luz), cámara isométrica jugable,
  * mundo (por chunks) y bucle. La lógica vive en core/ y world/; aquí se conecta.
@@ -28,12 +30,13 @@ import { DAY_GAME_SECONDS } from './sim/clock';
 import { seasonalPaletteBlend, seasonalWarmth, weatherAt } from './sim/weather';
 import { isFestivalDay } from './sim/citizens/activities';
 import { updateTerrainSeason } from './world/render/terrain';
-import { Speed } from './sim/protocol';
+import { Speed, SPEED_MULT } from './sim/protocol';
 import { catalogData } from './world/catalogData';
 import { paintYard } from './world/growth';
 import { CitizenInspector } from './ui/inspector';
 import { Chronicle } from './ui/chronicle';
 import { CityHud } from './ui/cityHud';
+import { NeedsPanel } from './ui/needsPanel';
 import { Toasts } from './ui/toasts';
 import { DevPanel } from './ui/devPanel';
 import { ControlBar } from './ui/controlBar';
@@ -99,6 +102,7 @@ let chronicle: Chronicle | null = null;
 let toasts: Toasts | null = null;
 let inspector: CitizenInspector | null = null;
 let cityHud: CityHud | null = null;
+let needsPanel: NeedsPanel | null = null;
 let devPanel: DevPanel | null = null;
 let controlBar: ControlBar | null = null;
 let budgetPanel: BudgetPanel | null = null;
@@ -247,6 +251,7 @@ function buildRenderAndUi(grid: Grid, worldSeed: number): void {
     }
   };
   window.addEventListener('keydown', (e) => {
+    if (ignoreGameKey(e) || e.repeat) return;
     if (e.key.toLowerCase() === 'v' && !e.repeat && overlayLayer) {
       e.preventDefault();
       overlayIndex = (overlayIndex + 1) % OVERLAY_MODES.length;
@@ -274,11 +279,20 @@ function buildRenderAndUi(grid: Grid, worldSeed: number): void {
   } : { muted: ambientAudio.muted, onToggleMute: () => { ambientAudio.activate(); ambientAudio.toggle(); } });
   ambientAudio.onMuteChange = (muted) => controlBar?.setMuted(muted);
   budgetPanel = new BudgetPanel(sim);
+  needsPanel = new NeedsPanel((action) => {
+    if (action.kind === 'budget') budgetPanel?.setOpen(true);
+    else if (action.kind === 'build') toolbar?.showBuilding(action.itemId);
+    else {
+      centerCameraOn(action.cell);
+      toolState?.set({ kind: 'road', road: 'path', from: null });
+    }
+  });
   // En la partida normal, cuatro pistas no modales acompañan los primeros
   // gestos. El banco de pruebas y las escenas técnicas no las necesitan.
   if (sceneName === null) onboarding = new Onboarding();
   // Panel del banco de pruebas: solo en ?scene=test-dev (fuerza/observa mecánicas).
   if (sceneName === 'test-dev') devPanel = new DevPanel(sim);
+  installGameLayout();
 }
 
 /** Centra la cámara en el centro de masa de la ciudad (para el modo dev, que
@@ -471,6 +485,7 @@ window.addEventListener('resize', () => {
   camera.resize();
 });
 window.addEventListener('keydown', (event) => {
+  if (ignoreGameKey(event) || event.repeat) return;
   if (event.key.toLowerCase() === 'm') {
     event.preventDefault();
     ambientAudio.activate();
@@ -540,8 +555,9 @@ loop.onUpdate((dt) => {
     ambientAudio.update(camera.zoomIndex, h, simClient.population, chatters);
     const hh = String(Math.floor(h)).padStart(2, '0');
     const mm = String(Math.floor((h % 1) * 60)).padStart(2, '0');
-    hud.setStats({ agents: renderedCount, clock: `${hh}:${mm} día ${day} ×${simClient.speed}` });
+    hud.setStats({ agents: renderedCount, clock: `${hh}:${mm} día ${day} ×${SPEED_MULT[simClient.speed]}` });
     cityHud?.update(simClient.city, { day, hour: h, speed: simClient.speed });
+    if (simClient.city) needsPanel?.update(simClient.city.needs);
     budgetPanel?.update(simClient.city);
     controlBar?.update(simClient.speed); // resalta la pastilla de velocidad activa
     toolbar?.update();

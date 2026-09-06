@@ -122,7 +122,7 @@ Historia de la investigación de la sim: `RESEARCH.md`.
 ### 1.10 Puntero y teclas
 - Con herramienta activa el botón izquierdo es de la herramienta (pan: central/derecho +
   WASD); con `none`, todo como antes. **B** construir · **R** vías · **Z** zonas · **X**
-  demoler · **D** distritos · **T** presupuesto · **V** overlays · **Tab** rotar · **Esc**
+  demoler · **U** distritos · **T** presupuesto · **V** overlays · **Tab** rotar · **Esc**
   cancelar (antes que cerrar inspector) · **C** Crónica · **F** seguir · **M** mute ·
   **0-3** velocidad · **F3** rendimiento.
 
@@ -198,11 +198,21 @@ foto, tractores, página itch.io.
 - [~] **H6.4 Build + deploy.** Workflow `.github/workflows/deploy-pages.yml` (suite +
   build + Pages), `base` `/city-bill/` en CI. Primer push el 2026-09-04: suite y build
   verdes en Actions, pero `configure-pages` falló porque Pages no estaba activado en el
-  repo; se añadió `enablement: true` al paso. *Pendiente:* confirmar el run verde (si
-  sigue fallando, activar Pages con fuente "GitHub Actions" en Settings → Pages) y
-  validar la URL en frío (otra máquina/navegador; F3 y consola limpia).
+  repo; se añadió `enablement: true` al paso. La revisión del 2026-09-05 confirma que
+  el último run (33891762322) se detuvo antes del build por tres tests de simulación
+  heredados (H6.7); el log tardó 75 min, no los ~3,5 min que estimaban estas notas.
+  *Pendiente:* suite/Actions verdes y validación pública en frío.
 - [ ] **H6.5 Docs.** README (controles y modos al día, hero actual), CATALOG (tiers
   25/80/200 y entradas de H4/H5), SIMULATION (acciones, patch, save, `AGENT_STRIDE=8`).
+- [~] **H6.6 Usabilidad (ampliación autorizada el 2026-09-04).** Catálogo por categorías
+  con costes, mantenimiento, capacidad y bloqueos; estación accesible; atajos sin
+  conflicto; HUD y paneles adaptables; necesidades priorizadas desde el worker.
+  Implementado: 38/38 archivos de la suite rápida verdes, build limpio y capturas
+  a 1280, 652 y 390 px. Pendiente: cierre de la suite completa y commit.
+- [~] **H6.7 Reconciliar las sondas heredadas de H7.2.** El run 33891762322 falla
+  en tres expectativas antiguas de cuarentena, capacidad fija y dinastías. Sustituir
+  las comparaciones sin control causal por propiedades del sistema, documentar
+  el nuevo límite por tier y validar la suite completa antes de publicar.
 - [ ] **Gate H6:** URL pública recorrida en frío con el usuario + números F3 + suite.
 
 ### 3.4 H7 — El pueblo se ve pueblo *(siguiente)*
@@ -288,6 +298,49 @@ electricidad/agua (descartado salvo decisión nueva) · tren con varias líneas.
 | Scope creep | Nada fuera de §3 sin añadirlo aquí primero |
 
 ## 6. Diario del agente
+
+- 2026-09-06 — **H6.6, integración solicitada por el usuario.** Catálogo de
+  `playerPlaceable` por categorías con precio, mantenimiento, capacidad y estado;
+  estación Zlín accesible; distritos en U, formularios protegidos frente a atajos;
+  HUD principal compacto y paneles adaptables. `CityStats.needs` expone hasta tres
+  prioridades del worker, con causa, impedimento conocido y destino de interfaz.
+  `growthDemandInput` comparte datos con el crecimiento y descuenta escuelas
+  abandonadas. Sin nuevo estado persistente; lectura, guardado y determinismo
+  cubiertos en `cityNeeds.test.ts`. Capturas del 09-05 a 1280×720, 652×820 y
+  390×844: paleta, sombras, variación, márgenes y silueta preservados; catálogo
+  accesible por scroll y controles visibles. Granja 42 de d0 a d3 a ×8: de 3 a 16
+  vecinos, 60 fps/43–49 draw calls en las muestras, consola sin errores. No equivale
+  al playtest largo de H7.4. F3 muestra ahora el multiplicador real y se aparta del
+  botón de necesidades. Build y 38/38 pruebas rápidas verdes el 09-06.
+  Comprobación final del build de producción: arranque limpio y F3 ×8 correcto;
+  muestra de 30 fps/43 draw calls mientras corría la suite larga. Esta comprobación
+  de carga no certifica rendimiento sostenido ni sustituye las medidas anteriores.
+
+- 2026-09-06 — **H6.7, rebase explícito de tres sondas de H7.2 (§0.8).** El último
+  CI de `e6ea82c` reportó cuarentena 141/157 enfermos, poblaciones 370/409/412 y
+  ninguna dinastía a d60. Comparar picos de dos ciudades con urbanismo, población
+  e inmigración divergentes no aísla la cuarentena: `quarantine.test.ts` prueba
+  los mismos contactos con/sin aislamiento, contagio efectivo, sanos y umbral en
+  ambos órdenes del par. Se conserva la sonda de oleadas y supervivencia.
+  `lineage.test.ts` prueba parentesco real frente a coincidencia de apellido,
+  umbral 7/8, evento único, restauración y extinción; se conserva la sonda de
+  nacimientos/herencia, pero no se exige una estirpe de ocho miembros en una fecha
+  fija. La cota poblacional usa K del tier (120/160/260/400), conservando el margen
+  relativo anterior de 1,5; no se modifica la sim para satisfacer estas sondas.
+  Se mantienen dinero, replay, guardado, determinismo y límite de tick. El benchmark
+  social mantiene 25 ms con mediana de cinco muestras calientes y ciudadanos nuevos
+  por muestra; equivalencia con el barrido cuadrático intacta. El runner usa el
+  loader de tsx sin socket IPC y guarda logs completos en el directorio temporal.
+  La ejecución anterior se interrumpió; suite completa reiniciada antes del push.
+
+- 2026-09-04 (Codex, desarrollo continuo autorizado): el usuario pide avanzar
+  sin parar hasta que lo indique, tras la revisión de interfaz, jugabilidad y
+  autonomía. Se prioriza una iteración de usabilidad antes de retomar H7.3;
+  esta instrucción permite continuar entre iteraciones sin solicitar otro gate.
+  Alcance actual: catálogo informativo y estación accesible, atajos sin conflicto,
+  disposición adaptable y diagnóstico de necesidades. No cambia el DONE ni los
+  contratos de simulación. Validación y commit pendientes.
+
 > Fecha, tarea, decisiones no obvias, deuda, conflictos con §1. Entradas anteriores al
 > 2026-09-04: `docs/ROADMAP-HISTORICO.md` §6.
 

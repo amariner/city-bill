@@ -5,6 +5,8 @@
  */
 import * as THREE from 'three';
 import { IsoCamera } from './camera';
+import { ignoreGameKey } from './keyboard';
+import { INK, panelStyle } from '../ui/theme';
 
 export interface DebugStats {
   agents?: number;
@@ -27,15 +29,15 @@ export class DebugHud {
     private stats: DebugStats = {},
   ) {
     this.el = document.createElement('div');
+    this.el.className = 'cb-debug-hud';
     this.el.style.cssText = [
       'position:fixed',
-      'top:8px',
+      'bottom:200px',
       'left:8px',
       'padding:8px 10px',
       'font:11px/1.5 ui-monospace,monospace',
-      'color:#2d3327',
-      'background:rgba(241,239,230,0.82)',
-      'border:1px solid rgba(45,51,39,0.18)',
+      `color:${INK}`,
+      panelStyle(0.92),
       'border-radius:6px',
       'pointer-events:none',
       'white-space:pre',
@@ -45,6 +47,7 @@ export class DebugHud {
     document.body.appendChild(this.el);
 
     window.addEventListener('keydown', (e) => {
+      if (ignoreGameKey(e) || e.repeat) return;
       if (e.key === 'F3' || (e.key === '3' && e.shiftKey)) {
         e.preventDefault();
         this.visible = !this.visible;

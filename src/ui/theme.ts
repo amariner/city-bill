@@ -21,7 +21,7 @@ export const PANEL_SHADOW = `0 1px 6px ${rgba(PALETTE.treeBlob, 0.12)}`;
 export function panelStyle(opacity = 0.92): string {
   return [
     `background:${rgba(PALETTE.houseWall, opacity)}`,
-    `border:${PANEL_BORDER.slice('1px solid '.length)}`,
-    `box-shadow:${PANEL_SHADOW.slice('0 1px 6px '.length)}`,
+    `border:${PANEL_BORDER}`,
+    `box-shadow:${PANEL_SHADOW}`,
   ].join(';');
 }

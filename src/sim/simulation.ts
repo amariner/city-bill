@@ -17,6 +17,7 @@ import { CellXZ, manhattan } from './geometry';
 import { WorldIndex, isUrban } from './worldIndex';
 import type { SimBuilding } from './worldIndex';
 import { coverageRates, COVERAGE_BITS } from './coverage';
+import { cityNeeds } from './cityNeeds';
 import { householdHappiness } from './happiness';
 import { computeLandValue } from './landValue';
 import { Economy, EconomySaveState } from './economy';
@@ -27,7 +28,7 @@ import { ACTIVITY_BY_KIND, SimContext, activityLabel, EDU_PER_HOUR, CLINIC_FEE, 
 import { SocialSystem, SocialSaveState } from './citizens/social';
 import { AgentState, ActivityKind, activityId, AGENT_STRIDE, AlertBit, BUILDING_STRIDE, BUS_STOP_STRIDE, VEHICLE_STRIDE, TravelModeCode, VehicleKindCode, CityStats, CitizenInfoMsg, settlementLevel, SETTLEMENT_CLASSES, PlayerAction, RecordedAction, GrowthPolicy, PublicAutobuildPolicy, BudgetHistoryPoint, RoadKind, DistrictPolicy, DistrictPolicyState, emptyDistrictPolicy } from './protocol';
 import {
-  computeDemands, demandLevels, itemForDemand, findParcel, townCenter, townAttractiveness,
+  DemandInput, computeDemands, demandLevels, itemForDemand, findParcel, townCenter, townAttractiveness,
   householdHardship, updateEmigrationPressure, EMIGRATE_POP_FLOOR, EMIGRATE_PRESSURE_LIMIT,
   extendRoad, GrowthPlacement, carryingCapacityFor, fertilityFactor, growthCenter, residentialVisualId,
   upgradeCandidate, UPGRADE_LAND_VALUE, tierForPopulation,
@@ -1458,7 +1459,7 @@ export class Simulation {
     return item.role !== 'work' || !policy.noIndustry;
   }
 
-  private maybeGrow(): void {
+  private growthDemandInput(): DemandInput {
     const stats = this.economy.stats(this.citizens);
     const shops = this.economy.workplaces.filter((w) => w.building.data.role === 'commerce');
     const coverage = coverageRates(this.index);
@@ -1466,7 +1467,7 @@ export class Simulation {
     for (const s of shops) avgProsperity += this.economy.prosperity.get(`${s.building.ax},${s.building.az}`) ?? 0.5;
     avgProsperity = shops.length > 0 ? avgProsperity / shops.length : 0;
 
-    const demands = computeDemands({
+    return {
       // Para el mercado laboral cuentan los adultos (los niños no son "paro").
       population: stats.adults,
       employed: stats.employed,
@@ -1476,7 +1477,7 @@ export class Simulation {
       avgProsperity,
       tier: this.tier,
       children: [...this.citizens.values()].filter((c) => c.age >= 6 && c.age < 18).length,
-      studentSlots: this.index.buildings.reduce((n, b) => n + (b.data.students ?? 0), 0),
+      studentSlots: this.index.buildings.reduce((n, b) => n + (b.abandoned ? 0 : b.data.students ?? 0), 0),
       avgHealth: this.avgHealth(),
       hasClinic: this.index.buildings.some((b) => b.id === 'clinic' && !b.abandoned),
       totalPopulation: this.citizens.size,
@@ -1485,7 +1486,12 @@ export class Simulation {
       fireCoverage: coverage.fire,
       parkCoverage: coverage.park,
       avgHappiness: this.averageHappiness(),
-    });
+    };
+  }
+
+  private maybeGrow(): void {
+    const input = this.growthDemandInput();
+    const demands = computeDemands(input);
     if (demands.length === 0) return;
     if (this.buildsToday >= MAX_BUILDS_PER_DAY) return;
 
@@ -1497,7 +1503,7 @@ export class Simulation {
     // bloquea la vivienda ni el empleo que vienen detrás.
     let privateBlocked = false;
     for (const demand of demands) {
-      const id = itemForDemand(demand, this.tier, Math.max(0, stats.adults - stats.employed));
+      const id = itemForDemand(demand, this.tier, Math.max(0, input.population - input.employed));
       const it = catalogData(id);
       if (!it) continue;
       const publicService = demand === 'school' || demand === 'clinic' || demand === 'police' || demand === 'fire' || demand === 'park';
@@ -2517,6 +2523,14 @@ export class Simulation {
         .sort(([a], [b]) => a - b)
         .map(([district, policy]) => [district, { ...policy }] as [number, DistrictPolicyState]),
       demand,
+      needs: cityNeeds(this.growthDemandInput(), {
+        treasury: this.economy.treasury,
+        bankrupt: this.economy.bankrupt,
+        publicAutobuild: this.publicAutobuild,
+        growthPolicy: this.growthPolicy,
+        autonomousGrowth: this.autonomousGrowth,
+        abandoned: this.index.buildings.filter((b) => b.abandoned).map((b) => [b.ax, b.az]),
+      }),
       coverage: coverageRates(this.index),
       happiness: this.averageHappiness(),
       avgLandValue: this.averageLandValue(),

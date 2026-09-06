@@ -107,13 +107,19 @@ export class SocialSystem {
         for (let dz = -1; dz <= 1; dz++) {
           const list = buckets.get(bkey(bx + dx, bz + dz));
           if (!list) continue;
-          for (const j of list) if (j > i) cand.push(j);
+          // Filtra antes de ordenar: los nueve buckets son solo una búsqueda
+          // amplia. Ordenar también a quienes quedan fuera del radio multiplica
+          // el coste sin producir relaciones. Conservamos exactamente i<j.
+          for (const j of list) {
+            if (j <= i) continue;
+            const h = all[j].home;
+            if (Math.abs(a.home.ax - h.ax) + Math.abs(a.home.az - h.az) < range) cand.push(j);
+          }
         }
       }
       cand.sort((p, q) => p - q);
       for (const j of cand) {
-        const b = all[j];
-        if (Math.abs(a.home.ax - b.home.ax) + Math.abs(a.home.az - b.home.az) < range) SocialSystem.acquaint(a, b);
+        SocialSystem.acquaint(a, all[j]);
       }
     }
   }

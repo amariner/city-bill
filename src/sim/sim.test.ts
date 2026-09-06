@@ -21,7 +21,7 @@ import { maybeInfect, sickenTick, SICK_ONSET } from './contagion';
 import { chatBond } from './citizens/social';
 import { sickStayIn } from './citizens/activities';
 import { chronicleText, summarizeYear, compactChronicle, ChronEvent, isLegacyDeath } from '../ui/chronicle';
-import { townAttractiveness, householdHardship, updateEmigrationPressure, EMIGRATE_PRESSURE_LIMIT, computeDemand, DemandInput, fertilityFactor, CARRYING_CAPACITY } from '../world/growth';
+import { townAttractiveness, householdHardship, updateEmigrationPressure, EMIGRATE_PRESSURE_LIMIT, computeDemand, DemandInput, fertilityFactor, CARRYING_CAPACITY, carryingCapacityFor } from '../world/growth';
 import { ACTIVITY_BY_KIND, SimContext } from './citizens/activities';
 import { settlementClass } from './protocol';
 import { Weather } from './weather';
@@ -895,23 +895,10 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
   check('cuarentena: un sano sale con normalidad', sickStayIn(ctxOn, mk(0)) === 1);
   check('cuarentena: con el modo apagado, el enfermo sale igual (para medir)', sickStayIn(ctxOff, mk(0.9)) === 1);
 
-  // (b) Emergencia integrada A/B (misma semilla): la cuarentena APLANA la curva —
-  //     el pico de enfermos simultáneos es mucho menor que sin ella.
-  const peakOf = (q: boolean): number => {
-    const sim = new Simulation(seedWorld(), 42);
-    sim.quarantine = q;
-    sim.vaccination = false; // aísla el efecto de la cuarentena (sin inmunidad de rebaño)
-    let peak = 0;
-    for (let t = 0; t < TICKS_PER_DAY * 50; t++) {
-      sim.step();
-      let s = 0; for (const c of sim.citizens.values()) if (c.sick > 0.1) s++;
-      peak = Math.max(peak, s);
-    }
-    return peak;
-  };
-  const peakOn = peakOf(true);
-  const peakOff = peakOf(false);
-  check('cuarentena: aplana la curva (pico mucho menor que sin ella)', peakOn < peakOff * 0.6, `→ con ${peakOn} vs sin ${peakOff}`);
+  // El acoplamiento social → contagio se verifica con los mismos contactos en
+  // quarantine.test.ts. Comparar dos ciudades divergentes durante 50 días no
+  // aísla la cuarentena: cambia población, urbanismo e inmigración (H7.2).
+
 }
 
 // Ciclo 27 RESEARCH.md — SALUD PÚBLICA (gobierno↔contagio): en una epidemia
@@ -1007,14 +994,17 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
   //     sobreimpulso transitorio mueve las cifras exactas (los números finos, ya
   //     validados sobre 8 semillas, viven en RESEARCH §4); el test solo debe
   //     cazar una REGRESIÓN al caos, no clavar una trayectoria.
-  const popAt = (seed: number, days: number): number => {
+  const popAt = (seed: number, days: number): { population: number; capacity: number } => {
     const sim = new Simulation(seedWorld(), seed);
     for (let t = 0; t < TICKS_PER_DAY * days; t++) sim.step();
-    return sim.citizens.size;
+    return { population: sim.citizens.size, capacity: carryingCapacityFor(sim.tier) };
   };
   const seeds = [42, 7, 500];
-  const pops = seeds.map((s) => popAt(s, 40));
-  check('capacidad: las semillas antes explosivas quedan ACOTADAS (no cientos)', pops.every((p) => p <= CARRYING_CAPACITY * 1.5), `→ ${pops.join(', ')} (baseline 51/307/353)`);
+  const towns = seeds.map((s) => popAt(s, 40));
+  const pops = towns.map((town) => town.population);
+  // H7.2 sustituye K=120 por mesetas 120/160/260/400. Mismo margen de
+  // sobreimpulso, aplicado al techo efectivo alcanzado por cada ciudad.
+  check('capacidad: la población queda acotada por el techo de su tier', towns.every((town) => town.population <= town.capacity * 1.5), `→ ${towns.map((town) => `${town.population}/K${town.capacity}`).join(', ')}`);
   check('capacidad: la varianza CAE (rango ≪ 331 del baseline caótico)', Math.max(...pops) - Math.min(...pops) < 160, `→ rango ${Math.min(...pops)}–${Math.max(...pops)}`);
   check('capacidad: el pueblo sigue VIVO (crece desde el puñado inicial)', pops[0] >= 25, `→ seed42 ${pops[0]} hab.`);
 }
@@ -1381,21 +1371,11 @@ check('T3.7: hay charlas emergentes', r.chats > 0, `→ ${r.chats}`);
   check('crónica: la dinastía se narra con su tamaño',
     chronicleText('dynastyRose', { surname: 'Novák', members: 9, founder: 'Vera Novák' }) === 'la familia Novák echa raíces: 9 descendientes vivos');
 
-  // Emergente: en un pueblo con generaciones, alguna estirpe cruza el umbral y la
-  // Crónica la reconoce UNA sola vez (por tronco).
-  const sim = new Simulation(seedWorld(), 42);
-  const dynasties: Array<Record<string, unknown>> = [];
-  for (let t = 0; t < TICKS_PER_DAY * 60; t++) {
-    sim.step();
-    for (const e of sim.takeEvents()) if (e.name === 'dynastyRose') dynasties.push(e.data);
-  }
-  check('dinastía: emerge una estirpe afianzada (descendencia real, largo plazo)',
-    dynasties.length > 0, `→ ${dynasties.length} dinastías`);
-  check('dinastía: el hito reporta descendencia por encima del umbral',
-    dynasties.every((d) => (d.members as number) >= 8), `→ tamaños ${dynasties.map((d) => d.members).join(',')}`);
-  const lines = dynasties.map((d) => d.line);
-  check('dinastía: cada tronco se reconoce UNA vez (sin repetir)',
-    new Set(lines).size === lines.length);
+  // lineage.test.ts verifica el reconocimiento con descendientes conocidos,
+  // la identidad del tronco, los límites 7/8, la persistencia y la extinción.
+  // H7.2 aporta inmigrantes independientes: ninguna semilla está obligada a
+  // producir ocho descendientes de una sola estirpe antes de un día fijo.
+
 }
 
 // Ciclo 44 RESEARCH.md — EXTINCIÓN DE ESTIRPE: el arco completo de una familia. Tras

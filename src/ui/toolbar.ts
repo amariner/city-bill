@@ -1,18 +1,15 @@
 /** Toolbar mínima del jugador: selecciona herramientas, no contiene lógica de sim. */
 import { PALETTE } from '../palette';
 import { SimClient } from '../sim/client';
-import { CATALOG_ITEMS, CatalogItem } from '../world/catalog';
+import type { CatalogItemData } from '../world/catalogData';
+import { BUILD_CATEGORIES, type BuildCategory, buildCategory, playerCatalog, buildAvailability, buildingBenefit, money } from './buildCatalog';
 import { ToolState } from '../core/tools';
+import { ignoreGameKey } from '../core/keyboard';
 import { ROAD_SPECS } from '../world/roads';
 import type { RoadKind, ZoneKind } from '../sim/protocol';
 import { css, INK, PANEL_BG, PANEL_BORDER, PANEL_SHADOW, rgba } from './theme';
 
 const STYLE_ID = 'city-bill-toolbar-style';
-
-/** Naturaleza e infraestructura se reservan a la simulación / futuras herramientas. */
-function playerPlaceable(item: CatalogItem): boolean {
-  return item.role !== 'nature' && item.role !== 'infra';
-}
 
 const ROAD_TIERS: Record<RoadKind, number> = { path: 0, rural: 1, street: 2, avenue: 3 };
 const ROAD_LABELS: Record<RoadKind, string> = { path: 'sendero', rural: 'vía rural', street: 'calle', avenue: 'avenida' };
@@ -40,6 +37,9 @@ export class Toolbar {
   private catalogSignature = '';
   private roadSignature = '';
   private roadCost: number | null = null;
+  private category: BuildCategory = 'services';
+  private catalogCards = new Map<string, { item: CatalogItemData; button: HTMLButtonElement; status: HTMLSpanElement }>();
+  private catalogMoneySignature = '';
 
   constructor(private sim: SimClient, private tools: ToolState) {
     this.injectStyle();
@@ -71,7 +71,7 @@ export class Toolbar {
       this.tools.set({ kind: 'busLine', stops: [] });
       this.update();
     });
-    this.districtButton = this.actionButton('▤ distritos', 'D · pintar y gobernar distritos', () => {
+    this.districtButton = this.actionButton('▤ distritos', 'U · pintar y gobernar distritos', () => {
       this.menuOpen = false;
       this.menu.style.display = 'none';
       this.roadMenuOpen = false;
@@ -113,7 +113,8 @@ export class Toolbar {
     this.root.appendChild(demand);
 
     this.menu = document.createElement('div');
-    this.menu.className = 'cb-toolbar-menu';
+    this.menu.className = 'cb-toolbar-menu cb-build-menu';
+    this.menu.setAttribute('aria-label', 'Catálogo de construcción');
     this.menu.style.display = 'none';
     this.root.appendChild(this.menu);
 
@@ -134,19 +135,30 @@ export class Toolbar {
     this.root.appendChild(footer);
     document.body.appendChild(this.root);
     this.rebuildZoneMenu();
+    tools.onMenuRequest = (menu) => {
+      if (menu === 'build') this.toggleMenu();
+      else if (menu === 'road') this.toggleRoadMenu();
+      else this.toggleZoneMenu();
+    };
+    window.addEventListener('keydown', (event) => {
+      if (ignoreGameKey(event) || event.key !== 'Escape') return;
+      this.menuOpen = this.roadMenuOpen = this.zoneMenuOpen = false;
+      this.menu.style.display = this.roadMenu.style.display = this.zoneMenu.style.display = 'none';
+    });
     this.update();
   }
 
   /** Actualiza desbloqueos y estado activo; la firma evita reconstruir el menú cada frame. */
   update(): void {
     const tier = this.sim.city?.tier ?? 1;
-    const available = CATALOG_ITEMS.filter((item) => playerPlaceable(item) && item.tier <= tier);
+    const available = playerCatalog();
     const roads = (Object.keys(ROAD_SPECS) as RoadKind[]).filter((road) => ROAD_TIERS[road] <= tier);
-    const signature = `${tier}:${available.map((item) => item.id).join(',')}`;
+    const signature = this.category;
     if (signature !== this.catalogSignature) {
       this.catalogSignature = signature;
-      this.rebuildMenu(available);
+      this.rebuildMenu(playerCatalog(this.category));
     }
+    this.updateCatalogAvailability();
     const roadSignature = `${tier}:${roads.join(',')}:rail=${tier >= 4}`;
     if (roadSignature !== this.roadSignature) {
       this.roadSignature = roadSignature;
@@ -183,17 +195,48 @@ export class Toolbar {
         : active.kind === 'bulldoze' ? 'demoler · Esc cancela' : 'B construir · R vías · X demoler';
   }
 
-  private rebuildMenu(items: CatalogItem[]): void {
+  private rebuildMenu(items: CatalogItemData[]): void {
     this.menu.replaceChildren();
+    this.catalogCards.clear();
+    this.catalogMoneySignature = '';
     const title = document.createElement('div');
     title.className = 'cb-toolbar-title';
-    title.textContent = 'edificios disponibles';
+    title.textContent = 'Construir en tu ciudad';
     this.menu.appendChild(title);
+    const categories = document.createElement('div');
+    categories.className = 'cb-build-categories';
+    for (const [category, label] of BUILD_CATEGORIES) {
+      const tab = document.createElement('button');
+      tab.textContent = label;
+      tab.setAttribute('aria-pressed', String(category === this.category));
+      tab.onclick = () => {
+        this.category = category;
+        this.update();
+        this.menu.querySelector<HTMLButtonElement>('[aria-pressed="true"]')?.focus();
+      };
+      categories.appendChild(tab);
+    }
+    this.menu.appendChild(categories);
+    const cards = document.createElement('div');
+    cards.className = 'cb-build-cards';
+    this.menu.appendChild(cards);
     for (const item of items) {
       const button = document.createElement('button');
-      button.className = 'cb-building-option';
-      button.textContent = `${item.name} · T${item.tier}`;
-      button.title = `${item.name} · ${item.w}×${item.d} celdas`;
+      button.className = 'cb-building-option cb-build-card';
+      button.title = `${item.name} · ${item.w * 2}×${item.d * 2} m`;
+      const name = document.createElement('strong');
+      name.textContent = item.name;
+      const cost = document.createElement('span');
+      cost.className = 'cb-build-cost';
+      cost.textContent = money(item.cost ?? 0);
+      const upkeep = document.createElement('span');
+      upkeep.textContent = `${money(item.upkeepPerDay ?? 0)} / día de mantenimiento`;
+      const benefit = document.createElement('span');
+      benefit.textContent = buildingBenefit(item);
+      const status = document.createElement('span');
+      status.className = 'cb-build-status';
+      button.append(name, cost, upkeep, benefit, status);
+      this.catalogCards.set(item.id, { item, button, status });
       button.addEventListener('click', (event) => {
         event.stopPropagation();
         this.tools.set({ kind: 'place', id: item.id, rot: 0 });
@@ -201,7 +244,19 @@ export class Toolbar {
         this.menu.style.display = 'none';
         this.update();
       });
-      this.menu.appendChild(button);
+      cards.appendChild(button);
+    }
+  }
+
+  private updateCatalogAvailability(): void {
+    const city = this.sim.city;
+    const signature = `${city?.tier}|${Math.floor(city?.treasury ?? 0)}|${city?.bankrupt}`;
+    if (signature === this.catalogMoneySignature) return;
+    this.catalogMoneySignature = signature;
+    for (const { item, button, status } of this.catalogCards.values()) {
+      const reason = city ? buildAvailability(item, city.tier, city.treasury, city.bankrupt) : 'Cargando presupuesto…';
+      button.disabled = reason !== null;
+      status.textContent = reason ?? 'Seleccionar ubicación →';
     }
   }
 
@@ -263,6 +318,18 @@ export class Toolbar {
     }
   }
 
+  /** Abre la ficha recomendada sin gastar dinero ni colocar todavía. */
+  showBuilding(itemId: string): void {
+    const item = playerCatalog().find((entry) => entry.id === itemId);
+    if (!item) return;
+    this.category = buildCategory(item);
+    this.menuOpen = false;
+    this.toggleMenu();
+    const card = this.catalogCards.get(itemId)?.button;
+    card?.scrollIntoView({ block: 'nearest' });
+    card?.focus({ preventScroll: true });
+  }
+
   /** Recibe el coste calculado por el mismo preview que usará el worker. */
   setRoadCost(cost: number | null): void {
     if (this.roadCost === cost) return;
@@ -272,7 +339,7 @@ export class Toolbar {
 
   private toggleMenu(): void {
     this.menuOpen = !this.menuOpen;
-    this.menu.style.display = this.menuOpen ? 'grid' : 'none';
+    this.menu.style.display = this.menuOpen ? 'flex' : 'none';
     this.roadMenuOpen = false;
     this.roadMenu.style.display = 'none';
     this.zoneMenuOpen = false;
@@ -340,10 +407,22 @@ export class Toolbar {
 .cb-tool-button:active,.cb-building-option:active{transform:translateY(1px)}
 .cb-tool-button.cb-tool-active{background:${rgba(PALETTE.grass, 0.62)};border-color:${css(PALETTE.ghostOk)};
   box-shadow:inset 0 -2px 0 ${css(PALETTE.ghostOk)}}
-.cb-toolbar-menu{grid-template-columns:repeat(2,minmax(135px,1fr));gap:4px;padding:7px;
+.cb-toolbar-menu{order:-1;grid-template-columns:repeat(2,minmax(135px,1fr));gap:4px;padding:7px;
   max-height:250px;overflow:auto;border-radius:10px;background:${PANEL_BG};border:${PANEL_BORDER};box-shadow:${PANEL_SHADOW}}
 .cb-toolbar-title{grid-column:1/-1;font-size:9px;letter-spacing:.08em;text-transform:uppercase;opacity:.55;padding:1px 3px 3px}
 .cb-building-option{padding:6px 7px;text-align:left;font-size:10px;white-space:nowrap}
+.cb-build-menu{display:flex;flex-direction:column;width:420px;max-width:calc(100vw - 40px);max-height:none;box-sizing:border-box;gap:10px;padding:14px}
+.cb-build-menu .cb-toolbar-title{font:600 14px/1.3 system-ui,sans-serif;opacity:1;letter-spacing:0;text-transform:none}
+.cb-build-categories{display:flex;gap:4px;flex-wrap:wrap}
+.cb-build-categories button{flex:1;padding:7px 8px;font:12px system-ui,sans-serif;border:${PANEL_BORDER};border-radius:6px;background:transparent;color:${INK};cursor:pointer}
+.cb-build-categories button[aria-pressed=true]{background:${rgba(PALETTE.grass,0.45)};font-weight:600}
+.cb-build-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;max-height:min(330px,40vh);overflow-y:auto}
+.cb-build-card{display:flex;flex-direction:column;gap:5px;padding:12px;white-space:normal;font:11px/1.35 system-ui,sans-serif}
+.cb-build-card strong{font-size:13px}.cb-build-cost{font-size:16px;font-weight:650}
+.cb-build-status{margin-top:auto;padding-top:5px;font-size:11px;font-weight:600;color:${css(PALETTE.treeBlob)}}
+.cb-build-card:disabled{cursor:default;background:${rgba(PALETTE.houseWall,0.35)}}
+.cb-build-card:disabled .cb-build-status{color:${css(PALETTE.signRed)}}
+.cb-building-option:focus-visible,.cb-tool-button:focus-visible,.cb-build-categories button:focus-visible{outline:2px solid ${css(PALETTE.selectRing)};outline-offset:2px}
 .cb-toolbar-footer{padding:3px 9px;border-radius:7px;background:${rgba(PALETTE.houseWall, 0.82)};
   border:1px solid ${rgba(PALETTE.treeBlob, 0.12)};font-size:10px;opacity:.82}
 .cb-demand{width:100%;box-sizing:border-box;padding:5px 9px 6px;border-radius:8px;background:${rgba(PALETTE.houseWall, 0.82)};

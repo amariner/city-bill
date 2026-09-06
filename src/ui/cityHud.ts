@@ -11,7 +11,7 @@
  */
 import { PALETTE } from '../palette';
 import { CityStats, Speed, settlementClass } from '../sim/protocol';
-import { css, INK, panelStyle } from './theme';
+import { css, INK, PANEL_BG, PANEL_BORDER, PANEL_SHADOW, rgba } from './theme';
 
 const ALERT = css(PALETTE.signRed);
 const WARN = css(PALETTE.signYellow);
@@ -41,23 +41,32 @@ export class CityHud {
 
   constructor() {
     this.el = document.createElement('div');
-    this.el.style.cssText = [
-      'position:fixed',
-      'top:10px',
-      'left:50%',
-      'transform:translateX(-50%)',
-      'display:flex',
-      'gap:18px',
-      'align-items:center',
-      'padding:7px 16px',
-      'font:12px/1.2 ui-monospace,monospace',
-      `color:${INK}`,
-      panelStyle(0.9),
-      'border-radius:10px',
-      'pointer-events:none',
-      'z-index:10',
-      'white-space:nowrap',
-    ].join(';');
+    this.el.className = 'cb-city-hud';
+    this.el.setAttribute('aria-label', 'Estado de la ciudad');
+    const primary = document.createElement('div');
+    primary.className = 'cb-city-primary';
+    const details = document.createElement('details');
+    details.className = 'cb-city-details';
+    const toggle = document.createElement('summary');
+    toggle.textContent = 'Más datos';
+    const secondary = document.createElement('div');
+    secondary.className = 'cb-city-secondary';
+    details.append(toggle, secondary);
+    this.el.append(primary, details);
+    const style = document.createElement('style');
+    style.textContent = `
+.cb-city-hud{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:18;display:flex;align-items:center;gap:16px;
+  max-width:calc(100vw - 24px);box-sizing:border-box;padding:10px 16px;color:${INK};background:${PANEL_BG};border:${PANEL_BORDER};
+  box-shadow:${PANEL_SHADOW};border-radius:12px;font:12px/1.3 system-ui,sans-serif}
+.cb-city-primary{display:flex;gap:22px;align-items:center}.cb-city-hud summary{cursor:pointer;white-space:nowrap;font-size:12px}
+.cb-city-secondary{position:absolute;top:calc(100% + 8px);left:0;right:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;
+  padding:18px;background:${rgba(PALETTE.houseWall,0.98)};border:${PANEL_BORDER};border-radius:12px;box-shadow:${PANEL_SHADOW}}
+.cb-city-secondary span{white-space:normal;text-align:center}
+.cb-city-hud summary:focus-visible{outline:2px solid ${css(PALETTE.selectRing)};outline-offset:4px}
+@media(max-width:900px){.cb-city-hud{width:calc(100vw - 24px);justify-content:space-between;gap:10px;padding:9px 12px}.cb-city-primary{flex:1;justify-content:space-between;gap:10px}}
+@media(max-width:430px){.cb-city-primary{gap:8px;flex-wrap:wrap}.cb-city-hud{align-items:flex-start}.cb-city-primary>div{min-width:40%}.cb-city-hud summary{padding-top:6px}}
+`;
+    document.head.appendChild(style);
     document.body.appendChild(this.el);
 
     for (const key of ['time', 'pop', 'treasury', 'jobless', 'season', 'granary', 'health', 'happiness', 'congestion', 'bus', 'district', 'wealth', 'abandoned']) {
@@ -69,7 +78,7 @@ export class CityHud {
       value.style.cssText = 'font-size:13px;font-weight:600';
       root.appendChild(label);
       root.appendChild(value);
-      this.el.appendChild(root);
+      (['time', 'pop', 'treasury', 'happiness'].includes(key) ? primary : secondary).appendChild(root);
       this.chips[key] = { label, value, root };
       if (key === 'abandoned' || key === 'bus' || key === 'district') root.style.display = 'none';
     }
